@@ -604,6 +604,196 @@ QFrame#glowCard {
 }
 """
 
+# ==================== LIGHT THEME ====================
+LIGHT_COLORS = {
+    # Backgrounds - Clean whites and grays
+    'bg_app': '#f8fafc',
+    'bg_panel': '#ffffff',
+    'bg_card': '#ffffff',
+    'bg_card_hover': '#f1f5f9',
+    'bg_input': '#f1f5f9',
+    'bg_sidebar': '#ffffff',
+    'bg_dark': '#e2e8f0',
+    'bg_secondary': '#f1f5f9',
+    
+    # Primary - Vibrant Purple/Indigo
+    'primary': '#7c3aed',
+    'primary_hover': '#6d28d9',
+    'primary_light': '#8b5cf6',
+    'primary_glow': 'rgba(124, 58, 237, 0.2)',
+    
+    # Accent - Cyan/Teal
+    'accent': '#0891b2',
+    'accent_hover': '#0e7490',
+    'accent_light': '#06b6d4',
+    
+    # Semantic Colors
+    'success': '#059669',
+    'success_bg': 'rgba(5, 150, 105, 0.1)',
+    'warning': '#d97706',
+    'warning_bg': 'rgba(217, 119, 6, 0.1)',
+    'danger': '#dc2626',
+    'danger_bg': 'rgba(220, 38, 38, 0.1)',
+    
+    # Text
+    'text_primary': '#0f172a',
+    'text_secondary': '#475569',
+    'text_muted': '#94a3b8',
+    'text_disabled': '#cbd5e1',
+    
+    # Borders & Dividers
+    'border': '#e2e8f0',
+    'border_light': '#f1f5f9',
+    'divider': '#e2e8f0',
+}
+
+LIGHT_THEME = """
+/* ========== LIGHT THEME ========== */
+QWidget {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, sans-serif;
+    font-size: 14px;
+    selection-background-color: #7c3aed;
+    selection-color: white;
+}
+
+QMainWindow {
+    background-color: #f8fafc;
+}
+
+QLabel {
+    color: #0f172a;
+    border: none;
+    background: transparent;
+}
+
+QLabel#title, QLabel#pageTitle {
+    color: #0f172a;
+}
+
+QLabel#subtitle {
+    color: #475569;
+}
+
+QFrame#card {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+}
+
+QFrame#sidebar {
+    background-color: #ffffff;
+    border-right: 1px solid #e2e8f0;
+}
+
+QPushButton {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    color: #0f172a;
+    padding: 12px 20px;
+    font-weight: 600;
+}
+
+QPushButton:hover {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+QPushButton#primary, QPushButton#primaryButton {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #7c3aed, stop:1 #6d28d9);
+    border: none;
+    color: white;
+}
+
+QPushButton#navButton {
+    background-color: transparent;
+    border: none;
+    color: #475569;
+    text-align: left;
+}
+
+QPushButton#navButton:checked {
+    background-color: #f1f5f9;
+    color: #7c3aed;
+}
+
+QLineEdit, QTextEdit {
+    background-color: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #0f172a;
+    padding: 10px 14px;
+}
+
+QLineEdit:focus, QTextEdit:focus {
+    border-color: #7c3aed;
+}
+
+QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+QScrollBar:vertical {
+    background-color: #f1f5f9;
+    width: 10px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #cbd5e1;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #94a3b8;
+}
+
+QComboBox {
+    background-color: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #0f172a;
+    padding: 10px;
+}
+
+QComboBox:hover {
+    border-color: #7c3aed;
+}
+
+QComboBox::drop-down {
+    border: none;
+    padding-right: 10px;
+}
+
+QProgressBar {
+    background-color: #e2e8f0;
+    border-radius: 4px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: #7c3aed;
+    border-radius: 4px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid #cbd5e1;
+    background-color: #ffffff;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #7c3aed;
+    border-color: #7c3aed;
+}
+"""
+
 # ==================== ICONS (Emoji based for now) ====================
 ICONS = {
     'camera_on': '📹',
@@ -646,7 +836,57 @@ ICONS = {
     'star': '⭐',
     'fire': '🔥',
     'sparkle': '✨',
+    # New icons for features
+    'voice': '🔊',
+    'mute': '🔇',
+    'language': '🌍',
+    'tutorial': '📚',
+    'library': '📖',
+    'analytics': '📊',
+    'achievement': '🏆',
+    'streak': '🔥',
+    'conversation': '💬',
+    'export': '📤',
+    'calibrate': '🎯',
+    'accessibility': '♿',
+    'theme': '🎨',
 }
+
+# ==================== THEME MANAGER ====================
+class ThemeManager:
+    """Manages application themes."""
+    
+    _current_theme = "dark"
+    
+    @classmethod
+    def get_theme(cls) -> str:
+        """Get current theme stylesheet."""
+        if cls._current_theme == "light":
+            return LIGHT_THEME
+        return DARK_THEME
+    
+    @classmethod
+    def get_colors(cls) -> dict:
+        """Get current theme colors."""
+        if cls._current_theme == "light":
+            return LIGHT_COLORS
+        return COLORS
+    
+    @classmethod
+    def set_theme(cls, theme: str):
+        """Set the current theme."""
+        cls._current_theme = theme if theme in ["dark", "light"] else "dark"
+    
+    @classmethod
+    def toggle_theme(cls) -> str:
+        """Toggle between dark and light theme."""
+        cls._current_theme = "light" if cls._current_theme == "dark" else "dark"
+        return cls._current_theme
+    
+    @classmethod
+    def is_dark(cls) -> bool:
+        """Check if current theme is dark."""
+        return cls._current_theme == "dark"
 
 # ==================== ANIMATION HELPERS ====================
 def get_fade_in_style():
@@ -665,3 +905,23 @@ def get_glow_effect_style(color='#8b5cf6'):
             background-color: rgba(139, 92, 246, 0.05);
         }}
     """
+
+# ==================== ACCESSIBILITY HELPERS ====================
+def get_high_contrast_adjustments() -> str:
+    """Get high contrast mode adjustments."""
+    return """
+        QLabel { color: #ffffff; }
+        QFrame#card { border-width: 2px; border-color: #ffffff; }
+        QPushButton { border-width: 2px; }
+    """
+
+def get_large_text_adjustments() -> str:
+    """Get large text mode adjustments."""
+    return """
+        QLabel { font-size: 16px; }
+        QLabel#title { font-size: 28px; }
+        QLabel#subtitle { font-size: 16px; }
+        QPushButton { font-size: 16px; padding: 14px 24px; }
+        QLineEdit { font-size: 16px; }
+    """
+

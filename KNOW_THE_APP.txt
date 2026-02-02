@@ -1,53 +1,394 @@
-app name: sign language detector v2.1
+=====================================================
+SIGN LANGUAGE DETECTOR v3.0 - COMPLETE README
+=====================================================
+Read this before using the app!
+=====================================================
 
-what is this:
-basically a python app that sees your hands and tells you what you're saying in sign language.
-works with your webcam or you can upload a video file.
-supports american sign language (asl) alphabets and some dynamic gestures like waving.
 
-cool stuff it does:
+=====================================================
+WHAT IS THIS APP?
+=====================================================
+
+A Python application that watches your hands through 
+your webcam and translates sign language into text.
+
+Works with:
+- Live webcam feed
+- Uploaded video files
+- Supports American Sign Language (ASL)
+- Now with voice output, themes, and lots more!
+
+
+=====================================================
+⚠️ BEFORE YOU START - INSTALL THESE FIRST! ⚠️
+=====================================================
+
+STEP 1: Make sure you have Python installed
+-----------------------------------------
+You need Python 3.8 or higher.
+Check by typing in terminal: python --version
+
+If not installed, download from: https://python.org
+
+
+STEP 2: Install all required packages
+------------------------------------
+Open terminal/command prompt in the project folder and run:
+
+    pip install -r requirements.txt
+
+This will install:
+- PySide6 (for the app windows and buttons)
+- opencv-python (for camera and image processing)
+- mediapipe (for hand tracking)
+- scikit-learn (for machine learning)
+- numpy (for math calculations)
+- pyttsx3 (for voice/speech output)
+- pyperclip (for copy/paste)
+- reportlab (for PDF export)
+
+
+STEP 3: Download MediaPipe models (if missing)
+---------------------------------------------
+The app needs these files in the "models/" folder:
+- hand_landmarker.task
+- face_landmarker.task
+
+If missing, download from:
+https://storage.googleapis.com/mediapipe-models/
+
+
+STEP 4: Run the app!
+-------------------
+    python main.py
+
+
+=====================================================
+QUICK INSTALL (COPY-PASTE THIS)
+=====================================================
+
+For Windows:
+    pip install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab
+
+For Mac/Linux:
+    pip3 install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab
+
+
+=====================================================
+CORE FEATURES
+=====================================================
+
+hand tracking & recognition:
 - tracks your hands in real-time (uses mediapipe)
+- now supports TWO-HAND gestures (for signs that need both hands)
 - tells you what letter you're signing (uses random forest ml model)
 - reads your face too and tells you if you look happy, sad, angry etc
-- works with uploaded videos:
-  - supports mp4, avi, mov, mkv, webm
-  - tracks hands properly now (no jittery mess) because we used video mode
-  - lower thresholds for videos so it catches blurry hands better
-  - has fallback geometry detection if the ML model gets confused
-- translates sentences:
-  - type out full sentences by signing letter by letter
-  - waits for you to finish then auto-translates
+- hybrid mode: recognizes both letters AND dynamic gestures at the same time
+
+video file support:
+- supports mp4, avi, mov, mkv, webm
+- tracks hands properly now (no jittery mess) because we used video mode
+- lower thresholds for videos so it catches blurry hands better
+- has fallback geometry detection if the ML model gets confused
+
+translation engine:
+- translates sentences: type out full sentences by signing letter by letter
+- three modes: instant (each letter), word (builds words), sentence (builds sentences)
+- auto-translate when you pause signing
 - saves your history so you can see what you said later
-- secure login/signup system (uses local sqlite db)
-- dark mode ui that looks actually decent (pyside6/qt)
-- new hybrid mode: recognizes both letters AND dynamic gestures at the same time (best for normal signing)
 
-tech stack:
-- python 3.x
-- pyside6 (for the gui)
-- opencv (to see stuff)
-- mediapipe (to track hands and face)
-- scikit-learn (for the smarts)
-- sqlite (to save stuff)
 
-how to run:
-python main.py
+=====================================================
+NEW FEATURES (v3.0)
+=====================================================
 
-folder structure:
-main.py -> start here
-config.py -> settings like camera id and thresholds
-backend/ -> database stuff
-detector/ -> all the computer vision magic (camera, hand tracking, face detect)
-ml/ -> machine learning stuff (classifier, trainer)
-ui/ -> all the windows and widgets
-models/ -> where the trained brain lives
-data/ -> training images
+🔊 VOICE OUTPUT - App can speak your translations out loud
+🌍 MULTI-LANGUAGE - Supports ASL, BSL, ISL, and more
+✨ AUTOCORRECT - Fixes common signing mistakes automatically
+📤 EXPORT - Save translations as PDF, text, subtitles, etc.
+📊 ACHIEVEMENTS - Earn badges as you practice
+🎓 TUTORIAL - Learn sign language with lessons
+📖 LIBRARY - Search any sign in the dictionary
+💬 CONVERSATION - Two-way chat mode
+🎨 THEMES - Light and dark mode
+⚙️ SETTINGS - Customize everything
 
-dev notes:
-- the hand tracker for video files uses timestamps now, so it knows "frame 2 comes after frame 1" which makes tracking way smoother.
-- we added a "heuristic classifier" which basically just checks finger positions with math properties. it's super reliable for simple stuff like pointing or fists.
-- the video player connects to the same prediction logic as the camera, so everything works the same way.
-- auto-translate timeout is configurable in config.py if you sign too slow or fast.
 
-credits:
-built by a very tired developer.
+=====================================================
+EVERY FILE EXPLAINED (WHAT EACH .PY FILE DOES)
+=====================================================
+
+MAIN FILES
+----------
+main.py
+    The starting point. Run this to open the app.
+
+config.py
+    All settings in one place - camera ID, voice speed, colors, etc.
+
+
+BACKEND FOLDER (backend/)
+-------------------------
+backend/__init__.py
+    Just marks this as a Python package. Does nothing else.
+
+backend/services/db.py
+    Handles the database - saves users, login info, and translation history.
+
+
+CORE FOLDER (core/) - The Brain
+-------------------------------
+core/__init__.py
+    Just marks this as a Python package.
+
+core/pipeline.py
+    The main controller that connects camera → detection → translation together.
+
+core/gesture_sequence.py
+    Stores information about each gesture (what sign, how confident, when).
+
+core/sentence_constructor.py
+    Combines letters into words, and words into sentences.
+
+core/temporal_aggregator.py
+    Checks multiple video frames to make sure the detected sign is correct.
+
+core/sign_vocabulary.py
+    Dictionary of all known signs and what they mean.
+
+core/text_to_sign.py
+    Reverse translation - converts typed text into sign instructions.
+
+core/voice_output.py
+    Makes the computer speak the translations out loud.
+
+core/language_support.py
+    Handles different sign languages (ASL, BSL, ISL, etc.).
+
+core/autocorrect.py
+    Fixes spelling mistakes from similar-looking signs.
+
+core/export_manager.py
+    Saves translations to files (PDF, text, subtitles, etc.).
+
+core/analytics.py
+    Tracks how much you use the app and gives achievement badges.
+
+
+DETECTOR FOLDER (detector/) - The Eyes
+--------------------------------------
+detector/__init__.py
+    Just marks this as a Python package.
+
+detector/camera.py
+    Opens your webcam and gets video frames.
+
+detector/hand_tracker.py
+    Finds hands in the video and marks 21 points on each hand.
+
+detector/face_detector.py
+    Finds your face and detects emotions (happy, sad, etc.).
+
+detector/features.py
+    Calculates finger angles, distances, and other measurements.
+
+detector/dynamic_gestures.py
+    Detects moving gestures like waving.
+
+detector/video_source.py
+    Handles uploaded video files instead of live camera.
+
+
+ML FOLDER (ml/) - The Learning
+------------------------------
+ml/__init__.py
+    Just marks this as a Python package.
+
+ml/classifier.py
+    The main brain - Random Forest model that recognizes signs.
+
+ml/trainer.py
+    Teaches the model new signs using training data.
+
+ml/heuristic_classifier.py
+    Backup detector using simple rules (if finger up = this letter).
+
+ml/data_collector.py
+    Collects hand data for training new gestures.
+
+ml/gesture_accumulator.py
+    Combines multiple frames into one stable gesture.
+
+ml/personalized_trainer.py
+    Trains the model specifically for YOUR hand shapes.
+
+
+UI FOLDER (ui/) - What You See
+------------------------------
+ui/__init__.py
+    Just marks this as a Python package.
+
+ui/main_window.py
+    The main app window with sidebar navigation.
+
+ui/camera_widget.py
+    Shows the camera feed in the app.
+
+ui/video_player_widget.py
+    Plays uploaded video files.
+
+ui/control_panel.py
+    The start/stop/clear buttons.
+
+ui/prediction_panel.py
+    Shows what letter/sign was detected.
+
+ui/sign_visualizer.py
+    Animates sign instructions when translating text-to-sign.
+
+ui/styles.py
+    Colors, themes, and visual styling for the whole app.
+
+
+UI PAGES FOLDER (ui/pages/) - Different Screens
+-----------------------------------------------
+ui/pages/__init__.py
+    Just marks this as a Python package.
+
+ui/pages/login_page.py
+    The login and signup screen.
+
+ui/pages/dashboard_page.py
+    Home page showing your stats and quick actions.
+
+ui/pages/live_page.py
+    Basic live camera translation.
+
+ui/pages/live_translation_page.py
+    Advanced live translation with modes and options.
+
+ui/pages/history_page.py
+    Shows all your past translations.
+
+ui/pages/profile_page.py
+    Your user profile and account settings.
+
+ui/pages/admin_page.py
+    Admin controls for managing users (admin only).
+
+ui/pages/conversation_page.py
+    Two-way chat - sign to text AND text to sign.
+
+ui/pages/tutorial_page.py
+    Interactive lessons to learn sign language.
+
+ui/pages/gesture_library_page.py
+    Searchable dictionary of all signs.
+
+ui/pages/settings_page.py
+    Customize voice, theme, accessibility, and more.
+
+ui/pages/analytics_page.py
+    Your statistics, streaks, and achievement badges.
+
+
+OTHER FOLDERS
+-------------
+models/
+    Contains pre-trained AI models for hand and face detection.
+
+data/
+    Training data files (CSV) used to teach the model.
+
+assets/
+    Images and icons used in the app.
+
+temp_images/
+    Temporary storage for captured images.
+
+__pycache__/
+    Auto-generated Python cache files. Ignore these.
+
+
+=====================================================
+HOW TO USE THE APP
+=====================================================
+
+1. Run: python main.py
+
+2. Login or create a new account
+
+3. Go to "Live Translation" from the sidebar
+
+4. Allow camera access when prompted
+
+5. Start signing! The app will show what you're signing.
+
+6. Try different modes:
+   - Instant: See each letter immediately
+   - Word: Build words from letters
+   - Sentence: Build full sentences
+
+7. Use "Stop & Translate" button to get final translation
+
+8. Check your history, earn achievements, and have fun!
+
+
+=====================================================
+TROUBLESHOOTING
+=====================================================
+
+"Camera not found"
+→ Check if another app is using your camera
+→ Try changing CAMERA_ID in config.py (0, 1, or 2)
+
+"Module not found" error
+→ Run: pip install -r requirements.txt
+
+"Hand not detected"
+→ Make sure your hand is well-lit
+→ Keep your hand within camera view
+→ Try adjusting confidence in Settings
+
+"Voice not working"
+→ Check if pyttsx3 is installed
+→ Try: pip install pyttsx3
+
+App crashes on start
+→ Make sure all dependencies are installed
+→ Check if models/ folder has the required files
+
+
+=====================================================
+KEYBOARD SHORTCUTS
+=====================================================
+
+Space ............. Start/Stop camera
+Escape ............ Close dialogs
+Ctrl+C ............ Copy translation
+Ctrl+E ............ Export translation
+Ctrl+S ............ Open settings
+
+
+=====================================================
+DEV NOTES
+=====================================================
+
+architecture changes (v3.0):
+- added singleton pattern for voice_output, analytics, language_support
+- theme manager allows runtime theme switching
+- all new pages use consistent signal-based communication
+- personalized models stored per user ID
+
+hand tracking improvements:
+- now supports MAX_HANDS=2 in config
+- new methods: get_all_hands_landmarks(), get_hand_count()
+- handedness detection (left/right hand)
+
+voice output design:
+- runs in background thread to prevent UI blocking
+- queue-based for sequential speech
+- supports multiple TTS engines with fallback
+
+
+Built with anger by nagaraaj

@@ -9,3 +9,14 @@ PySide6>=6.5.0
 
 # Environment config (optional)
 python-dotenv>=1.0.0
+# Text-to-Speech (v3.0)
+pyttsx3>=2.90
+
+# Optional: Google TTS (requires internet)
+# gTTS>=2.3.2
+
+# Clipboard support
+pyperclip>=1.8.2
+
+# PDF generation (optional, for export feature)
+reportlab>=4.0.0

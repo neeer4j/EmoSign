@@ -94,3 +94,63 @@ VIDEO_NORMAL_INTERVAL = 33       # ms between frames (~30 FPS)
 
 # Video-specific processing
 VIDEO_AUTO_TRANSLATE_ON_END = True  # Auto-translate when video ends
+
+# ============================================================
+# TWO-HAND GESTURE SUPPORT
+# ============================================================
+MAX_HANDS = 2                    # Support two-handed gestures
+ENABLE_TWO_HAND_GESTURES = True  # Enable two-handed sign recognition
+TWO_HAND_COORDINATION_THRESHOLD = 0.3  # Max time diff between hand detections
+
+# ============================================================
+# VOICE OUTPUT SETTINGS (Text-to-Speech)
+# ============================================================
+VOICE_ENABLED = True             # Enable voice output
+VOICE_ENGINE = "pyttsx3"         # TTS engine: pyttsx3, gtts
+VOICE_RATE = 150                 # Speech rate (words per minute)
+VOICE_VOLUME = 0.8               # Volume (0.0 to 1.0)
+VOICE_AUTO_SPEAK_WORDS = True    # Auto-speak detected words
+VOICE_AUTO_SPEAK_SENTENCES = True  # Auto-speak completed sentences
+VOICE_SPEAK_LETTERS = False      # Speak individual letters
+
+# ============================================================
+# MULTI-LANGUAGE SUPPORT
+# ============================================================
+DEFAULT_SIGN_LANGUAGE = "asl"    # Default sign language (asl, bsl, isl, etc.)
+SUPPORTED_SIGN_LANGUAGES = ["asl", "bsl", "isl", "lsf", "dgs", "auslan"]
+
+# ============================================================
+# AUTOCORRECT SETTINGS
+# ============================================================
+AUTOCORRECT_ENABLED = True       # Enable spell correction
+AUTOCORRECT_MIN_CONFIDENCE = 0.6  # Minimum confidence for auto-correction
+PREDICTION_ENABLED = True        # Enable word/phrase prediction
+
+# ============================================================
+# ANALYTICS & GAMIFICATION
+# ============================================================
+ANALYTICS_ENABLED = True         # Track usage analytics
+ACHIEVEMENTS_ENABLED = True      # Enable achievement system
+STREAK_TRACKING = True           # Track daily practice streaks
+
+# ============================================================
+# ACCESSIBILITY SETTINGS
+# ============================================================
+HIGH_CONTRAST_MODE = False       # High contrast for visibility
+LARGE_TEXT_MODE = False          # Larger font sizes
+REDUCE_MOTION = False            # Minimize animations
+SCREEN_READER_SUPPORT = True     # Optimize for screen readers
+
+# ============================================================
+# THEME SETTINGS
+# ============================================================
+CURRENT_THEME = "dark"           # Current theme: dark, light
+UI_SCALE = 1.0                   # UI scaling factor (1.0 = 100%)
+
+# ============================================================
+# EXPORT SETTINGS
+# ============================================================
+DEFAULT_EXPORT_FORMAT = "txt"    # Default export format
+EXPORT_INCLUDE_TIMESTAMPS = True
+EXPORT_INCLUDE_CONFIDENCE = False
+EXPORT_OUTPUT_DIR = os.path.join(BASE_DIR, "exports")

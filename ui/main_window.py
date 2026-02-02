@@ -1,6 +1,14 @@
 """
 Main Window - Application shell with navigation
 Premium multi-page application with sidebar navigation
+
+Enhanced with:
+- Voice output support
+- Multi-language support
+- Tutorial and gesture library pages
+- Settings and analytics pages
+- Conversation mode
+- Theme switching (dark/light)
 """
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
@@ -10,7 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Slot, QThread, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QColor
 
-from ui.styles import DARK_THEME, COLORS, ICONS
+from ui.styles import DARK_THEME, LIGHT_THEME, COLORS, ICONS, ThemeManager
 from ui.pages.login_page import LoginPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.pages.live_translation_page import LivePage  # Updated to new pipeline
@@ -18,9 +26,27 @@ from ui.pages.history_page import HistoryPage
 from ui.pages.profile_page import ProfilePage
 from ui.pages.admin_page import AdminPage
 
+# New feature pages
+from ui.pages.tutorial_page import TutorialPage
+from ui.pages.gesture_library_page import GestureLibraryPage
+from ui.pages.settings_page import SettingsPage
+from ui.pages.analytics_page import AnalyticsPage
+from ui.pages.conversation_page import ConversationPage
+
 from ml.classifier import Classifier
 from ml.data_collector import DataCollector
 from ml.trainer import Trainer
+
+# Import new core features
+try:
+    from core.voice_output import voice_output
+except ImportError:
+    voice_output = None
+
+try:
+    from core.analytics import analytics
+except ImportError:
+    analytics = None
 
 # Import database service if available
 try:
@@ -112,11 +138,60 @@ class Sidebar(QFrame):
         nav_items = [
             ("dashboard", "🏠", "Dashboard"),
             ("live", "🔴", "Live Translation"),
+            ("conversation", "💬", "Conversation"),
             ("history", "📜", "History"),
-            ("profile", "👤", "Profile"),
         ]
         
         for page_id, icon, text in nav_items:
+            btn = NavButton(icon, text)
+            btn.clicked.connect(lambda checked, p=page_id: self._on_nav_click(p))
+            self.nav_buttons[page_id] = btn
+            layout.addWidget(btn)
+        
+        # Divider
+        divider1 = QLabel("LEARN")
+        divider1.setStyleSheet(f"""
+            color: {COLORS['text_muted']};
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            background: transparent;
+            padding-top: 16px;
+            padding-bottom: 4px;
+        """)
+        layout.addWidget(divider1)
+        
+        learn_items = [
+            ("tutorial", "📚", "Tutorials"),
+            ("library", "📖", "Sign Library"),
+        ]
+        
+        for page_id, icon, text in learn_items:
+            btn = NavButton(icon, text)
+            btn.clicked.connect(lambda checked, p=page_id: self._on_nav_click(p))
+            self.nav_buttons[page_id] = btn
+            layout.addWidget(btn)
+        
+        # Divider
+        divider2 = QLabel("ACCOUNT")
+        divider2.setStyleSheet(f"""
+            color: {COLORS['text_muted']};
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            background: transparent;
+            padding-top: 16px;
+            padding-bottom: 4px;
+        """)
+        layout.addWidget(divider2)
+        
+        account_items = [
+            ("analytics", "📊", "Analytics"),
+            ("profile", "👤", "Profile"),
+            ("settings", "⚙️", "Settings"),
+        ]
+        
+        for page_id, icon, text in account_items:
             btn = NavButton(icon, text)
             btn.clicked.connect(lambda checked, p=page_id: self._on_nav_click(p))
             self.nav_buttons[page_id] = btn
@@ -131,8 +206,28 @@ class Sidebar(QFrame):
         
         layout.addStretch()
         
+        # Theme toggle button
+        self.theme_btn = QPushButton("🌙 Dark")
+        self.theme_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {COLORS['bg_input']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                color: {COLORS['text_secondary']};
+                padding: 8px;
+                font-size: 12px;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['bg_card']};
+            }}
+        """)
+        self.theme_btn.clicked.connect(self._toggle_theme)
+        layout.addWidget(self.theme_btn)
+        
+        layout.addSpacing(8)
+        
         # Version info
-        version_label = QLabel("v2.0.0")
+        version_label = QLabel("v3.0.0")
         version_label.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 12px;
@@ -143,6 +238,17 @@ class Sidebar(QFrame):
     
     def _on_nav_click(self, page_id):
         self.navigate.emit(page_id)
+    
+    def _toggle_theme(self):
+        """Toggle between dark and light theme."""
+        new_theme = ThemeManager.toggle_theme()
+        if new_theme == "light":
+            self.theme_btn.setText("☀️ Light")
+        else:
+            self.theme_btn.setText("🌙 Dark")
+        self.theme_changed.emit(new_theme)
+    
+    theme_changed = Signal(str)
     
     def set_active(self, page_id):
         """Set the active navigation button."""
@@ -204,6 +310,10 @@ class MainWindow(QMainWindow):
         
         # Create pages
         self._create_pages()
+        
+        # Start analytics session if available
+        if analytics and self.user:
+            analytics.start_session(self.user.get('id', 'guest'))
     
     def _create_pages(self):
         """Create all application pages."""
@@ -219,13 +329,33 @@ class MainWindow(QMainWindow):
         self.live_page = LivePage(self.classifier, self.db, self.user)
         self.page_stack.addWidget(self.live_page)
         
+        # Conversation mode
+        self.conversation_page = ConversationPage()
+        self.page_stack.addWidget(self.conversation_page)
+        
         # History
         self.history_page = HistoryPage(self.db, self.user)
         self.page_stack.addWidget(self.history_page)
         
+        # Tutorial page
+        self.tutorial_page = TutorialPage()
+        self.page_stack.addWidget(self.tutorial_page)
+        
+        # Gesture library
+        self.library_page = GestureLibraryPage()
+        self.page_stack.addWidget(self.library_page)
+        
+        # Analytics page
+        self.analytics_page = AnalyticsPage()
+        self.page_stack.addWidget(self.analytics_page)
+        
         # Profile
         self.profile_page = ProfilePage(self.user, self.db)
         self.page_stack.addWidget(self.profile_page)
+        
+        # Settings page
+        self.settings_page = SettingsPage()
+        self.page_stack.addWidget(self.settings_page)
         
         # Admin Page
         self.admin_page = AdminPage(self.db)
@@ -240,6 +370,9 @@ class MainWindow(QMainWindow):
         # Sidebar navigation
         self.sidebar.navigate.connect(self._navigate_to)
         
+        # Sidebar theme change
+        self.sidebar.theme_changed.connect(self._apply_theme)
+        
         # Dashboard navigation
         self.dashboard_page.navigate_to_live.connect(lambda: self._navigate_to("live"))
         self.dashboard_page.navigate_to_history.connect(lambda: self._navigate_to("history"))
@@ -250,17 +383,51 @@ class MainWindow(QMainWindow):
         self.live_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.history_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.profile_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        self.tutorial_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        self.library_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        self.analytics_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        self.settings_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        self.conversation_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         
         # Live page translation events
         self.live_page.translation_made.connect(self._save_translation)
+        self.live_page.translation_made.connect(self._on_translation_made)
+        
+        # Settings signals
+        self.settings_page.theme_changed.connect(self._apply_theme)
+        self.settings_page.voice_settings_changed.connect(self._apply_voice_settings)
         
         # Profile logout
         self.profile_page.logout_requested.connect(self._on_logout)
+    
+    def _apply_theme(self, theme: str):
+        """Apply theme to the application."""
+        ThemeManager.set_theme(theme)
+        self.setStyleSheet(ThemeManager.get_theme())
+    
+    def _apply_voice_settings(self, settings: dict):
+        """Apply voice output settings."""
+        if voice_output:
+            voice_output.set_enabled(settings.get('enabled', True))
+            voice_output.set_rate(settings.get('speed', 150))
+            voice_output.set_volume(settings.get('volume', 0.8))
+    
+    def _on_translation_made(self, label, confidence, gesture_type):
+        """Handle translation events for analytics and voice."""
+        # Record in analytics
+        if analytics and self.user:
+            user_id = self.user.get('id', 'guest')
+            analytics.record_sign(user_id, label, confidence)
+        
+        # Speak the translation
+        if voice_output and voice_output.config.enabled:
+            voice_output.speak_word(label)
     
     def _show_login(self):
         """Show login page."""
         self.sidebar.hide()
         self.page_stack.setCurrentWidget(self.login_page)
+
     
     @Slot(dict)
     def _on_login(self, user_data):
@@ -284,11 +451,19 @@ class MainWindow(QMainWindow):
         else:
              self._navigate_to("dashboard")
         
+        # Start analytics session
+        if analytics:
+            analytics.start_session(user_data.get('id', 'guest'))
+        
         # Clear login form
         self.login_page.clear_form()
     
     def _on_logout(self):
         """Handle logout."""
+        # End analytics session
+        if analytics and self.user:
+            analytics.end_session(self.user.get('id', 'guest'))
+        
         self.user = None
         
         # Stop any active camera
@@ -306,12 +481,23 @@ class MainWindow(QMainWindow):
             self.page_stack.setCurrentWidget(self.dashboard_page)
         elif page_id == "live":
             self.page_stack.setCurrentWidget(self.live_page)
+        elif page_id == "conversation":
+            self.page_stack.setCurrentWidget(self.conversation_page)
         elif page_id == "history":
             self.history_page.refresh()
             self.page_stack.setCurrentWidget(self.history_page)
+        elif page_id == "tutorial":
+            self.page_stack.setCurrentWidget(self.tutorial_page)
+        elif page_id == "library":
+            self.page_stack.setCurrentWidget(self.library_page)
+        elif page_id == "analytics":
+            self.analytics_page.refresh()
+            self.page_stack.setCurrentWidget(self.analytics_page)
         elif page_id == "profile":
             self.profile_page.refresh()
             self.page_stack.setCurrentWidget(self.profile_page)
+        elif page_id == "settings":
+            self.page_stack.setCurrentWidget(self.settings_page)
         elif page_id == "admin":
             self.admin_page.refresh_all()
             self.page_stack.setCurrentWidget(self.admin_page)

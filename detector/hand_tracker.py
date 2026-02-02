@@ -126,6 +126,45 @@ class HandTracker:
         
         return landmarks
     
+    def get_all_hands_landmarks(self):
+        """Get landmarks for all detected hands.
+        
+        Returns:
+            list: List of hands, each containing list of landmark coordinates.
+                  Each hand: {'landmarks': [(x, y, z), ...], 'handedness': 'Left'/'Right'}
+                  Returns empty list if no hands detected.
+        """
+        if self.results is None or not self.results.hand_landmarks:
+            return []
+        
+        hands = []
+        for i, hand_landmarks in enumerate(self.results.hand_landmarks):
+            landmarks = []
+            for lm in hand_landmarks:
+                landmarks.append((lm.x, lm.y, lm.z))
+            
+            # Get handedness (Left/Right)
+            handedness = 'Unknown'
+            if self.results.handedness and i < len(self.results.handedness):
+                handedness = self.results.handedness[i][0].category_name
+            
+            hands.append({
+                'landmarks': landmarks,
+                'handedness': handedness
+            })
+        
+        return hands
+    
+    def get_hand_count(self):
+        """Get number of detected hands.
+        
+        Returns:
+            int: Number of hands detected (0, 1, or 2)
+        """
+        if self.results is None or not self.results.hand_landmarks:
+            return 0
+        return len(self.results.hand_landmarks)
+    
     def draw_landmarks(self, frame_bgr):
         """Draw hand landmarks on frame.
         
