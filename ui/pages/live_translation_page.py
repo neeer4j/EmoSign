@@ -763,6 +763,9 @@ class LiveTranslationPage(QWidget):
         """Handle hand detection status."""
         if not detected:
             self.gesture_display.set_no_hand()
+            # Mark that hand was removed - this allows same gesture to be added again
+            if self._is_translating:
+                self.pipeline.mark_no_hand()
     
     def _on_video_finished(self):
         """Handle video playback finished."""

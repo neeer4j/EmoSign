@@ -395,7 +395,14 @@ class ContinuousSentenceBuilder:
     Designed for live translation where text is updated as
     gestures are recognized, with visual feedback for
     partial words and confidence.
+    
+    Includes debouncing to prevent repeated detection of the same gesture.
     """
+    
+    # Debounce settings - prevent continuous duplicate letters
+    SAME_GESTURE_COOLDOWN = 2.5  # Seconds before same gesture can be added again (longer for intentional double-letters)
+    DIFFERENT_GESTURE_COOLDOWN = 0.5  # Minimum time between different gestures
+    MIN_HOLD_TIME_FOR_REPEAT = 0.8  # User must hold away and return for repeat letter
     
     def __init__(
         self,
@@ -407,6 +414,13 @@ class ContinuousSentenceBuilder:
             mode=ConstructionMode.CONTINUOUS
         )
         self.auto_finalize_timeout = auto_finalize_timeout
+        
+        # Debouncing state
+        self._last_added_gesture: Optional[str] = None
+        self._last_added_time: float = 0.0
+        self._gesture_add_count: int = 0
+        self._continuous_gesture_count: int = 0  # Track how many times we've seen the same gesture
+        self._gesture_released: bool = True  # Track if user has released the gesture
         
         # Callbacks
         self._on_text_updated: Optional[callable] = None
@@ -425,11 +439,64 @@ class ContinuousSentenceBuilder:
         """Set callback for sentence completion."""
         self._on_sentence_completed = callback
     
-    def add_gesture(self, gesture: RecognizedGesture):
-        """Add gesture and trigger appropriate callbacks."""
+    def add_gesture(self, gesture: RecognizedGesture) -> bool:
+        """Add gesture with debouncing to prevent repeated letters.
+        
+        The key insight: we only want to add a letter when the user makes
+        a distinct gesture. Holding the same hand position should NOT
+        continuously add letters.
+        
+        Returns:
+            True if gesture was added, False if debounced
+        """
+        current_time = time.time()
+        gesture_label = gesture.label.upper() if gesture.label else ""
+        
+        if not gesture_label:
+            return False
+        
+        # Enhanced debounce logic
+        if self._last_added_gesture is not None:
+            time_since_last = current_time - self._last_added_time
+            
+            # Same gesture - user is holding the same sign
+            if gesture_label == self._last_added_gesture:
+                self._continuous_gesture_count += 1
+                
+                # To add the same letter again, user must:
+                # 1. Wait longer than SAME_GESTURE_COOLDOWN, AND
+                # 2. Have released the gesture in between (moved away and back)
+                if time_since_last < self.SAME_GESTURE_COOLDOWN:
+                    # Still too soon - skip
+                    return False
+                
+                if not self._gesture_released:
+                    # User never released - they're just holding the sign
+                    # Don't add duplicate
+                    return False
+            else:
+                # Different gesture - user changed signs
+                self._gesture_released = True  # Mark that they moved
+                
+                # Need a brief cooldown between any gestures
+                if time_since_last < self.DIFFERENT_GESTURE_COOLDOWN:
+                    return False
+                
+                # Reset continuous count
+                self._continuous_gesture_count = 0
+        else:
+            self._continuous_gesture_count = 0
+        
+        # Gesture passed debounce check - add it
         prev_word_count = self.constructor.get_word_count()
         
         text = self.constructor.add_gesture(gesture)
+        
+        # Update debounce state
+        self._last_added_gesture = gesture_label
+        self._last_added_time = current_time
+        self._gesture_add_count += 1
+        self._gesture_released = False  # Mark that we're now tracking this gesture
         
         new_word_count = self.constructor.get_word_count()
         
@@ -441,6 +508,16 @@ class ContinuousSentenceBuilder:
         # Notify text update
         if self._on_text_updated and text:
             self._on_text_updated(text, self.constructor.get_preview())
+        
+        return True
+    
+    def mark_gesture_released(self):
+        """Mark that the current gesture has been released (hand moved away).
+        
+        This should be called when no hand is detected or when the gesture
+        changes significantly. It allows the same letter to be added again.
+        """
+        self._gesture_released = True
     
     def check_timeouts(self):
         """Check and handle timeouts."""
@@ -475,6 +552,18 @@ class ContinuousSentenceBuilder:
     def clear(self):
         """Clear and reset."""
         self.constructor.clear()
+        # Reset debounce state
+        self._last_added_gesture = None
+        self._last_added_time = 0.0
+        self._gesture_add_count = 0
+        self._continuous_gesture_count = 0
+        self._gesture_released = True
+    
+    def reset_debounce(self):
+        """Reset only the debounce state (e.g., after manual space)."""
+        self._last_added_gesture = None
+        self._last_added_time = 0.0
+        self._gesture_released = True
     
     def get_current_text(self) -> str:
         """Get current text."""

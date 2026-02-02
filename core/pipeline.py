@@ -361,9 +361,14 @@ class SignLanguagePipeline:
         self._frame_id = 0
         self._last_gesture_time = 0.0
     
+    def mark_no_hand(self):
+        """Mark that no hand is detected - allows same gesture to be added again."""
+        self.sentence_builder.mark_gesture_released()
+    
     def insert_space(self):
         """Manually insert a word boundary."""
         self.sentence_builder.constructor.insert_space()
+        self.sentence_builder.reset_debounce()  # Allow immediate next gesture
         self._update_state_text()
     
     def delete_last(self, delete_word: bool = False):
@@ -376,6 +381,7 @@ class SignLanguagePipeline:
             self.sentence_builder.constructor.remove_last_word()
         else:
             self.sentence_builder.constructor.remove_last_letter()
+        self.sentence_builder.reset_debounce()  # Allow immediate next gesture
         self._update_state_text()
     
     # === Callbacks ===

@@ -1,317 +1,982 @@
 """
-Gesture Library Page - Visual dictionary of all available signs
+Gesture Library Page - Visual ASL Sign Reference Guide
 
-Provides a searchable reference of all signs with:
-- Visual demonstrations
-- Hand shape descriptions
-- Search and filtering
-- Category organization
+Provides visual demonstrations of ASL signs with:
+- Hand shape diagrams for each letter
+- Detailed descriptions of how to form each sign
+- Common words and phrases
+- Searchable reference
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QScrollArea, QGridLayout, QLineEdit,
-    QComboBox, QSizePolicy, QGraphicsDropShadowEffect
+    QFrame, QScrollArea, QGridLayout, QStackedWidget,
+    QLineEdit, QTabWidget, QSizePolicy, QGraphicsDropShadowEffect,
+    QTextEdit
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush
 
 from ui.styles import COLORS
 
 
-class SignCard(QFrame):
-    """A card displaying information about a sign."""
-    
-    clicked = Signal(str)  # sign_id
-    
-    def __init__(self, sign_id: str, text: str, category: str,
-                 description: str = "", emoji: str = "", is_dynamic: bool = False,
-                 parent=None):
-        super().__init__(parent)
-        self.sign_id = sign_id
-        self.setObjectName("card")
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFixedSize(180, 200)
-        self._setup_ui(text, category, description, emoji, is_dynamic)
-    
-    def _setup_ui(self, text, category, description, emoji, is_dynamic):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(8)
-        layout.setAlignment(Qt.AlignCenter)
+# ASL Alphabet data with visual descriptions and hand shape instructions
+ASL_ALPHABET_DATA = {
+    'A': {
+        'description': 'Fist with thumb resting on the side',
+        'hand_shape': 'closed_fist_thumb_side',
+        'detailed': '''Form a fist with your dominant hand. 
+Your thumb should rest against the side of your index finger, 
+not tucked in or sticking up.
         
-        # Category badge
-        badge = QLabel(category.title())
-        badge_colors = {
-            'letter': COLORS['primary'],
-            'number': COLORS['accent'],
-            'word': COLORS['success'],
-            'phrase': COLORS['warning'],
-        }
-        badge_color = badge_colors.get(category.lower(), COLORS['text_muted'])
-        badge.setStyleSheet(f"""
-            background-color: {badge_color}30;
-            color: {badge_color};
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 600;
-        """)
-        badge.setAlignment(Qt.AlignCenter)
-        layout.addWidget(badge, alignment=Qt.AlignCenter)
-        
-        # Main display (emoji or text)
-        if emoji:
-            display = QLabel(emoji)
-            display.setStyleSheet("font-size: 48px; background: transparent;")
-        else:
-            display = QLabel(text)
-            display.setStyleSheet(f"""
-                font-size: 48px;
-                font-weight: 700;
-                color: {COLORS['primary']};
-                background: transparent;
-            """)
-        display.setAlignment(Qt.AlignCenter)
-        layout.addWidget(display)
-        
-        # Text label
-        text_label = QLabel(text)
-        text_label.setStyleSheet(f"""
-            font-size: 16px;
-            font-weight: 600;
-            color: {COLORS['text_primary']};
-            background: transparent;
-        """)
-        text_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(text_label)
-        
-        # Dynamic indicator
-        if is_dynamic:
-            dynamic_label = QLabel("🔄 Motion")
-            dynamic_label.setStyleSheet(f"""
-                color: {COLORS['accent']};
-                font-size: 11px;
-                background: transparent;
-            """)
-            dynamic_label.setAlignment(Qt.AlignCenter)
-            layout.addWidget(dynamic_label)
-        
-        layout.addStretch()
-    
-    def mousePressEvent(self, event):
-        self.clicked.emit(self.sign_id)
+Key Points:
+• All fingers curled into palm
+• Thumb rests on side of hand (near index finger)
+• Palm faces forward or slightly to the side''',
+        'tips': 'Keep your wrist straight, don\'t bend it.',
+        'similar': ['S', 'E', 'T'],
+        'emoji': '✊',
+        'ascii': '''
+    ╔═══╗
+    ║███║
+    ║███╠═╗
+    ║███║ ║← Thumb
+    ║███╠═╝
+    ╚═══╝
+    Fist'''
+    },
+    'B': {
+        'description': 'Flat hand with fingers together, thumb tucked',
+        'hand_shape': 'flat_hand',
+        'detailed': '''Hold your hand flat with all four fingers 
+extended straight up and pressed together.
+Tuck your thumb across your palm.
+
+Key Points:
+• Fingers straight and together
+• Thumb tucked across palm
+• Palm faces forward''',
+        'tips': 'Keep fingers pressed together tightly.',
+        'similar': ['D', 'F'],
+        'emoji': '🖐️',
+        'ascii': '''
+    │ │ │ │
+    │ │ │ │
+    ╔═══════╗
+    ║ ═══   ║← Thumb tucked
+    ╚═══════╝
+    Flat hand'''
+    },
+    'C': {
+        'description': 'Curved hand like holding a cup',
+        'hand_shape': 'curved_c',
+        'detailed': '''Curve your hand as if you're holding a 
+can or small cup. Fingers and thumb form a 'C' shape.
+
+Key Points:
+• Fingers together in a curve
+• Thumb curves opposite to fingers
+• Opening faces sideways
+• Hand forms letter C shape''',
+        'tips': 'Imagine holding a tennis ball.',
+        'similar': ['O', 'E'],
+        'emoji': '🤏',
+        'ascii': '''
+      ╭───╮
+     ╱     ╲
+    │       │
+    │       │
+     ╲     ╱
+      ╰───╯
+    C shape'''
+    },
+    'D': {
+        'description': 'Index finger up, others touch thumb',
+        'hand_shape': 'index_up_circle',
+        'detailed': '''Point your index finger straight up.
+Touch the tips of your middle, ring, and pinky fingers 
+to the tip of your thumb, forming a circle.
+
+Key Points:
+• Index finger straight up
+• Other three fingers form circle with thumb
+• Like making "OK" but with index up''',
+        'tips': 'The circle should be round, not pinched.',
+        'similar': ['F', 'I'],
+        'emoji': '☝️',
+        'ascii': '''
+       │
+       │  Index
+    ╭──┴──╮
+    │  ◯  │← Circle
+    ╰─────╯
+    '''
+    },
+    'E': {
+        'description': 'Fingers curled over thumb',
+        'hand_shape': 'curled_fist',
+        'detailed': '''Curl all your fingertips down to touch 
+your palm, with your thumb tucked under your fingers.
+
+Key Points:
+• All fingertips touch palm
+• Thumb tucked in under fingers
+• Like a relaxed fist
+• Palm faces outward''',
+        'tips': 'Fingertips should be visible from front.',
+        'similar': ['A', 'S'],
+        'emoji': '✊',
+        'ascii': '''
+    ╭───────╮
+    │ ╭───╮ │
+    │ │░░░│ │ ← Fingers curled
+    │ ╰═══╯ │ ← Thumb under
+    ╰───────╯
+    '''
+    },
+    'F': {
+        'description': 'OK sign with three fingers extended up',
+        'hand_shape': 'ok_sign_extended',
+        'detailed': '''Make an "OK" sign by touching your index 
+finger to your thumb. Extend your middle, ring, 
+and pinky fingers straight up.
+
+Key Points:
+• Thumb and index finger form a circle
+• Other three fingers extended up
+• Three fingers spread slightly
+• Palm faces outward''',
+        'tips': 'Keep the circle round, not pinched.',
+        'similar': ['D', 'W'],
+        'emoji': '👌',
+        'ascii': '''
+    │ │ │
+    │ │ │  ← 3 fingers up
+    ╭─┴─┴─╮
+    │ ◯   │← Thumb + index circle
+    ╰─────╯
+    '''
+    },
+    'G': {
+        'description': 'Pointing hand, horizontal position',
+        'hand_shape': 'pointing_horizontal',
+        'detailed': '''Point with your index finger and thumb, 
+held horizontally (pointing to the side).
+Other fingers are curled into palm.
+
+Key Points:
+• Index finger points sideways
+• Thumb parallel to index, slightly apart
+• Like a horizontal gun shape
+• Other fingers tucked''',
+        'tips': 'Keep hand level, don\'t tilt up or down.',
+        'similar': ['Q', 'H'],
+        'emoji': '👉',
+        'ascii': '''
+    ═══════►  Index
+    ═══════►  Thumb
+    ╔═════╗
+    ║░░░░░║  ← Others tucked
+    ╚═════╝
+    '''
+    },
+    'H': {
+        'description': 'Two fingers out, held horizontally',
+        'hand_shape': 'two_fingers_horizontal',
+        'detailed': '''Extend your index and middle fingers 
+together, held horizontally (pointing to the side).
+Thumb may rest on other curled fingers.
+
+Key Points:
+• Index and middle together horizontally
+• Fingers point to the side
+• Palm faces down or away
+• Like G but with two fingers''',
+        'tips': 'Keep the two fingers pressed together.',
+        'similar': ['G', 'U', 'N'],
+        'emoji': '✌️',
+        'ascii': '''
+    ═══════►  Index
+    ═══════►  Middle
+    ╔═════╗
+    ║░░░░░║  ← Others tucked
+    ╚═════╝
+    '''
+    },
+    'I': {
+        'description': 'Pinky finger extended, others closed',
+        'hand_shape': 'pinky_up',
+        'detailed': '''Make a fist with your pinky finger 
+extended straight up. Thumb rests on the 
+front of your curled fingers.
+
+Key Points:
+• Pinky extended straight up
+• Other fingers in loose fist
+• Thumb wraps across front
+• Palm faces forward''',
+        'tips': 'Keep pinky straight, not bent.',
+        'similar': ['J', 'Y'],
+        'emoji': '🤙',
+        'ascii': '''
+             │
+             │ ← Pinky
+    ╔═══════╗
+    ║░░░░░░░║
+    ║░░░░░░░║
+    ╚═══════╝
+    '''
+    },
+    'J': {
+        'description': 'Pinky draws J shape in air',
+        'hand_shape': 'pinky_draws_j',
+        'detailed': '''Start with I (pinky up), then draw a 
+small J shape in the air by moving your pinky 
+down and curving toward your body.
+
+Key Points:
+• Start in I position (pinky up)
+• Trace J curve downward
+• End with pinky pointing inward
+• Motion is the key part''',
+        'tips': 'This is a motion sign - movement matters!',
+        'similar': ['I', 'Z'],
+        'emoji': '☝️→',
+        'ascii': '''
+    │
+    │ ← Start
+    │
+    ╰──╮
+       │
+    ←──╯ ← End
+    '''
+    },
+    'K': {
+        'description': 'Peace sign with thumb between fingers',
+        'hand_shape': 'k_shape',
+        'detailed': '''Extend index and middle fingers in a V.
+Place your thumb between and touching the 
+middle of both fingers.
+
+Key Points:
+• Index and middle in V shape
+• Thumb touches middle of both
+• Ring and pinky curled
+• Palm faces forward''',
+        'tips': 'Thumb should touch both fingers.',
+        'similar': ['V', 'P'],
+        'emoji': '✌️',
+        'ascii': '''
+    ╲     ╱
+     ╲   ╱
+      ╲ ╱
+    ═══╳═══ ← Thumb between
+       │
+    ╔══╧══╗
+    ╚═════╝
+    '''
+    },
+    'L': {
+        'description': 'L shape with thumb and index finger',
+        'hand_shape': 'l_shape',
+        'detailed': '''Extend your thumb out to the side and 
+your index finger straight up, forming 
+an "L" shape. Other fingers are curled.
+
+Key Points:
+• Index finger points up
+• Thumb points to the side
+• Forms 90-degree angle
+• Palm faces forward''',
+        'tips': 'Keep the L shape clear - 90 degree angle.',
+        'similar': ['G', 'D'],
+        'emoji': '👆',
+        'ascii': '''
+       │
+       │  ← Index up
+    ╔══╧══╗
+    ║     ║
+    ╚═════╬═══► Thumb out
+          │
+    '''
+    },
+    'M': {
+        'description': 'Three fingers over thumb',
+        'hand_shape': 'three_over_thumb',
+        'detailed': '''Tuck your thumb under your index, middle, 
+and ring fingers. Pinky is also tucked.
+The three finger knuckles are visible.
+
+Key Points:
+• Thumb hidden under first 3 fingers
+• Index, middle, ring over thumb
+• Pinky tucked alongside
+• Shows three bumps''',
+        'tips': 'You should see three "bumps" on top.',
+        'similar': ['N', 'S', 'T'],
+        'emoji': '✊',
+        'ascii': '''
+    ╭─┬─┬─╮
+    │ │ │ │  ← 3 bumps visible
+    ╞═╧═╧═╡
+    ║░░░░░║  ← Thumb under
+    ╚═════╝
+    '''
+    },
+    'N': {
+        'description': 'Two fingers over thumb',
+        'hand_shape': 'two_over_thumb',
+        'detailed': '''Tuck your thumb under your index and 
+middle fingers. Ring and pinky are also tucked.
+Two finger knuckles are visible.
+
+Key Points:
+• Thumb hidden under first 2 fingers
+• Index and middle over thumb
+• Ring and pinky tucked
+• Shows two bumps''',
+        'tips': 'Similar to M but with only two bumps.',
+        'similar': ['M', 'S', 'T'],
+        'emoji': '✊',
+        'ascii': '''
+    ╭─┬─╮
+    │ │ │    ← 2 bumps visible
+    ╞═╧═╡
+    ║░░░║    ← Thumb under
+    ╚═══╝
+    '''
+    },
+    'O': {
+        'description': 'Fingers form O/circle shape',
+        'hand_shape': 'o_circle',
+        'detailed': '''Curve all your fingers and thumb 
+together to form an "O" shape.
+All fingertips touch the thumb tip.
+
+Key Points:
+• All fingertips touch thumb
+• Forms circular opening
+• Like grasping a small ball
+• Palm faces to the side''',
+        'tips': 'Make the O as round as possible.',
+        'similar': ['C', 'E'],
+        'emoji': '👌',
+        'ascii': '''
+      ╭───╮
+     ╱     ╲
+    │   ◯   │  ← Circle opening
+     ╲     ╱
+      ╰───╯
+    '''
+    },
+    'P': {
+        'description': 'K shape pointing downward',
+        'hand_shape': 'k_pointing_down',
+        'detailed': '''Make the K handshape, then point it 
+downward (middle finger toward the ground).
+Looks like an inverted K.
+
+Key Points:
+• Same handshape as K
+• Pointed downward
+• Index and middle in V
+• Thumb touches middle fingers''',
+        'tips': 'It\'s just K rotated down.',
+        'similar': ['K', 'Q'],
+        'emoji': '👇',
+        'ascii': '''
+    ╔═════╗
+       │
+    ═══╳═══ ← Thumb between
+      ╱ ╲
+     ╱   ╲
+    ▼     ▼  ← Points down
+    '''
+    },
+    'Q': {
+        'description': 'G shape pointing downward',
+        'hand_shape': 'g_pointing_down',
+        'detailed': '''Make the G handshape, then point it 
+downward. Index finger and thumb point 
+toward the ground.
+
+Key Points:
+• Same handshape as G
+• Pointed downward
+• Index and thumb extend down
+• Like picking up something small''',
+        'tips': 'It\'s just G rotated down.',
+        'similar': ['G', 'P'],
+        'emoji': '👇',
+        'ascii': '''
+    ╔═════╗
+    ║░░░░░║
+    ╚══╤══╝
+       │
+       │
+       ▼  ← Points down
+    '''
+    },
+    'R': {
+        'description': 'Crossed index and middle fingers',
+        'hand_shape': 'crossed_fingers',
+        'detailed': '''Cross your index finger over your 
+middle finger (like crossing fingers for luck).
+Other fingers are tucked.
+
+Key Points:
+• Index crosses over middle
+• Middle behind index
+• Fingers point up
+• "Good luck" position''',
+        'tips': 'Index goes in FRONT of middle.',
+        'similar': ['U', 'V'],
+        'emoji': '🤞',
+        'ascii': '''
+       ╲│
+        ╳  ← Crossed
+       │╱
+    ╔══╧══╗
+    ║░░░░░║
+    ╚═════╝
+    '''
+    },
+    'S': {
+        'description': 'Fist with thumb across front of fingers',
+        'hand_shape': 'fist_thumb_front',
+        'detailed': '''Make a fist with your thumb wrapped 
+across the front of your fingers 
+(across the first knuckles).
+
+Key Points:
+• Tight fist
+• Thumb crosses in front
+• Thumb tip near pinky side
+• Palm faces forward''',
+        'tips': 'Thumb goes ACROSS front, not side like A.',
+        'similar': ['A', 'E', 'T'],
+        'emoji': '✊',
+        'ascii': '''
+    ╔═══════╗
+    ║░░░░░░░║
+    ╠═══════╣ ← Thumb across
+    ║░░░░░░░║
+    ╚═══════╝
+    '''
+    },
+    'T': {
+        'description': 'Fist with thumb between index and middle',
+        'hand_shape': 'thumb_between',
+        'detailed': '''Make a fist with your thumb tucked 
+between your index and middle fingers.
+Thumb tip pokes out slightly.
+
+Key Points:
+• Fingers curled in fist
+• Thumb between index and middle
+• Thumb tip visible between them
+• Like peeking thumb''',
+        'tips': 'Thumb tip should show between the fingers.',
+        'similar': ['S', 'N', 'M'],
+        'emoji': '✊',
+        'ascii': '''
+    ╔═══════╗
+    ║░░╔═╗░░║ ← Thumb between
+    ║░░║▲║░░║
+    ║░░╚═╝░░║
+    ╚═══════╝
+    '''
+    },
+    'U': {
+        'description': 'Two fingers up together (not spread)',
+        'hand_shape': 'two_up_together',
+        'detailed': '''Extend your index and middle fingers 
+straight up and pressed together.
+Other fingers and thumb tucked.
+
+Key Points:
+• Index and middle up together
+• Fingers touching/parallel
+• Not spread like V
+• Palm faces forward''',
+        'tips': 'Fingers must be TOGETHER, not spread.',
+        'similar': ['H', 'V', 'N'],
+        'emoji': '✌️',
+        'ascii': '''
+    │ │
+    │ │  ← Together
+    │ │
+    ╔═╧═╗
+    ║░░░║
+    ╚═══╝
+    '''
+    },
+    'V': {
+        'description': 'Peace sign (two fingers spread)',
+        'hand_shape': 'peace_sign',
+        'detailed': '''Extend your index and middle fingers 
+in a V shape (spread apart).
+Other fingers and thumb tucked.
+
+Key Points:
+• Index and middle spread in V
+• Clear gap between fingers
+• Classic "peace" sign
+• Palm faces forward''',
+        'tips': 'Make a clear V - spread the fingers.',
+        'similar': ['U', 'K', 'R'],
+        'emoji': '✌️',
+        'ascii': '''
+    ╲   ╱
+     ╲ ╱
+      V   ← Spread apart
+    ╔═╧═╗
+    ║░░░║
+    ╚═══╝
+    '''
+    },
+    'W': {
+        'description': 'Three fingers extended and spread',
+        'hand_shape': 'three_up_spread',
+        'detailed': '''Extend your index, middle, and ring 
+fingers, spreading them apart.
+Pinky and thumb tucked.
+
+Key Points:
+• Three fingers up and spread
+• Clear gaps between fingers
+• Thumb holds pinky down
+• Like "3" hand signal''',
+        'tips': 'Spread all three fingers clearly.',
+        'similar': ['F', 'V'],
+        'emoji': '🖖',
+        'ascii': '''
+    ╲ │ ╱
+     ╲│╱  ← 3 spread
+    ╔═╧═╗
+    ║░░░║
+    ╚═══╝
+    '''
+    },
+    'X': {
+        'description': 'Hooked/bent index finger',
+        'hand_shape': 'hooked_index',
+        'detailed': '''Make a fist and extend only your index 
+finger in a hook shape (bent at the knuckle).
+Like a hook or crooked finger.
+
+Key Points:
+• Index finger bent in hook
+• Other fingers in fist
+• Thumb wrapped around
+• Hook faces sideways''',
+        'tips': 'Bend at both knuckles to make a hook.',
+        'similar': ['G', 'D'],
+        'emoji': '☝️',
+        'ascii': '''
+    ╭───╮
+    │   │
+    ╰───┤← Hooked
+    ╔═══╗
+    ║░░░║
+    ╚═══╝
+    '''
+    },
+    'Y': {
+        'description': 'Hang loose - thumb and pinky extended',
+        'hand_shape': 'shaka',
+        'detailed': '''Extend your thumb and pinky outward 
+while keeping other fingers curled in.
+The classic "hang loose" or shaka sign.
+
+Key Points:
+• Thumb out to one side
+• Pinky out to other side
+• Middle three fingers curled
+• Palm can face any direction''',
+        'tips': 'Spread thumb and pinky wide apart.',
+        'similar': ['I', 'L'],
+        'emoji': '🤙',
+        'ascii': '''
+              │← Pinky
+    ╔═════════╗
+    ║░░░░░░░░░║
+    ╚═════════╝
+    │← Thumb
+    '''
+    },
+    'Z': {
+        'description': 'Index finger draws Z in air',
+        'hand_shape': 'draw_z',
+        'detailed': '''Point with your index finger and draw 
+the letter Z in the air:
+diagonal down-left, across right, diagonal down-left.
+
+Key Points:
+• Start with pointing hand
+• Draw Z shape in the air
+• Motion is the key part
+• Like writing Z''',
+        'tips': 'This is a motion sign - trace Z clearly!',
+        'similar': ['J'],
+        'emoji': '👆→',
+        'ascii': '''
+    ━━━━━━►
+          ╲
+           ╲
+    ━━━━━━►
+    Draw Z in air
+    '''
+    },
+}
+
+# Common words with their sign descriptions
+ASL_WORDS_DATA = {
+    'HELLO': {
+        'type': 'greeting',
+        'description': 'Open hand salute from forehead outward',
+        'detailed': 'Hold flat hand near forehead, palm out, move hand outward like a salute wave.',
+        'emoji': '👋'
+    },
+    'THANK YOU': {
+        'type': 'courtesy',
+        'description': 'Flat hand from chin moving forward',
+        'detailed': 'Touch flat hand to chin/lips, move hand forward and down. Similar to blowing a kiss motion.',
+        'emoji': '🙏'
+    },
+    'PLEASE': {
+        'type': 'courtesy',
+        'description': 'Flat hand circles on chest',
+        'detailed': 'Place flat hand on chest and rub in a circular motion.',
+        'emoji': '🙏'
+    },
+    'YES': {
+        'type': 'response',
+        'description': 'Fist nods like a head nodding',
+        'detailed': 'Make a fist (S hand) and nod it up and down, like your hand is nodding "yes".',
+        'emoji': '✅'
+    },
+    'NO': {
+        'type': 'response',
+        'description': 'Index and middle tap thumb',
+        'detailed': 'Extend index and middle finger, tap them against thumb (like fingers saying "no").',
+        'emoji': '❌'
+    },
+    'HELP': {
+        'type': 'request',
+        'description': 'Fist on flat palm, lift up together',
+        'detailed': 'Place closed fist on flat palm of other hand. Lift both hands up together.',
+        'emoji': '🆘'
+    },
+    'SORRY': {
+        'type': 'courtesy',
+        'description': 'Fist circles on chest',
+        'detailed': 'Make a fist (A or S hand), place on chest, move in a circular rubbing motion.',
+        'emoji': '😔'
+    },
+    'I LOVE YOU': {
+        'type': 'expression',
+        'description': 'Thumb, index, and pinky extended',
+        'detailed': 'Extend thumb, index finger, and pinky. Middle and ring fingers are down. Combines I, L, and Y.',
+        'emoji': '🤟'
+    },
+    'GOOD': {
+        'type': 'description',
+        'description': 'Flat hand from chin forward',
+        'detailed': 'Touch flat hand to chin/lips, bring forward and down to land on other palm.',
+        'emoji': '👍'
+    },
+    'BAD': {
+        'type': 'description', 
+        'description': 'Flat hand from chin, flip down',
+        'detailed': 'Touch flat hand to chin, then flip hand so palm faces down.',
+        'emoji': '👎'
+    },
+    'WATER': {
+        'type': 'noun',
+        'description': 'W hand taps chin',
+        'detailed': 'Make W hand shape (3 fingers extended), tap index finger on chin twice.',
+        'emoji': '💧'
+    },
+    'FOOD': {
+        'type': 'noun',
+        'description': 'Bunched fingers tap mouth',
+        'detailed': 'Bunch all fingertips together, tap to lips/mouth repeatedly.',
+        'emoji': '🍽️'
+    },
+}
 
 
-class SignDetailPanel(QFrame):
-    """Panel showing detailed information about a sign."""
+class HandShapeWidget(QFrame):
+    """Widget showing the hand shape for a sign with ASCII art and description."""
     
-    close_requested = Signal()
-    
-    def __init__(self, parent=None):
+    def __init__(self, letter: str, parent=None):
         super().__init__(parent)
-        self.setObjectName("card")
-        self.setFixedWidth(350)
+        self.letter = letter
+        self.data = ASL_ALPHABET_DATA.get(letter, {})
         self._setup_ui()
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
         
-        # Header
+        # Letter display with emoji
         header = QHBoxLayout()
         
-        self.title_label = QLabel("Sign Details")
-        self.title_label.setStyleSheet(f"""
-            font-size: 20px;
+        letter_label = QLabel(self.letter)
+        letter_label.setStyleSheet(f"""
+            font-size: 64px;
+            font-weight: bold;
+            color: {COLORS['primary']};
+            background: transparent;
+        """)
+        header.addWidget(letter_label)
+        
+        emoji_label = QLabel(self.data.get('emoji', ''))
+        emoji_label.setStyleSheet("font-size: 48px; background: transparent;")
+        header.addWidget(emoji_label)
+        
+        header.addStretch()
+        layout.addLayout(header)
+        
+        # Brief description
+        desc = QLabel(self.data.get('description', ''))
+        desc.setStyleSheet(f"""
+            font-size: 18px;
             font-weight: 600;
             color: {COLORS['text_primary']};
+            background: transparent;
         """)
-        header.addWidget(self.title_label)
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+        
+        # ASCII art visualization
+        ascii_art = self.data.get('ascii', '')
+        if ascii_art:
+            art_frame = QFrame()
+            art_frame.setStyleSheet(f"""
+                background-color: {COLORS['bg_input']};
+                border-radius: 8px;
+                padding: 8px;
+            """)
+            art_layout = QVBoxLayout(art_frame)
+            
+            art_label = QLabel(ascii_art)
+            art_label.setStyleSheet(f"""
+                font-family: Consolas, 'Courier New', monospace;
+                font-size: 14px;
+                color: {COLORS['primary']};
+                background: transparent;
+            """)
+            art_label.setAlignment(Qt.AlignCenter)
+            art_layout.addWidget(art_label)
+            
+            layout.addWidget(art_frame)
+        
+        # Detailed instructions
+        detailed = QLabel(self.data.get('detailed', ''))
+        detailed.setStyleSheet(f"""
+            font-size: 14px;
+            color: {COLORS['text_secondary']};
+            line-height: 1.5;
+            background: transparent;
+        """)
+        detailed.setWordWrap(True)
+        layout.addWidget(detailed)
+        
+        # Tips
+        tips = self.data.get('tips', '')
+        if tips:
+            tips_label = QLabel(f"💡 Tip: {tips}")
+            tips_label.setStyleSheet(f"""
+                font-size: 13px;
+                color: {COLORS['accent']};
+                background-color: {COLORS['accent']}20;
+                padding: 8px 12px;
+                border-radius: 6px;
+            """)
+            tips_label.setWordWrap(True)
+            layout.addWidget(tips_label)
+        
+        # Similar signs
+        similar = self.data.get('similar', [])
+        if similar:
+            similar_text = ", ".join(similar)
+            similar_label = QLabel(f"⚠️ Similar to: {similar_text}")
+            similar_label.setStyleSheet(f"""
+                font-size: 12px;
+                color: {COLORS['warning']};
+                background: transparent;
+            """)
+            layout.addWidget(similar_label)
+        
+        layout.addStretch()
+
+
+class SignCard(QFrame):
+    """A clickable card for a letter in the alphabet grid."""
+    
+    clicked = Signal(str)
+    
+    def __init__(self, letter: str, parent=None):
+        super().__init__(parent)
+        self.letter = letter
+        self.setObjectName("signCard")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedSize(80, 100)
+        self._setup_ui()
+        self._apply_style(False)
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setAlignment(Qt.AlignCenter)
+        
+        # Emoji
+        data = ASL_ALPHABET_DATA.get(self.letter, {})
+        emoji = data.get('emoji', '✋')
+        emoji_label = QLabel(emoji)
+        emoji_label.setStyleSheet("font-size: 24px; background: transparent;")
+        emoji_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(emoji_label)
+        
+        # Letter
+        letter_label = QLabel(self.letter)
+        letter_label.setStyleSheet(f"""
+            font-size: 24px;
+            font-weight: bold;
+            color: {COLORS['text_primary']};
+            background: transparent;
+        """)
+        letter_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(letter_label)
+        
+        # Brief description
+        desc = data.get('description', '')[:20]
+        desc_label = QLabel(desc + "..." if len(data.get('description', '')) > 20 else desc)
+        desc_label.setStyleSheet(f"""
+            font-size: 9px;
+            color: {COLORS['text_muted']};
+            background: transparent;
+        """)
+        desc_label.setAlignment(Qt.AlignCenter)
+        desc_label.setWordWrap(True)
+        layout.addWidget(desc_label)
+    
+    def _apply_style(self, selected: bool):
+        if selected:
+            self.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {COLORS['primary']};
+                    border-radius: 12px;
+                    border: 2px solid {COLORS['primary']};
+                }}
+            """)
+        else:
+            self.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {COLORS['bg_card']};
+                    border-radius: 12px;
+                    border: 2px solid transparent;
+                }}
+                QFrame:hover {{
+                    background-color: {COLORS['bg_hover']};
+                    border: 2px solid {COLORS['primary']}40;
+                }}
+            """)
+    
+    def mousePressEvent(self, event):
+        self.clicked.emit(self.letter)
+
+
+class WordCard(QFrame):
+    """A card showing a common word/phrase."""
+    
+    def __init__(self, word: str, data: dict, parent=None):
+        super().__init__(parent)
+        self.word = word
+        self.data = data
+        self.setObjectName("wordCard")
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {COLORS['bg_card']};
+                border-radius: 12px;
+                padding: 16px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(8)
+        
+        # Header with emoji and word
+        header = QHBoxLayout()
+        
+        emoji = QLabel(self.data.get('emoji', '👋'))
+        emoji.setStyleSheet("font-size: 28px; background: transparent;")
+        header.addWidget(emoji)
+        
+        word_label = QLabel(self.word)
+        word_label.setStyleSheet(f"""
+            font-size: 18px;
+            font-weight: bold;
+            color: {COLORS['text_primary']};
+            background: transparent;
+        """)
+        header.addWidget(word_label)
         header.addStretch()
         
-        close_btn = QPushButton("✕")
-        close_btn.setFixedSize(32, 32)
-        close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {COLORS['bg_input']};
-                border: none;
-                border-radius: 16px;
-                color: {COLORS['text_secondary']};
-            }}
-            QPushButton:hover {{
-                background: {COLORS['bg_card_hover']};
-            }}
+        type_label = QLabel(self.data.get('type', '').title())
+        type_label.setStyleSheet(f"""
+            font-size: 11px;
+            color: {COLORS['primary']};
+            background-color: {COLORS['primary']}20;
+            padding: 4px 8px;
+            border-radius: 4px;
         """)
-        close_btn.clicked.connect(self.close_requested.emit)
-        header.addWidget(close_btn)
+        header.addWidget(type_label)
         
         layout.addLayout(header)
         
-        # Sign display
-        self.sign_display = QLabel("A")
-        self.sign_display.setStyleSheet(f"""
-            font-size: 80px;
-            font-weight: 700;
-            color: {COLORS['primary']};
-            background: {COLORS['bg_input']};
-            border-radius: 16px;
-            padding: 24px;
-        """)
-        self.sign_display.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.sign_display)
-        
         # Description
-        self.description_label = QLabel("Hand shape description")
-        self.description_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        self.description_label.setWordWrap(True)
-        layout.addWidget(self.description_label)
+        desc = QLabel(self.data.get('description', ''))
+        desc.setStyleSheet(f"""
+            font-size: 14px;
+            color: {COLORS['text_secondary']};
+            background: transparent;
+        """)
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
         
-        # Hand position section
-        position_title = QLabel("📍 Hand Position")
-        position_title.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']};")
-        layout.addWidget(position_title)
-        
-        self.position_label = QLabel("Position details...")
-        self.position_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        self.position_label.setWordWrap(True)
-        layout.addWidget(self.position_label)
-        
-        # Tips section
-        tips_title = QLabel("💡 Tips")
-        tips_title.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']};")
-        layout.addWidget(tips_title)
-        
-        self.tips_label = QLabel("Tips for signing...")
-        self.tips_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        self.tips_label.setWordWrap(True)
-        layout.addWidget(self.tips_label)
-        
-        layout.addStretch()
-        
-        # Practice button
-        practice_btn = QPushButton("Practice This Sign")
-        practice_btn.setObjectName("primaryButton")
-        layout.addWidget(practice_btn)
-    
-    def show_sign(self, sign_data: dict):
-        """Display information for a specific sign."""
-        self.title_label.setText(sign_data.get('text', 'Sign'))
-        
-        display_text = sign_data.get('emoji', sign_data.get('text', '?'))
-        self.sign_display.setText(display_text)
-        
-        self.description_label.setText(sign_data.get('description', 'No description available.'))
-        self.position_label.setText(sign_data.get('position', 'Hold your hand in front of you.'))
-        self.tips_label.setText(sign_data.get('tips', 'Practice slowly and clearly.'))
+        # Detailed
+        detailed = QLabel(self.data.get('detailed', ''))
+        detailed.setStyleSheet(f"""
+            font-size: 12px;
+            color: {COLORS['text_muted']};
+            background: transparent;
+        """)
+        detailed.setWordWrap(True)
+        layout.addWidget(detailed)
 
 
 class GestureLibraryPage(QWidget):
-    """Gesture library and reference page."""
+    """Main sign library page with searchable reference."""
     
     back_requested = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._signs_data = self._load_signs_data()
+        self._selected_letter = None
+        self._letter_cards = {}
         self._setup_ui()
     
-    def _load_signs_data(self) -> list:
-        """Load all available signs data."""
-        signs = []
-        
-        # Letters A-Z
-        letter_descriptions = {
-            'A': {'desc': 'Fist with thumb to side', 'pos': 'Fist facing forward', 'tips': 'Keep thumb parallel to fingers'},
-            'B': {'desc': 'Flat hand, fingers together', 'pos': 'Palm facing out', 'tips': 'Keep fingers straight'},
-            'C': {'desc': 'Curved hand like holding cup', 'pos': 'Side view', 'tips': 'Make a smooth curve'},
-            'D': {'desc': 'Index up, others touch thumb', 'pos': 'Palm facing out', 'tips': 'Form a circle with other fingers'},
-            'E': {'desc': 'Fingers curled over thumb', 'pos': 'Palm facing out', 'tips': 'Tuck thumb under fingers'},
-            'F': {'desc': 'OK sign, 3 fingers up', 'pos': 'Palm facing out', 'tips': 'Touch index to thumb'},
-            'G': {'desc': 'Pointing hand horizontal', 'pos': 'Side view', 'tips': 'Point to the side'},
-            'H': {'desc': 'Two fingers out horizontal', 'pos': 'Side view', 'tips': 'Index and middle together'},
-            'I': {'desc': 'Pinky finger up only', 'pos': 'Palm facing out', 'tips': 'Keep other fingers in fist'},
-            'J': {'desc': 'Pinky draws J shape', 'pos': 'Moving downward', 'tips': 'Trace J in the air'},
-            'K': {'desc': 'Peace sign with thumb', 'pos': 'Palm facing out', 'tips': 'Thumb between fingers'},
-            'L': {'desc': 'L shape with thumb and index', 'pos': 'Palm facing out', 'tips': 'Make a right angle'},
-            'M': {'desc': 'Three fingers over thumb', 'pos': 'Palm facing down', 'tips': 'Thumb under 3 fingers'},
-            'N': {'desc': 'Two fingers over thumb', 'pos': 'Palm facing down', 'tips': 'Thumb under 2 fingers'},
-            'O': {'desc': 'Fingers form O shape', 'pos': 'Side view', 'tips': 'Touch all fingers to thumb'},
-            'P': {'desc': 'K shape pointing down', 'pos': 'Pointing downward', 'tips': 'Like K but inverted'},
-            'Q': {'desc': 'G shape pointing down', 'pos': 'Pointing downward', 'tips': 'Like G but inverted'},
-            'R': {'desc': 'Crossed index and middle', 'pos': 'Palm facing out', 'tips': 'Cross the fingers'},
-            'S': {'desc': 'Fist with thumb over fingers', 'pos': 'Palm facing out', 'tips': 'Thumb across front'},
-            'T': {'desc': 'Thumb between fingers', 'pos': 'Palm facing left', 'tips': 'Index over thumb'},
-            'U': {'desc': 'Two fingers up together', 'pos': 'Palm facing out', 'tips': 'Fingers together'},
-            'V': {'desc': 'Peace sign', 'pos': 'Palm facing out', 'tips': 'Fingers spread apart'},
-            'W': {'desc': 'Three fingers up spread', 'pos': 'Palm facing out', 'tips': 'Like V plus middle'},
-            'X': {'desc': 'Hooked index finger', 'pos': 'Palm facing left', 'tips': 'Curl the index'},
-            'Y': {'desc': 'Hang loose (thumb + pinky)', 'pos': 'Palm facing out', 'tips': 'Shaka sign'},
-            'Z': {'desc': 'Index draws Z in air', 'pos': 'Moving', 'tips': 'Draw the letter Z'},
-        }
-        
-        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-            info = letter_descriptions.get(letter, {})
-            signs.append({
-                'id': f'letter_{letter}',
-                'text': letter,
-                'category': 'letter',
-                'emoji': '',
-                'is_dynamic': letter in ['J', 'Z'],
-                'description': info.get('desc', ''),
-                'position': info.get('pos', ''),
-                'tips': info.get('tips', '')
-            })
-        
-        # Numbers
-        for i in range(10):
-            signs.append({
-                'id': f'number_{i}',
-                'text': str(i),
-                'category': 'number',
-                'emoji': ['0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣'][i],
-                'is_dynamic': False,
-                'description': f'The number {i}',
-                'position': 'Palm facing out',
-                'tips': f'Show {i} fingers'
-            })
-        
-        # Common words
-        words = [
-            {'id': 'word_hello', 'text': 'Hello', 'emoji': '👋', 'is_dynamic': True,
-             'description': 'Wave your hand', 'position': 'Hand near face', 'tips': 'Natural waving motion'},
-            {'id': 'word_thanks', 'text': 'Thank You', 'emoji': '🙏', 'is_dynamic': True,
-             'description': 'Touch chin and move forward', 'position': 'Start at chin', 'tips': 'Move hand outward'},
-            {'id': 'word_please', 'text': 'Please', 'emoji': '🙏', 'is_dynamic': True,
-             'description': 'Circular motion on chest', 'position': 'Flat hand on chest', 'tips': 'Clockwise circle'},
-            {'id': 'word_yes', 'text': 'Yes', 'emoji': '✅', 'is_dynamic': True,
-             'description': 'Nod fist up and down', 'position': 'Fist at chin level', 'tips': 'Like head nodding'},
-            {'id': 'word_no', 'text': 'No', 'emoji': '❌', 'is_dynamic': True,
-             'description': 'Pinch fingers together', 'position': 'Index and middle to thumb', 'tips': 'Quick snap motion'},
-            {'id': 'word_sorry', 'text': 'Sorry', 'emoji': '🙇', 'is_dynamic': True,
-             'description': 'Fist circles on chest', 'position': 'Fist on chest', 'tips': 'Circular motion'},
-            {'id': 'word_love', 'text': 'I Love You', 'emoji': '🤟', 'is_dynamic': False,
-             'description': 'ILY hand shape', 'position': 'Palm out', 'tips': 'Thumb, index, pinky extended'},
-            {'id': 'word_help', 'text': 'Help', 'emoji': '🆘', 'is_dynamic': True,
-             'description': 'Thumbs up on palm, lift', 'position': 'Fist on flat palm', 'tips': 'Lift upward'},
-        ]
-        
-        for word in words:
-            word['category'] = 'word'
-            signs.append(word)
-        
-        return signs
-    
     def _setup_ui(self):
-        layout = QHBoxLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
-        
-        # Main content
-        main_content = QWidget()
-        main_layout = QVBoxLayout(main_content)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(16)
         
         # Header
         header = QHBoxLayout()
@@ -324,107 +989,204 @@ class GestureLibraryPage(QWidget):
         title = QLabel("📖 Sign Library")
         title.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {COLORS['text_primary']};")
         header.addWidget(title)
+        
         header.addStretch()
         
-        main_layout.addLayout(header)
+        # Search box
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("🔍 Search signs...")
+        self.search_box.setFixedWidth(200)
+        self.search_box.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {COLORS['bg_input']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                padding: 8px 12px;
+                color: {COLORS['text_primary']};
+            }}
+        """)
+        self.search_box.textChanged.connect(self._filter_signs)
+        header.addWidget(self.search_box)
         
-        # Search and filter bar
-        filter_bar = QHBoxLayout()
+        layout.addLayout(header)
         
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Search signs...")
-        self.search_input.setObjectName("input")
-        self.search_input.textChanged.connect(self._filter_signs)
-        filter_bar.addWidget(self.search_input)
+        # Tabs for Alphabet / Words
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: none;
+                background-color: transparent;
+            }}
+            QTabBar::tab {{
+                background-color: {COLORS['bg_panel']};
+                color: {COLORS['text_secondary']};
+                padding: 10px 20px;
+                margin-right: 4px;
+                border-radius: 8px 8px 0 0;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {COLORS['primary']};
+                color: {COLORS['text_primary']};
+            }}
+        """)
         
-        self.category_combo = QComboBox()
-        self.category_combo.addItems(["All Categories", "Letters", "Numbers", "Words", "Phrases"])
-        self.category_combo.setObjectName("input")
-        self.category_combo.currentTextChanged.connect(self._filter_signs)
-        filter_bar.addWidget(self.category_combo)
+        # Alphabet tab
+        alphabet_tab = self._create_alphabet_tab()
+        self.tabs.addTab(alphabet_tab, "🔤 Alphabet (A-Z)")
         
-        main_layout.addLayout(filter_bar)
+        # Common words tab
+        words_tab = self._create_words_tab()
+        self.tabs.addTab(words_tab, "💬 Common Words")
         
-        # Signs grid
+        layout.addWidget(self.tabs)
+    
+    def _create_alphabet_tab(self) -> QWidget:
+        """Create the alphabet reference tab."""
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setSpacing(16)
+        
+        # Left: Letter grid
+        grid_container = QWidget()
+        grid_container.setFixedWidth(380)
+        grid_layout = QVBoxLayout(grid_container)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
+        
+        grid_title = QLabel("Select a letter to see how to sign it:")
+        grid_title.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
+        grid_layout.addWidget(grid_title)
+        
+        # Letter grid
+        grid_scroll = QScrollArea()
+        grid_scroll.setWidgetResizable(True)
+        grid_scroll.setFrameShape(QFrame.NoFrame)
+        grid_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        grid_content = QWidget()
+        self.letter_grid = QGridLayout(grid_content)
+        self.letter_grid.setSpacing(8)
+        
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        for i, letter in enumerate(letters):
+            card = SignCard(letter)
+            card.clicked.connect(self._on_letter_selected)
+            self._letter_cards[letter] = card
+            self.letter_grid.addWidget(card, i // 5, i % 5)
+        
+        grid_scroll.setWidget(grid_content)
+        grid_layout.addWidget(grid_scroll)
+        
+        layout.addWidget(grid_container)
+        
+        # Right: Detail view
+        self.detail_scroll = QScrollArea()
+        self.detail_scroll.setWidgetResizable(True)
+        self.detail_scroll.setFrameShape(QFrame.NoFrame)
+        self.detail_scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: {COLORS['bg_card']};
+                border-radius: 12px;
+            }}
+        """)
+        
+        # Default: show instruction
+        self.detail_container = QWidget()
+        self.detail_layout = QVBoxLayout(self.detail_container)
+        
+        placeholder = QLabel("👈 Select a letter from the left\nto see how to form the sign")
+        placeholder.setStyleSheet(f"""
+            font-size: 18px;
+            color: {COLORS['text_muted']};
+            padding: 40px;
+        """)
+        placeholder.setAlignment(Qt.AlignCenter)
+        self.detail_layout.addWidget(placeholder)
+        
+        self.detail_scroll.setWidget(self.detail_container)
+        layout.addWidget(self.detail_scroll, 1)
+        
+        return widget
+    
+    def _create_words_tab(self) -> QWidget:
+        """Create the common words reference tab."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 16, 0, 0)
+        
+        info = QLabel("Common ASL words and phrases with descriptions of how to sign them:")
+        info.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px; margin-bottom: 8px;")
+        layout.addWidget(info)
+        
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         
-        self.grid_container = QWidget()
-        self.grid_layout = QGridLayout(self.grid_container)
-        self.grid_layout.setSpacing(16)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(12)
         
-        self._populate_grid()
+        # Group by type
+        types = {}
+        for word, data in ASL_WORDS_DATA.items():
+            word_type = data.get('type', 'other')
+            if word_type not in types:
+                types[word_type] = []
+            types[word_type].append((word, data))
         
-        scroll.setWidget(self.grid_container)
-        main_layout.addWidget(scroll)
-        
-        layout.addWidget(main_content, stretch=1)
-        
-        # Detail panel (hidden by default)
-        self.detail_panel = SignDetailPanel()
-        self.detail_panel.close_requested.connect(self._hide_detail_panel)
-        self.detail_panel.hide()
-        layout.addWidget(self.detail_panel)
-    
-    def _populate_grid(self, signs: list = None):
-        """Populate the grid with sign cards."""
-        # Clear existing
-        while self.grid_layout.count():
-            item = self.grid_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        
-        signs = signs or self._signs_data
-        
-        for i, sign in enumerate(signs):
-            card = SignCard(
-                sign['id'],
-                sign['text'],
-                sign['category'],
-                sign.get('description', ''),
-                sign.get('emoji', ''),
-                sign.get('is_dynamic', False)
-            )
-            card.clicked.connect(self._show_sign_detail)
-            self.grid_layout.addWidget(card, i // 5, i % 5)
-    
-    def _filter_signs(self):
-        """Filter signs based on search and category."""
-        search_text = self.search_input.text().lower()
-        category = self.category_combo.currentText().lower()
-        
-        filtered = []
-        for sign in self._signs_data:
-            # Category filter
-            if category != "all categories":
-                if category == "letters" and sign['category'] != 'letter':
-                    continue
-                elif category == "numbers" and sign['category'] != 'number':
-                    continue
-                elif category == "words" and sign['category'] != 'word':
-                    continue
-                elif category == "phrases" and sign['category'] != 'phrase':
-                    continue
+        for word_type, words in types.items():
+            # Type header
+            type_label = QLabel(f"📌 {word_type.title()}")
+            type_label.setStyleSheet(f"""
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS['text_primary']};
+                margin-top: 16px;
+            """)
+            scroll_layout.addWidget(type_label)
             
-            # Search filter
-            if search_text:
-                if search_text not in sign['text'].lower():
-                    if search_text not in sign.get('description', '').lower():
-                        continue
-            
-            filtered.append(sign)
+            # Word cards
+            for word, data in words:
+                card = WordCard(word, data)
+                scroll_layout.addWidget(card)
         
-        self._populate_grid(filtered)
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll)
+        
+        return widget
     
-    def _show_sign_detail(self, sign_id: str):
-        """Show detail panel for a sign."""
-        for sign in self._signs_data:
-            if sign['id'] == sign_id:
-                self.detail_panel.show_sign(sign)
-                self.detail_panel.show()
-                break
+    def _on_letter_selected(self, letter: str):
+        """Handle letter selection."""
+        # Update card styles
+        for l, card in self._letter_cards.items():
+            card._apply_style(l == letter)
+        
+        self._selected_letter = letter
+        
+        # Show detail
+        # Clear old content
+        while self.detail_layout.count():
+            child = self.detail_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        # Add new detail widget
+        detail_widget = HandShapeWidget(letter)
+        self.detail_layout.addWidget(detail_widget)
     
-    def _hide_detail_panel(self):
-        """Hide the detail panel."""
-        self.detail_panel.hide()
+    def _filter_signs(self, query: str):
+        """Filter signs based on search query."""
+        query = query.upper().strip()
+        
+        for letter, card in self._letter_cards.items():
+            if not query:
+                card.show()
+            else:
+                # Search in letter and description
+                data = ASL_ALPHABET_DATA.get(letter, {})
+                desc = data.get('description', '').upper()
+                if query in letter or query in desc:
+                    card.show()
+                else:
+                    card.hide()

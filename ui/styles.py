@@ -107,6 +107,7 @@ def _build_colors(accent='teal'):
         'bg_panel': '#1a1a24',
         'bg_card': '#242432',
         'bg_card_hover': '#2d2d3d',
+        'bg_hover': '#2d2d3d',
         'bg_input': '#16161e',
         'bg_sidebar': '#12121a',
         'bg_dark': '#0a0a0f',
