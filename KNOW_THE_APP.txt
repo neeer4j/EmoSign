@@ -1,5 +1,5 @@
 =====================================================
-SIGN LANGUAGE DETECTOR v3.0 - COMPLETE README
+EMOSIGN v3.0 - COMPLETE README
 =====================================================
 Read this before using the app!
 =====================================================

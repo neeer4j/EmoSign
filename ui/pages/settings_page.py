@@ -1,185 +1,290 @@
 """
-Settings Page - Application settings and preferences
+Settings Page - Clean, Modern Application Settings
 
 Provides settings for:
+- Appearance (Theme, Accent Color)
 - Voice output configuration
-- Theme (dark/light mode)
 - Language selection
 - Accessibility options
+- Detection settings
 - Export preferences
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QSlider, QCheckBox, QComboBox,
-    QSpinBox, QGroupBox, QRadioButton, QButtonGroup
+    QSpinBox, QGridLayout, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QColor
 
-from ui.styles import COLORS
+from ui.styles import COLORS, ACCENT_PRESETS, ThemeManager
 
 
-class SettingRow(QFrame):
-    """A row for a single setting."""
+class ColorButton(QPushButton):
+    """A circular button for selecting accent colors."""
     
-    def __init__(self, title: str, description: str = "", parent=None):
+    color_selected = Signal(str)
+    
+    def __init__(self, color_key: str, color_hex: str, parent=None):
         super().__init__(parent)
+        self.color_key = color_key
+        self.color_hex = color_hex
+        self.setFixedSize(40, 40)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setCheckable(True)
+        self._update_style()
+        self.clicked.connect(self._on_clicked)
+    
+    def _update_style(self):
+        checked_border = "#ffffff" if ThemeManager.is_dark() else "#0f172a"
         self.setStyleSheet(f"""
-            QFrame {{
-                background: {COLORS['bg_card']};
-                border-radius: 8px;
-                padding: 16px;
+            QPushButton {{
+                background-color: {self.color_hex};
+                border: 3px solid transparent;
+                border-radius: 20px;
+            }}
+            QPushButton:hover {{
+                border-color: rgba(255, 255, 255, 0.5);
+            }}
+            QPushButton:checked {{
+                border-color: {checked_border};
             }}
         """)
+    
+    def _on_clicked(self):
+        self.color_selected.emit(self.color_key)
+
+
+class SettingCard(QFrame):
+    """A card containing related settings."""
+    
+    def __init__(self, title: str, icon: str = "", parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
         
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(24, 20, 24, 20)
+        self.main_layout.setSpacing(16)
         
-        # Text
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        # Header
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        
+        if icon:
+            icon_label = QLabel(icon)
+            icon_label.setStyleSheet("font-size: 20px;")
+            header.addWidget(icon_label)
         
         title_label = QLabel(title)
-        title_label.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']};")
-        text_layout.addWidget(title_label)
+        title_label.setStyleSheet(f"""
+            font-size: 18px;
+            font-weight: 700;
+            color: {COLORS['text_primary']};
+        """)
+        header.addWidget(title_label)
+        header.addStretch()
+        
+        self.main_layout.addLayout(header)
+        
+        # Content area
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setSpacing(12)
+        self.main_layout.addLayout(self.content_layout)
+    
+    def add_row(self, label: str, widget, description: str = ""):
+        """Add a setting row with label and control widget."""
+        row = QHBoxLayout()
+        row.setSpacing(16)
+        
+        # Left side - labels
+        left = QVBoxLayout()
+        left.setSpacing(2)
+        
+        label_widget = QLabel(label)
+        label_widget.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']}; font-size: 14px;")
+        left.addWidget(label_widget)
         
         if description:
-            desc_label = QLabel(description)
-            desc_label.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 12px;")
-            text_layout.addWidget(desc_label)
+            desc_widget = QLabel(description)
+            desc_widget.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+            desc_widget.setWordWrap(True)
+            left.addWidget(desc_widget)
         
-        layout.addLayout(text_layout)
-        layout.addStretch()
+        row.addLayout(left, 1)
         
-        # Control widget placeholder
-        self.control_layout = QHBoxLayout()
-        layout.addLayout(self.control_layout)
+        # Right side - control
+        if isinstance(widget, QWidget):
+            widget.setMinimumWidth(180)
+            row.addWidget(widget)
+        
+        self.content_layout.addLayout(row)
     
-    def add_control(self, widget):
-        """Add a control widget to the row."""
-        self.control_layout.addWidget(widget)
+    def add_widget(self, widget):
+        """Add a custom widget to the content area."""
+        self.content_layout.addWidget(widget)
 
 
 class SettingsPage(QWidget):
-    """Application settings page."""
+    """Modern application settings page."""
     
     back_requested = Signal()
-    theme_changed = Signal(str)  # 'dark' or 'light'
+    theme_changed = Signal(str)
+    accent_changed = Signal(str)
     voice_settings_changed = Signal(dict)
     language_changed = Signal(str)
     accessibility_changed = Signal(dict)
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.color_buttons = []
         self._setup_ui()
         self._load_settings()
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(32, 32, 32, 32)
+        layout.setSpacing(24)
         
-        # Header
+        # ========== HEADER ==========
         header = QHBoxLayout()
+        header.setSpacing(16)
         
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("secondaryButton")
+        back_btn = QPushButton("←")
+        back_btn.setFixedSize(44, 44)
+        back_btn.setObjectName("iconButton")
+        back_btn.setCursor(Qt.PointingHandCursor)
         back_btn.clicked.connect(self.back_requested.emit)
         header.addWidget(back_btn)
         
-        title = QLabel("⚙️ Settings")
-        title.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {COLORS['text_primary']};")
-        header.addWidget(title)
+        title_section = QVBoxLayout()
+        title_section.setSpacing(4)
+        
+        title = QLabel("Settings")
+        title.setStyleSheet(f"font-size: 28px; font-weight: 700; color: {COLORS['text_primary']};")
+        title_section.addWidget(title)
+        
+        subtitle = QLabel("Customize your EmoSign experience")
+        subtitle.setStyleSheet(f"font-size: 14px; color: {COLORS['text_secondary']};")
+        title_section.addWidget(subtitle)
+        
+        header.addLayout(title_section)
         header.addStretch()
         
         layout.addLayout(header)
         
-        # Scrollable content
+        # ========== SCROLLABLE CONTENT ==========
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setSpacing(24)
+        content_layout.setContentsMargins(0, 0, 16, 0)
         
-        # ============ Appearance Section ============
-        appearance_section = self._create_section("🎨 Appearance")
+        # ========== APPEARANCE CARD ==========
+        appearance_card = SettingCard("Appearance", "🎨")
         
-        # Theme toggle
-        theme_row = SettingRow("Theme", "Switch between dark and light mode")
+        # Theme selector
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Dark Mode", "Light Mode", "System Default"])
+        self.theme_combo.addItems(["Dark Mode", "Light Mode"])
+        self.theme_combo.setCurrentText("Dark Mode" if ThemeManager.is_dark() else "Light Mode")
         self.theme_combo.currentTextChanged.connect(self._on_theme_changed)
-        theme_row.add_control(self.theme_combo)
-        appearance_section.layout().addWidget(theme_row)
+        appearance_card.add_row("Theme", self.theme_combo, "Switch between dark and light mode")
         
-        # UI Scale
-        scale_row = SettingRow("UI Scale", "Adjust the size of interface elements")
-        self.scale_combo = QComboBox()
-        self.scale_combo.addItems(["100%", "125%", "150%", "175%", "200%"])
-        scale_row.add_control(self.scale_combo)
-        appearance_section.layout().addWidget(scale_row)
+        # Accent color picker
+        color_label = QLabel("Accent Color")
+        color_label.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']}; font-size: 14px;")
+        appearance_card.content_layout.addWidget(color_label)
         
-        content_layout.addWidget(appearance_section)
+        color_desc = QLabel("Choose your preferred accent color")
+        color_desc.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        appearance_card.content_layout.addWidget(color_desc)
         
-        # ============ Voice Output Section ============
-        voice_section = self._create_section("🔊 Voice Output")
+        color_grid = QHBoxLayout()
+        color_grid.setSpacing(12)
+        
+        for key, preset in ACCENT_PRESETS.items():
+            btn = ColorButton(key, preset['primary'])
+            btn.setToolTip(preset['name'])
+            btn.color_selected.connect(self._on_accent_changed)
+            if key == ThemeManager.get_accent():
+                btn.setChecked(True)
+            self.color_buttons.append(btn)
+            color_grid.addWidget(btn)
+        
+        color_grid.addStretch()
+        appearance_card.content_layout.addLayout(color_grid)
+        
+        content_layout.addWidget(appearance_card)
+        
+        # ========== VOICE OUTPUT CARD ==========
+        voice_card = SettingCard("Voice Output", "🔊")
         
         # Enable voice
-        voice_enable_row = SettingRow("Enable Voice", "Speak translations aloud")
         self.voice_enabled_check = QCheckBox()
         self.voice_enabled_check.setChecked(True)
         self.voice_enabled_check.stateChanged.connect(self._on_voice_settings_changed)
-        voice_enable_row.add_control(self.voice_enabled_check)
-        voice_section.layout().addWidget(voice_enable_row)
+        voice_card.add_row("Enable Voice", self.voice_enabled_check, "Speak translations aloud")
         
         # Voice speed
-        speed_row = SettingRow("Speech Speed", "Adjust how fast text is spoken")
+        speed_widget = QWidget()
+        speed_layout = QHBoxLayout(speed_widget)
+        speed_layout.setContentsMargins(0, 0, 0, 0)
+        speed_layout.setSpacing(12)
+        
         self.speed_slider = QSlider(Qt.Horizontal)
         self.speed_slider.setMinimum(50)
         self.speed_slider.setMaximum(300)
         self.speed_slider.setValue(150)
-        self.speed_slider.setFixedWidth(200)
+        self.speed_slider.setFixedWidth(150)
         self.speed_slider.valueChanged.connect(self._on_voice_settings_changed)
-        self.speed_label = QLabel("150 wpm")
-        speed_row.add_control(self.speed_slider)
-        speed_row.add_control(self.speed_label)
-        voice_section.layout().addWidget(speed_row)
+        speed_layout.addWidget(self.speed_slider)
         
-        # Voice volume
-        volume_row = SettingRow("Volume", "Adjust voice output volume")
+        self.speed_label = QLabel("150")
+        self.speed_label.setFixedWidth(40)
+        self.speed_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
+        speed_layout.addWidget(self.speed_label)
+        
+        voice_card.add_row("Speech Speed", speed_widget, "Words per minute (50-300)")
+        
+        # Volume
+        volume_widget = QWidget()
+        volume_layout = QHBoxLayout(volume_widget)
+        volume_layout.setContentsMargins(0, 0, 0, 0)
+        volume_layout.setSpacing(12)
+        
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setMinimum(0)
         self.volume_slider.setMaximum(100)
         self.volume_slider.setValue(80)
-        self.volume_slider.setFixedWidth(200)
+        self.volume_slider.setFixedWidth(150)
         self.volume_slider.valueChanged.connect(self._on_voice_settings_changed)
+        volume_layout.addWidget(self.volume_slider)
+        
         self.volume_label = QLabel("80%")
-        volume_row.add_control(self.volume_slider)
-        volume_row.add_control(self.volume_label)
-        voice_section.layout().addWidget(volume_row)
+        self.volume_label.setFixedWidth(40)
+        self.volume_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
+        volume_layout.addWidget(self.volume_label)
         
-        # Auto-speak options
-        auto_words_row = SettingRow("Auto-speak Words", "Automatically speak detected words")
-        self.auto_words_check = QCheckBox()
-        self.auto_words_check.setChecked(True)
-        auto_words_row.add_control(self.auto_words_check)
-        voice_section.layout().addWidget(auto_words_row)
+        voice_card.add_row("Volume", volume_widget, "Voice output volume")
         
-        auto_sentences_row = SettingRow("Auto-speak Sentences", "Automatically speak completed sentences")
-        self.auto_sentences_check = QCheckBox()
-        self.auto_sentences_check.setChecked(True)
-        auto_sentences_row.add_control(self.auto_sentences_check)
-        voice_section.layout().addWidget(auto_sentences_row)
+        # Voice gender
+        self.voice_gender_combo = QComboBox()
+        self.voice_gender_combo.addItems(["Female", "Male"])
+        voice_card.add_row("Voice", self.voice_gender_combo, "Preferred voice type")
         
-        content_layout.addWidget(voice_section)
+        # Auto-speak mode
+        self.auto_speak_combo = QComboBox()
+        self.auto_speak_combo.addItems(["Per Sentence", "Per Word", "Manual Only"])
+        voice_card.add_row("Auto-Speak", self.auto_speak_combo, "When to automatically speak")
         
-        # ============ Language Section ============
-        lang_section = self._create_section("🌍 Language")
+        content_layout.addWidget(voice_card)
         
-        # Sign language selection
-        sign_lang_row = SettingRow("Sign Language", "Select the sign language to recognize")
+        # ========== LANGUAGE CARD ==========
+        lang_card = SettingCard("Language", "🌍")
+        
         self.sign_lang_combo = QComboBox()
         self.sign_lang_combo.addItems([
             "🇺🇸 American Sign Language (ASL)",
@@ -190,161 +295,129 @@ class SettingsPage(QWidget):
             "🇦🇺 Australian Sign Language (Auslan)"
         ])
         self.sign_lang_combo.currentTextChanged.connect(self._on_language_changed)
-        sign_lang_row.add_control(self.sign_lang_combo)
-        lang_section.layout().addWidget(sign_lang_row)
+        lang_card.add_row("Sign Language", self.sign_lang_combo, "Recognition language")
         
-        content_layout.addWidget(lang_section)
+        content_layout.addWidget(lang_card)
         
-        # ============ Accessibility Section ============
-        access_section = self._create_section("♿ Accessibility")
-        
-        # High contrast
-        contrast_row = SettingRow("High Contrast", "Increase color contrast for better visibility")
-        self.high_contrast_check = QCheckBox()
-        contrast_row.add_control(self.high_contrast_check)
-        access_section.layout().addWidget(contrast_row)
-        
-        # Large text
-        large_text_row = SettingRow("Large Text", "Use larger font sizes throughout the app")
-        self.large_text_check = QCheckBox()
-        large_text_row.add_control(self.large_text_check)
-        access_section.layout().addWidget(large_text_row)
-        
-        # Reduce motion
-        motion_row = SettingRow("Reduce Motion", "Minimize animations and transitions")
-        self.reduce_motion_check = QCheckBox()
-        motion_row.add_control(self.reduce_motion_check)
-        access_section.layout().addWidget(motion_row)
-        
-        # Screen reader support
-        reader_row = SettingRow("Screen Reader Support", "Optimize for screen readers")
-        self.screen_reader_check = QCheckBox()
-        reader_row.add_control(self.screen_reader_check)
-        access_section.layout().addWidget(reader_row)
-        
-        content_layout.addWidget(access_section)
-        
-        # ============ Detection Section ============
-        detect_section = self._create_section("🎯 Detection")
+        # ========== DETECTION CARD ==========
+        detect_card = SettingCard("Detection", "🎯")
         
         # Two-hand mode
-        two_hand_row = SettingRow("Two-Hand Mode", "Enable detection of two-handed signs")
         self.two_hand_check = QCheckBox()
         self.two_hand_check.setChecked(True)
-        two_hand_row.add_control(self.two_hand_check)
-        detect_section.layout().addWidget(two_hand_row)
+        detect_card.add_row("Two-Hand Mode", self.two_hand_check, "Detect signs using both hands")
         
         # Confidence threshold
-        confidence_row = SettingRow("Confidence Threshold", "Minimum confidence to accept a detection")
         self.confidence_spin = QSpinBox()
         self.confidence_spin.setMinimum(30)
         self.confidence_spin.setMaximum(95)
         self.confidence_spin.setValue(55)
         self.confidence_spin.setSuffix("%")
-        confidence_row.add_control(self.confidence_spin)
-        detect_section.layout().addWidget(confidence_row)
+        self.confidence_spin.setFixedWidth(100)
+        detect_card.add_row("Confidence", self.confidence_spin, "Minimum confidence to accept detection")
         
-        content_layout.addWidget(detect_section)
+        # Autocorrect
+        self.autocorrect_check = QCheckBox()
+        self.autocorrect_check.setChecked(True)
+        detect_card.add_row("Autocorrect", self.autocorrect_check, "Auto-fix common signing errors")
         
-        # ============ Export Section ============
-        export_section = self._create_section("📤 Export")
+        # Word prediction
+        self.prediction_check = QCheckBox()
+        self.prediction_check.setChecked(True)
+        detect_card.add_row("Word Prediction", self.prediction_check, "Suggest next words")
         
-        # Default format
-        format_row = SettingRow("Default Export Format", "Choose the default format for exports")
+        content_layout.addWidget(detect_card)
+        
+        # ========== ACCESSIBILITY CARD ==========
+        access_card = SettingCard("Accessibility", "♿")
+        
+        self.high_contrast_check = QCheckBox()
+        access_card.add_row("High Contrast", self.high_contrast_check, "Increase color contrast")
+        
+        self.large_text_check = QCheckBox()
+        access_card.add_row("Large Text", self.large_text_check, "Use larger font sizes")
+        
+        self.reduce_motion_check = QCheckBox()
+        access_card.add_row("Reduce Motion", self.reduce_motion_check, "Minimize animations")
+        
+        content_layout.addWidget(access_card)
+        
+        # ========== EXPORT CARD ==========
+        export_card = SettingCard("Export", "📤")
+        
         self.export_format_combo = QComboBox()
-        self.export_format_combo.addItems(["TXT", "CSV", "JSON", "PDF", "HTML"])
-        format_row.add_control(self.export_format_combo)
-        export_section.layout().addWidget(format_row)
+        self.export_format_combo.addItems(["TXT", "CSV", "JSON", "PDF", "HTML", "SRT"])
+        export_card.add_row("Default Format", self.export_format_combo, "Default export format")
         
-        # Include timestamps
-        timestamps_row = SettingRow("Include Timestamps", "Add timestamps to exported translations")
         self.timestamps_check = QCheckBox()
         self.timestamps_check.setChecked(True)
-        timestamps_row.add_control(self.timestamps_check)
-        export_section.layout().addWidget(timestamps_row)
+        export_card.add_row("Timestamps", self.timestamps_check, "Include timestamps")
         
-        # Include confidence
-        confidence_export_row = SettingRow("Include Confidence", "Add confidence scores to exports")
-        self.confidence_export_check = QCheckBox()
-        confidence_export_row.add_control(self.confidence_export_check)
-        export_section.layout().addWidget(confidence_export_row)
+        content_layout.addWidget(export_card)
         
-        content_layout.addWidget(export_section)
+        # ========== SAVE BUTTON ==========
+        content_layout.addSpacing(16)
         
-        content_layout.addStretch()
-        
-        # Save button
-        save_btn = QPushButton("💾 Save Settings")
-        save_btn.setObjectName("primaryButton")
+        save_btn = QPushButton("💾  Save Settings")
+        save_btn.setObjectName("primary")
+        save_btn.setFixedHeight(50)
+        save_btn.setCursor(Qt.PointingHandCursor)
         save_btn.clicked.connect(self._save_settings)
         content_layout.addWidget(save_btn)
+        
+        content_layout.addStretch()
         
         scroll.setWidget(content)
         layout.addWidget(scroll)
     
-    def _create_section(self, title: str) -> QFrame:
-        """Create a settings section."""
-        section = QFrame()
-        section.setObjectName("card")
-        
-        layout = QVBoxLayout(section)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(12)
-        
-        title_label = QLabel(title)
-        title_label.setStyleSheet(f"""
-            font-size: 16px;
-            font-weight: 700;
-            color: {COLORS['text_primary']};
-        """)
-        layout.addWidget(title_label)
-        
-        return section
-    
     def _load_settings(self):
         """Load current settings."""
-        # TODO: Load from config/storage
-        pass
+        current_accent = ThemeManager.get_accent()
+        for btn in self.color_buttons:
+            btn.setChecked(btn.color_key == current_accent)
     
     def _save_settings(self):
         """Save all settings."""
         settings = {
-            'theme': self.theme_combo.currentText(),
-            'ui_scale': self.scale_combo.currentText(),
+            'theme': 'dark' if 'Dark' in self.theme_combo.currentText() else 'light',
+            'accent': ThemeManager.get_accent(),
             'voice_enabled': self.voice_enabled_check.isChecked(),
             'voice_speed': self.speed_slider.value(),
             'voice_volume': self.volume_slider.value(),
-            'auto_speak_words': self.auto_words_check.isChecked(),
-            'auto_speak_sentences': self.auto_sentences_check.isChecked(),
+            'voice_gender': self.voice_gender_combo.currentText().lower(),
+            'auto_speak': self.auto_speak_combo.currentText(),
             'sign_language': self.sign_lang_combo.currentText(),
+            'two_hand_mode': self.two_hand_check.isChecked(),
+            'confidence': self.confidence_spin.value(),
+            'autocorrect': self.autocorrect_check.isChecked(),
+            'prediction': self.prediction_check.isChecked(),
             'high_contrast': self.high_contrast_check.isChecked(),
             'large_text': self.large_text_check.isChecked(),
             'reduce_motion': self.reduce_motion_check.isChecked(),
-            'screen_reader': self.screen_reader_check.isChecked(),
-            'two_hand_mode': self.two_hand_check.isChecked(),
-            'confidence_threshold': self.confidence_spin.value(),
             'export_format': self.export_format_combo.currentText(),
-            'export_timestamps': self.timestamps_check.isChecked(),
-            'export_confidence': self.confidence_export_check.isChecked(),
+            'timestamps': self.timestamps_check.isChecked(),
         }
-        
-        # TODO: Save to config/storage
         print("Settings saved:", settings)
     
-    def _on_theme_changed(self, theme: str):
+    def _on_theme_changed(self, theme_text: str):
         """Handle theme change."""
-        if "Dark" in theme:
-            self.theme_changed.emit("dark")
-        elif "Light" in theme:
-            self.theme_changed.emit("light")
-        else:
-            self.theme_changed.emit("system")
+        theme = "dark" if "Dark" in theme_text else "light"
+        ThemeManager.set_theme(theme)
+        self.theme_changed.emit(theme)
+        for btn in self.color_buttons:
+            btn._update_style()
+    
+    def _on_accent_changed(self, accent_key: str):
+        """Handle accent color change."""
+        for btn in self.color_buttons:
+            btn.setChecked(btn.color_key == accent_key)
+        ThemeManager.set_accent(accent_key)
+        self.accent_changed.emit(accent_key)
     
     def _on_voice_settings_changed(self):
         """Handle voice settings change."""
-        self.speed_label.setText(f"{self.speed_slider.value()} wpm")
+        self.speed_label.setText(str(self.speed_slider.value()))
         self.volume_label.setText(f"{self.volume_slider.value()}%")
-        
         self.voice_settings_changed.emit({
             'enabled': self.voice_enabled_check.isChecked(),
             'speed': self.speed_slider.value(),
@@ -353,16 +426,13 @@ class SettingsPage(QWidget):
     
     def _on_language_changed(self, language: str):
         """Handle language change."""
-        # Extract language code from selection
-        if "ASL" in language:
-            self.language_changed.emit("asl")
-        elif "BSL" in language:
-            self.language_changed.emit("bsl")
-        elif "ISL" in language:
-            self.language_changed.emit("isl")
-        elif "LSF" in language:
-            self.language_changed.emit("lsf")
-        elif "DGS" in language:
-            self.language_changed.emit("dgs")
-        elif "Auslan" in language:
-            self.language_changed.emit("auslan")
+        lang_map = {'ASL': 'asl', 'BSL': 'bsl', 'ISL': 'isl', 'LSF': 'lsf', 'DGS': 'dgs', 'Auslan': 'auslan'}
+        for key, code in lang_map.items():
+            if key in language:
+                self.language_changed.emit(code)
+                break
+    
+    def refresh_theme(self):
+        """Refresh the page with current theme colors."""
+        pass
+

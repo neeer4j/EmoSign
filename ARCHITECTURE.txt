@@ -1,5 +1,5 @@
 =====================================================
-SIGN LANGUAGE DETECTOR - HOW THE APP WORKS
+EMOSIGN - HOW THE APP WORKS
 =====================================================
 Version 3.0 | Simple Explanation for Everyone
 =====================================================

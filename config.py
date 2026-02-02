@@ -1,5 +1,5 @@
 """
-Sign Language Detector - Configuration
+EmoSign - Configuration
 """
 import os
 from dotenv import load_dotenv

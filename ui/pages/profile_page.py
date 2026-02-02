@@ -295,7 +295,7 @@ class ProfilePage(QWidget):
         info_layout = QHBoxLayout(info_frame)
         info_layout.setContentsMargins(24, 16, 24, 16)
         
-        app_name = QLabel("Sign Language Detector")
+        app_name = QLabel("EmoSign")
         app_name.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']};")
         
         version = QLabel("v2.0.0")

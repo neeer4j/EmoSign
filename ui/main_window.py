@@ -286,7 +286,7 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Setup the main UI."""
-        self.setWindowTitle("Sign Language Detector")
+        self.setWindowTitle("EmoSign")
         self.setMinimumSize(1400, 900)
         self.setStyleSheet(DARK_THEME)
         
@@ -395,6 +395,7 @@ class MainWindow(QMainWindow):
         
         # Settings signals
         self.settings_page.theme_changed.connect(self._apply_theme)
+        self.settings_page.accent_changed.connect(self._apply_accent)
         self.settings_page.voice_settings_changed.connect(self._apply_voice_settings)
         
         # Profile logout
@@ -403,6 +404,11 @@ class MainWindow(QMainWindow):
     def _apply_theme(self, theme: str):
         """Apply theme to the application."""
         ThemeManager.set_theme(theme)
+        self.setStyleSheet(ThemeManager.get_theme())
+    
+    def _apply_accent(self, accent: str):
+        """Apply accent color to the application."""
+        ThemeManager.set_accent(accent)
         self.setStyleSheet(ThemeManager.get_theme())
     
     def _apply_voice_settings(self, settings: dict):

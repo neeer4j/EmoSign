@@ -1,0 +1,23 @@
+{
+  "user_id": "guest",
+  "total_translations": 0,
+  "total_signs_detected": 0,
+  "total_words_formed": 0,
+  "total_sentences": 0,
+  "total_sessions": 1,
+  "total_practice_time": 2.7713578166666664,
+  "sign_counts": {},
+  "correct_predictions": 0,
+  "total_predictions": 0,
+  "current_streak": 1,
+  "longest_streak": 1,
+  "last_active_date": "2026-02-02",
+  "signs_learned": [],
+  "signs_mastered": [],
+  "unlocked_achievements": [],
+  "achievement_dates": {},
+  "total_points": 0,
+  "session_dates": [
+    "2026-02-02"
+  ]
+}
