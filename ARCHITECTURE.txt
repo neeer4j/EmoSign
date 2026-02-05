@@ -53,23 +53,26 @@ Example: If your index finger is up and others are down = Letter "D"
 STEP 3: MAKING SURE IT'S CORRECT
 --------------------------------
 The app doesn't just guess once - it checks many times!
-- It looks at 15 pictures in a row
-- If most of them say the same thing, it's confident
-- This prevents mistakes from shaky hands
+- It accumulates gestures over multiple frames
+- Uses temporal buffering with 5-frame stability threshold
+- Filters out duplicate gestures automatically
+- Waits for 2.5 seconds of inactivity before finalizing
 
-Think of it like asking 15 friends what they see - 
-if 10 say "A", it's probably an "A"!
+Think of it like quality control: each gesture must be stable!
 
 
-STEP 4: BUILDING WORDS AND SENTENCES
-------------------------------------
-As you keep signing letters:
-- A...P...P...L...E = "APPLE"
-- The app waits for you to pause
-- Then it combines letters into words
-- Words combine into sentences
+STEP 4: BUILDING SENTENCES
+---------------------------
+As you keep signing, the engine:
+- Maps gesture sequences to predefined English sentences
+- Recognizes 50+ common phrases (greetings, questions, responses)
+- Examples:
+  * HELLO + YOU + HOW → "Hello, how are you?"
+  * YES + THANK_YOU → "Yes, thank you"
+  * HELP + ME → "Help me"
+- Falls back to fingerspelling for unknown sequences
 
-Like texting, but with your hands!
+Like a smart dictionary that learns common patterns!
 
 
 STEP 5: OUTPUT (TEXT, VOICE, OR BOTH)
@@ -79,6 +82,7 @@ Once the app understands what you signed:
 - Can speak it out loud
 - Saves it to history
 - Can export to files
+- Can generate step-by-step signing instructions
 
 
 =====================================================
@@ -151,16 +155,32 @@ When you use LIVE CAMERA mode:
     ┌─────────────────────────────────────────────────┐
     │   ML Brain thinks:                              │
     │   "This looks like letter H... 85% sure!"       │
+    │   (PENDING state - needs confirmation)          │
     └─────────────────────────────────────────────────┘
                         ↓
     ┌─────────────────────────────────────────────────┐
-    │   Double-checking with 15 frames...             │
-    │   12 out of 15 say "H" = CONFIRMED!             │
+    │   Stability checking:                           │
+    │   5+ frames agree it's "H" = CONFIRMED!         │
+    │   (Prevents jittery false positives)            │
     └─────────────────────────────────────────────────┘
                         ↓
     ┌─────────────────────────────────────────────────┐
-    │   TRANSLATION: "H"                              │
-    │   🔊 "H" (spoken if voice is on)                │
+    │   Sequence buffering:                           │
+    │   [H] [E] [L] [L] [O]                           │
+    │   (Deduplicates repeated gestures automatically) │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   Sentence mapping:                             │
+    │   Trying to match pattern...                    │
+    │   "HELLO YOU HOW" → "Hello, how are you?"       │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   TRANSLATION COMPLETE:                         │
+    │   "Hello, how are you?"                         │
+    │   🔊 "Hello, how are you?" (spoken if enabled)  │
+    │   💾 Saved to history                           │
     └─────────────────────────────────────────────────┘
 
 
@@ -169,19 +189,20 @@ THREE TRANSLATION MODES
 =====================================================
 
 1. INSTANT MODE ⚡
-   - Shows each letter right away
+   - Shows each gesture right away
    - Good for: Testing, practicing letters
-   - Example: H → E → L → L → O (shows each one)
+   - Example: [Shows each letter as you sign]
 
-2. WORD MODE 📖
-   - Waits and builds words
-   - Good for: Spelling practice
-   - Example: H-E-L-L-O → "HELLO"
+2. PARTIAL MATCHING 📖
+   - Shows hints for partial matches
+   - Good for: Learning predefined phrases
+   - Example: "HELLO + YOU" → "Possible: Hello, how are you?"
 
 3. SENTENCE MODE 📝 (Default)
-   - Builds complete sentences
+   - Builds complete sentences or phrases
+   - Auto-translates after 2.5s inactivity
    - Good for: Real conversations
-   - Example: "HELLO HOW ARE YOU"
+   - Example: HELLO + YOU + HOW → "Hello, how are you?"
 
 
 =====================================================
@@ -240,16 +261,21 @@ signlanguage/
 ├── requirements.txt ...... What to install
 │
 ├── core/ ................. The brain of the app
-│   ├── pipeline.py ....... Connects everything together
-│   ├── voice_output.py ... Makes the app speak
-│   └── analytics.py ...... Tracks your progress
+│   ├── interpretation_engine.py .... Main orchestrator
+│   ├── gesture_dictionary.py ....... Gesture definitions & sentence mappings
+│   ├── sequence_buffer.py ......... Temporal gesture accumulation
+│   ├── sentence_mapper.py ......... Gesture → sentence translation
+│   ├── sign_visualizer.py ......... Text → sign visualization
+│   ├── pipeline.py ............... Legacy pipeline (compatibility)
+│   ├── voice_output.py ........... Voice synthesis
+│   └── analytics.py .............. Progress tracking
 │
 ├── detector/ ............. The eyes of the app
 │   ├── camera.py ......... Uses your webcam
 │   └── hand_tracker.py ... Finds your hands
 │
 ├── ml/ ................... The learning part
-│   └── classifier.py ..... Knows what signs mean
+│   └── classifier.py ..... Recognizes signs
 │
 ├── ui/ ................... What you see on screen
 │   ├── main_window.py .... The main app window
@@ -290,15 +316,27 @@ A: ASL (American), BSL (British), ISL (Indian),
 SUMMARY - HOW EVERYTHING CONNECTS
 =====================================================
 
-    YOU → CAMERA → HAND DETECTION → ML BRAIN → TRANSLATION → OUTPUT
-          (eyes)    (find hands)    (think)    (understand)  (show/speak)
+    YOU → CAMERA → HAND DETECTION → ML BRAIN → SEQUENCE BUFFER → SENTENCE MAPPER → OUTPUT
+          (eyes)    (find hands)    (think)    (accumulate)      (translate)      (speak/show)
+
+Architecture Flow:
+
+    1. Camera captures hand positions
+    2. ML model predicts gesture (with confidence)
+    3. Sequence buffer confirms stability over 5 frames
+    4. Deduplication removes repeated gestures
+    5. Sentence mapper matches sequence to predefined phrase
+    6. Falls back to fingerspelling if no match
+    7. Display result + speak + save to history
 
 It's like having a translator friend who:
 1. Watches your hands
-2. Understands sign language
-3. Tells you (or others) what it means
+2. Understands sign language patterns
+3. Recognizes common phrases (50+ predefined)
+4. Spells out unknown words letter-by-letter
+5. Tells you (or others) what it means in English
 
-Simple as that! 🎉
+Reliable for constrained vocabulary communication! 🎉
 
 
 Built with anger by nagaraaj

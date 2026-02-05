@@ -99,12 +99,14 @@ translation engine:
 
 
 =====================================================
-NEW FEATURES (v3.0)
+KEY FEATURES
 =====================================================
 
+✨ SENTENCE-LEVEL TRANSLATION - Sign full phrases mapped to English
+⏱️ INTELLIGENT BUFFERING - Temporal gesture accumulation with deduplication
+🎯 PREDEFINED MAPPINGS - 50+ common sentences (greetings, questions, etc.)
+📝 FINGERSPELLING FALLBACK - Spells out letters when no pattern matches
 🔊 VOICE OUTPUT - App can speak your translations out loud
-🌍 MULTI-LANGUAGE - Supports ASL, BSL, ISL, and more
-✨ AUTOCORRECT - Fixes common signing mistakes automatically
 📤 EXPORT - Save translations as PDF, text, subtitles, etc.
 📊 ACHIEVEMENTS - Earn badges as you practice
 🎓 TUTORIAL - Learn sign language with lessons
@@ -141,32 +143,46 @@ CORE FOLDER (core/) - The Brain
 core/__init__.py
     Just marks this as a Python package.
 
+core/interpretation_engine.py
+    MAIN: The new orchestrator engine that coordinates sentence-level translation.
+    - Handles gesture detection, temporal buffering, and sentence mapping
+    - Supports multiple modes: LIVE_CAMERA, VIDEO_FILE, TEXT_TO_SIGN
+    - Provides callbacks for UI integration and partial match hints
+
+core/gesture_dictionary.py
+    Central dictionary of all gestures and predefined sentence mappings.
+    - 26 letters (A-Z) + 10 numbers (0-9) for fingerspelling
+    - 30+ word-level gestures (HELLO, GOODBYE, YES, NO, THANK_YOU, etc.)
+    - 50+ predefined sentence mappings (greeting, response, question, etc.)
+    - Maps gesture sequences to English sentences
+
+core/sequence_buffer.py
+    Temporal gesture accumulation with noise filtering and deduplication.
+    - 5-frame stability threshold for gesture confirmation
+    - Automatically detects gesture boundaries
+    - 2.5s inactivity timeout for automatic translation
+    - Prevents duplicate gestures from being added consecutively
+
+core/sentence_mapper.py
+    Maps accumulated gesture sequences to English sentences.
+    - Matches sequences to predefined sentence patterns
+    - Falls back to fingerspelling when no pattern matches
+    - Bidirectional: Also includes TextToSignMapper for reverse translation
+
+core/sign_visualizer.py
+    Generates text-to-sign visualizations with step-by-step instructions.
+    - Creates SignVisualization objects with gesture steps
+    - Returns gesture names and descriptions for each step
+
 core/pipeline.py
-    The main controller that connects camera → detection → translation together.
+    Legacy pipeline controller (maintained for compatibility).
+    - Connects camera → detection → translation
 
 core/gesture_sequence.py
     Stores information about each gesture (what sign, how confident, when).
 
-core/sentence_constructor.py
-    Combines letters into words, and words into sentences.
-
-core/temporal_aggregator.py
-    Checks multiple video frames to make sure the detected sign is correct.
-
-core/sign_vocabulary.py
-    Dictionary of all known signs and what they mean.
-
-core/text_to_sign.py
-    Reverse translation - converts typed text into sign instructions.
-
 core/voice_output.py
     Makes the computer speak the translations out loud.
-
-core/language_support.py
-    Handles different sign languages (ASL, BSL, ISL, etc.).
-
-core/autocorrect.py
-    Fixes spelling mistakes from similar-looking signs.
 
 core/export_manager.py
     Saves translations to files (PDF, text, subtitles, etc.).
@@ -374,21 +390,21 @@ Ctrl+S ............ Open settings
 DEV NOTES
 =====================================================
 
-architecture changes (v3.0):
-- added singleton pattern for voice_output, analytics, language_support
-- theme manager allows runtime theme switching
-- all new pages use consistent signal-based communication
-- personalized models stored per user ID
+architecture changes (v3.1):
+- complete redesign of interpretation engine with modular components
+- new core modules: gesture_dictionary, sequence_buffer, sentence_mapper, interpretation_engine, sign_visualizer
+- uses constrained vocabulary approach (50+ predefined sentences + fingerspelling fallback)
+- gesture sequences mapped to English sentences (e.g., HELLO + YOU + HOW → "Hello, how are you?")
+- temporal aggregation with 5-frame stability and 2.5s inactivity timeout
+- explicit scope acknowledgment: NOT full ASL grammar, uses English word order
+- maintains backward compatibility with legacy pipeline
 
-hand tracking improvements:
-- now supports MAX_HANDS=2 in config
-- new methods: get_all_hands_landmarks(), get_hand_count()
-- handedness detection (left/right hand)
-
-voice output design:
-- runs in background thread to prevent UI blocking
-- queue-based for sequential speech
-- supports multiple TTS engines with fallback
+interpreter design patterns:
+- SignLanguageEngine: Main orchestrator with callback system
+- TemporalSequenceBuffer: Handles gesture accumulation and deduplication
+- SentenceMapper: Pattern matching with fallback to fingerspelling
+- GestureDictionary: Centralized storage of gestures and sentence mappings
+- SignVisualizer: Text-to-sign visualization engine
 
 
 Built with anger by nagaraaj
