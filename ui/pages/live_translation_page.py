@@ -1,11 +1,21 @@
 """
-Live Translation Page - Redesigned with Core Processing Pipeline
+Live Translation Page - Redesigned with New Interpretation Engine
 
 Real-time sign language detection with:
-- Unified camera/video processing
-- Sentence-level translation
+- Sentence-level translation via predefined mappings
+- Temporal gesture accumulation with deduplication
 - Text-to-sign reverse communication
-- Temporal sequence aggregation
+- Manual stop/translate or inactivity timeout
+- Bidirectional communication support
+
+ARCHITECTURE:
+    Camera/Video → Gesture Recognition → InterpretationEngine → Translation
+    Text Input → TextToSignMapper → SignVisualizer → Display
+
+This uses the new modular interpretation engine that provides:
+- Constrained vocabulary for reliable communication
+- Clear separation of gesture recognition, sequence buffering, and sentence mapping
+- Explicit scope acknowledgment (not full ASL grammar)
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
@@ -22,6 +32,16 @@ from ui.video_player_widget import VideoPlayerWidget
 from ui.sign_visualizer import SignVisualizerWidget
 from ml.classifier import Classifier
 
+# New interpretation engine
+from core.interpretation_engine import (
+    SignLanguageEngine, EngineConfig, EngineMode,
+    TranslationTrigger, TranslationOutput
+)
+from core.sequence_buffer import DetectedGesture, GestureState
+from core.sentence_mapper import SentenceMapping, OutputType
+from core.gesture_dictionary import GestureCategory
+
+# Legacy imports for compatibility
 from core.pipeline import SignLanguagePipeline, PipelineMode, PipelineConfig
 from core.gesture_sequence import GestureType, RecognizedGesture, TranslationResult
 from core.text_to_sign import TextToSignTranslator
@@ -356,13 +376,21 @@ class SourceSelector(QFrame):
 
 
 class LiveTranslationPage(QWidget):
-    """Redesigned live translation page with new processing pipeline.
+    """Redesigned live translation page with new interpretation engine.
     
     Features:
-    - Sentence-level translation with temporal aggregation
+    - Sentence-level translation via predefined gesture→sentence mappings
+    - Temporal gesture accumulation with deduplication
+    - Manual stop/translate button OR inactivity timeout
     - Camera and video input support
     - Text-to-sign reverse communication
-    - Real-time preview and statistics
+    - Real-time preview with partial match hints
+    
+    Architecture:
+        The page uses SignLanguageEngine which coordinates:
+        - TemporalSequenceBuffer (gesture accumulation)
+        - SentenceMapper (predefined mappings + fingerspelling fallback)
+        - TextToSignMapper (reverse direction)
     """
     
     back_requested = Signal()
@@ -374,13 +402,23 @@ class LiveTranslationPage(QWidget):
         self.db = db_service
         self.user = user_data or {}
         
-        # Initialize pipeline
+        # === NEW: Initialize interpretation engine ===
+        engine_config = EngineConfig(
+            stability_frames=getattr(config, 'STABILITY_THRESHOLD', 5),
+            min_confidence=getattr(config, 'CONFIDENCE_THRESHOLD', 0.5),
+            inactivity_timeout=getattr(config, 'TRANSLATION_TIME_WINDOW', 2.5),
+            enable_auto_translate=True,
+            enable_partial_hints=True
+        )
+        self.engine = SignLanguageEngine(engine_config)
+        
+        # Legacy pipeline for compatibility
         self.pipeline = SignLanguagePipeline(PipelineConfig(
-            aggregation_window=config.TEMPORAL_WINDOW_SIZE,
-            stability_threshold=config.STABILITY_THRESHOLD,
-            min_confidence=config.CONFIDENCE_THRESHOLD,
-            word_timeout=config.WORD_TIMEOUT,
-            sentence_timeout=config.TRANSLATION_TIME_WINDOW
+            aggregation_window=getattr(config, 'TEMPORAL_WINDOW_SIZE', 15),
+            stability_threshold=getattr(config, 'STABILITY_THRESHOLD', 5),
+            min_confidence=getattr(config, 'CONFIDENCE_THRESHOLD', 0.5),
+            word_timeout=getattr(config, 'WORD_TIMEOUT', 1.5),
+            sentence_timeout=getattr(config, 'TRANSLATION_TIME_WINDOW', 3.0)
         ))
         
         # Load classifier
@@ -389,15 +427,16 @@ class LiveTranslationPage(QWidget):
         # State
         self._is_translating = False
         self._current_source = "camera"
+        self._use_new_engine = True  # Toggle to use new engine
         
-        # Auto-check timer
+        # Auto-check timer for timeout-based translation
         self._check_timer = QTimer()
-        self._check_timer.timeout.connect(self._check_pipeline_status)
+        self._check_timer.timeout.connect(self._check_timeout)
         self._check_timer.setInterval(500)
         
         self._setup_ui()
         self._connect_signals()
-        self._setup_pipeline_callbacks()
+        self._setup_engine_callbacks()
     
     def _setup_ui(self):
         """Setup the UI layout."""
@@ -568,12 +607,83 @@ class LiveTranslationPage(QWidget):
         self.video_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
         self.video_widget.dynamic_gesture_detected.connect(self._on_dynamic_gesture)
         self.video_widget.video_finished.connect(self._on_video_finished)
+        self.video_widget.video_loaded.connect(self._on_video_loaded)
     
     def _setup_pipeline_callbacks(self):
         """Setup callbacks from the processing pipeline."""
         self.pipeline.set_on_gesture_recognized(self._on_gesture_recognized)
         self.pipeline.set_on_text_updated(self._on_text_updated)
         self.pipeline.set_on_translation_complete(self._on_translation_complete)
+    
+    def _setup_engine_callbacks(self):
+        """Setup callbacks from the new interpretation engine."""
+        self.engine.set_on_gesture_detected(self._on_engine_gesture)
+        self.engine.set_on_translation_complete(self._on_engine_translation)
+        self.engine.set_on_partial_hint(self._on_engine_partial_hint)
+        self.engine.set_on_timeout_triggered(self._on_engine_timeout)
+    
+    def _on_engine_gesture(self, gesture_name: str, confidence: float):
+        """Handle gesture detection from new engine."""
+        self.gesture_display.update_gesture(gesture_name, confidence, "engine")
+        
+        # Update preview with accumulated gestures
+        sequence = self.engine._buffer.get_current_sequence()
+        if sequence:
+            preview_text = " ".join(g.gesture_name for g in sequence)
+            self.translation_display.set_preview(f"📝 {preview_text}")
+    
+    def _on_engine_translation(self, output: 'TranslationOutput'):
+        """Handle translation completion from new engine."""
+        self.translation_display.set_translation(output.text)
+        self.translation_display.set_preview("")
+        
+        # Calculate statistics
+        word_count = len(output.text.split()) if output.text else 0
+        gesture_count = len(output.gesture_sequence) if output.gesture_sequence else 0
+        
+        self.translation_display.set_statistics(
+            word_count,
+            gesture_count,
+            output.confidence
+        )
+        
+        # Show matched sentence info
+        if output.is_predefined:
+            self.translation_display.set_status(
+                f"✓ Matched predefined phrase ({output.output_type.value})"
+            )
+        else:
+            self.translation_display.set_status(
+                f"📝 Fingerspelling result"
+            )
+        
+        # Save to history
+        self._save_engine_translation(output)
+    
+    def _on_engine_partial_hint(self, hint: str):
+        """Handle partial match hint from engine."""
+        if hint:
+            self.translation_display.set_status(f"💡 Possible: {hint}...")
+    
+    def _on_engine_timeout(self):
+        """Handle inactivity timeout from engine."""
+        if self._is_translating and self._use_new_engine:
+            # Auto-translate on timeout
+            output = self.engine.translate()
+            if output and output.text:
+                self._on_engine_translation(output)
+    
+    def _save_engine_translation(self, output: 'TranslationOutput'):
+        """Save translation from new engine to history."""
+        if not self.db or self.user.get("guest"):
+            return
+        
+        translation_type = "predefined" if output.is_predefined else "fingerspelling"
+        self.translation_made.emit(
+            output.text,
+            output.confidence,
+            translation_type
+        )
     
     # === Source Handling ===
     
@@ -589,9 +699,12 @@ class LiveTranslationPage(QWidget):
         if source == "camera":
             self.source_stack.setCurrentIndex(0)
             self.camera_controls.show()
+            self.start_btn.setText("▶️ Start Translation")
         elif source == "video":
             self.source_stack.setCurrentIndex(1)
-            self.camera_controls.hide()
+            # Show controls for video too - they control translation
+            self.camera_controls.show()
+            self.start_btn.setText("▶️ Enable Translation")
         else:  # text
             self.source_stack.setCurrentIndex(2)
             self.camera_controls.hide()
@@ -601,6 +714,15 @@ class LiveTranslationPage(QWidget):
             self.camera_widget.stop()
         if source != "video" and self.video_widget.is_active():
             self.video_widget.release()
+    
+    def _on_video_loaded(self, filename: str):
+        """Handle video loaded - prepare for translation."""
+        self.translation_display.set_status(f"Video loaded: {filename}")
+        self.translation_display.clear()
+        self.gesture_display.clear()
+        self.pipeline.clear()
+        if self._use_new_engine:
+            self.engine.stop()  # Reset engine state
     
     def _on_mode_changed(self, mode: str):
         """Handle translation mode change."""
@@ -634,13 +756,27 @@ class LiveTranslationPage(QWidget):
             if not self.camera_widget.start():
                 self._is_translating = False
                 return
+        elif self._current_source == "video":
+            # For video, translation is enabled - video plays via its own controls
+            if not self.video_widget.is_loaded():
+                self._is_translating = False
+                self.translation_display.set_status("Please load a video first")
+                return
         
-        # Start pipeline
+        # Start both old pipeline and new engine
         mode = PipelineMode.LIVE_ACCUMULATE if self.mode_selector.get_mode() == "sentence" else PipelineMode.LIVE_CONTINUOUS
         self.pipeline.start(mode)
         
+        # Start new engine
+        if self._use_new_engine:
+            engine_mode = EngineMode.LIVE_CAMERA if self._current_source == "camera" else EngineMode.VIDEO_FILE
+            self.engine.start(engine_mode)
+        
         # Update UI
-        self.start_btn.setText("⏹️ Stop")
+        if self._current_source == "camera":
+            self.start_btn.setText("⏹️ Stop")
+        else:
+            self.start_btn.setText("⏹️ Disable Translation")
         self.start_btn.setObjectName("danger")
         self.start_btn.style().unpolish(self.start_btn)
         self.start_btn.style().polish(self.start_btn)
@@ -656,13 +792,19 @@ class LiveTranslationPage(QWidget):
         self._is_translating = False
         
         # Stop sources
-        self.camera_widget.stop()
+        if self._current_source == "camera":
+            self.camera_widget.stop()
         
-        # Stop pipeline
+        # Stop both pipeline and engine
         self.pipeline.stop()
+        if self._use_new_engine:
+            self.engine.stop()
         
         # Update UI
-        self.start_btn.setText("▶️ Start Translation")
+        if self._current_source == "camera":
+            self.start_btn.setText("▶️ Start Translation")
+        else:
+            self.start_btn.setText("▶️ Enable Translation")
         self.start_btn.setObjectName("primary")
         self.start_btn.style().unpolish(self.start_btn)
         self.start_btn.style().polish(self.start_btn)
@@ -676,26 +818,33 @@ class LiveTranslationPage(QWidget):
         if not self._is_translating:
             return
         
-        # Get final translation
-        result = self.pipeline.stop_and_translate()
-        
         self._is_translating = False
+        
+        # Use new engine if enabled
+        if self._use_new_engine:
+            output = self.engine.translate()
+            self.engine.stop()
+            
+            if output and output.text:
+                self._on_engine_translation(output)
+            else:
+                self.translation_display.set_status("No translation available")
+        else:
+            # Fallback to old pipeline
+            result = self.pipeline.stop_and_translate()
+            
+            if result.text:
+                self.translation_display.set_translation(result.text)
+                self.translation_display.set_preview("")
+                self.translation_display.set_statistics(
+                    result.word_count,
+                    result.gesture_count,
+                    result.confidence
+                )
+                self._save_translation(result)
         
         # Stop camera
         self.camera_widget.stop()
-        
-        # Update UI with result
-        if result.text:
-            self.translation_display.set_translation(result.text)
-            self.translation_display.set_preview("")
-            self.translation_display.set_statistics(
-                result.word_count,
-                result.gesture_count,
-                result.confidence
-            )
-            
-            # Save to history
-            self._save_translation(result)
         
         # Update buttons
         self.start_btn.setText("▶️ Start Translation")
@@ -706,6 +855,20 @@ class LiveTranslationPage(QWidget):
         self.stop_translate_btn.hide()
         self.translation_display.set_status("Complete")
         self._check_timer.stop()
+    
+    def _check_timeout(self):
+        """Check for inactivity timeout to auto-translate."""
+        if not self._is_translating:
+            return
+        
+        if self._use_new_engine and self.mode_selector.get_mode() == "sentence":
+            # Check if engine has timeout ready
+            if self.engine._buffer.check_timeout():
+                output = self.engine.translate()
+                if output and output.text:
+                    self._on_engine_translation(output)
+                    # Reset for next sentence
+                    self.engine._buffer.clear()
     
     # === Gesture Processing ===
     
@@ -741,6 +904,10 @@ class LiveTranslationPage(QWidget):
             gesture_type=GestureType.STATIC
         )
         
+        # Also feed to new engine
+        if self._use_new_engine:
+            self.engine.process_gesture(gesture, confidence)
+        
         # Update gesture display
         self.gesture_display.update_gesture(gesture, confidence, "heuristic")
     
@@ -755,6 +922,12 @@ class LiveTranslationPage(QWidget):
             confidence=confidence,
             gesture_type=GestureType.DYNAMIC
         )
+        
+        # Also feed to new engine (prefix with WORD_ for word-level gestures)
+        if self._use_new_engine:
+            # Dynamic gestures are typically word-level
+            gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
+            self.engine.process_gesture(gesture_name, confidence)
         
         self.gesture_display.update_gesture(f"✨{gesture}", confidence, "dynamic")
     
@@ -807,16 +980,6 @@ class LiveTranslationPage(QWidget):
         
         self._save_translation(result)
     
-    def _check_pipeline_status(self):
-        """Periodic check for pipeline status."""
-        if not self._is_translating:
-            return
-        
-        # Check for auto-translate timeout in sentence mode
-        if self.mode_selector.get_mode() == "sentence":
-            # This is handled internally by pipeline
-            pass
-    
     # === Actions ===
     
     def _copy_translation(self):
@@ -829,6 +992,8 @@ class LiveTranslationPage(QWidget):
     def _clear_translation(self):
         """Clear current translation."""
         self.pipeline.clear()
+        if self._use_new_engine:
+            self.engine._buffer.clear()
         self.translation_display.clear()
         self.gesture_display.clear()
     
@@ -862,6 +1027,8 @@ class LiveTranslationPage(QWidget):
             self._stop_translation()
         self.camera_widget.stop()
         self.video_widget.release()
+        if self._use_new_engine:
+            self.engine.stop()
 
 
 # Alias for compatibility with existing code

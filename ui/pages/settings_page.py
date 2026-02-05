@@ -133,6 +133,7 @@ class SettingsPage(QWidget):
     voice_settings_changed = Signal(dict)
     language_changed = Signal(str)
     accessibility_changed = Signal(dict)
+    detection_settings_changed = Signal(dict)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -287,15 +288,10 @@ class SettingsPage(QWidget):
         
         self.sign_lang_combo = QComboBox()
         self.sign_lang_combo.addItems([
-            "🇺🇸 American Sign Language (ASL)",
-            "🇬🇧 British Sign Language (BSL)",
-            "🇮🇳 Indian Sign Language (ISL)",
-            "🇫🇷 French Sign Language (LSF)",
-            "🇩🇪 German Sign Language (DGS)",
-            "🇦🇺 Australian Sign Language (Auslan)"
+            "🇺🇸 American Sign Language (ASL)"
         ])
-        self.sign_lang_combo.currentTextChanged.connect(self._on_language_changed)
-        lang_card.add_row("Sign Language", self.sign_lang_combo, "Recognition language")
+        self.sign_lang_combo.setEnabled(False)  # Only ASL supported
+        lang_card.add_row("Sign Language", self.sign_lang_combo, "Currently only ASL is supported")
         
         content_layout.addWidget(lang_card)
         
@@ -377,7 +373,10 @@ class SettingsPage(QWidget):
             btn.setChecked(btn.color_key == current_accent)
     
     def _save_settings(self):
-        """Save all settings."""
+        """Save all settings and emit signals."""
+        import json
+        import os
+        
         settings = {
             'theme': 'dark' if 'Dark' in self.theme_combo.currentText() else 'light',
             'accent': ThemeManager.get_accent(),
@@ -386,7 +385,7 @@ class SettingsPage(QWidget):
             'voice_volume': self.volume_slider.value(),
             'voice_gender': self.voice_gender_combo.currentText().lower(),
             'auto_speak': self.auto_speak_combo.currentText(),
-            'sign_language': self.sign_lang_combo.currentText(),
+            'sign_language': 'asl',
             'two_hand_mode': self.two_hand_check.isChecked(),
             'confidence': self.confidence_spin.value(),
             'autocorrect': self.autocorrect_check.isChecked(),
@@ -397,7 +396,32 @@ class SettingsPage(QWidget):
             'export_format': self.export_format_combo.currentText(),
             'timestamps': self.timestamps_check.isChecked(),
         }
-        print("Settings saved:", settings)
+        
+        # Save to config file
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "user_settings.json")
+        try:
+            with open(config_path, 'w') as f:
+                json.dump(settings, f, indent=2)
+        except Exception as e:
+            print(f"Failed to save settings: {e}")
+        
+        # Emit signals for active settings
+        self.detection_settings_changed.emit({
+            'confidence_threshold': self.confidence_spin.value() / 100,
+            'autocorrect': self.autocorrect_check.isChecked(),
+            'word_prediction': self.prediction_check.isChecked(),
+            'two_hand_mode': self.two_hand_check.isChecked()
+        })
+        
+        self.accessibility_changed.emit({
+            'high_contrast': self.high_contrast_check.isChecked(),
+            'large_text': self.large_text_check.isChecked(),
+            'reduce_motion': self.reduce_motion_check.isChecked()
+        })
+        
+        # Show confirmation
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Settings Saved", "Your settings have been saved successfully!")
     
     def _on_theme_changed(self, theme_text: str):
         """Handle theme change."""
@@ -421,18 +445,60 @@ class SettingsPage(QWidget):
         self.voice_settings_changed.emit({
             'enabled': self.voice_enabled_check.isChecked(),
             'speed': self.speed_slider.value(),
-            'volume': self.volume_slider.value() / 100
+            'volume': self.volume_slider.value() / 100,
+            'gender': self.voice_gender_combo.currentText().lower(),
+            'auto_speak': self.auto_speak_combo.currentText()
         })
-    
-    def _on_language_changed(self, language: str):
-        """Handle language change."""
-        lang_map = {'ASL': 'asl', 'BSL': 'bsl', 'ISL': 'isl', 'LSF': 'lsf', 'DGS': 'dgs', 'Auslan': 'auslan'}
-        for key, code in lang_map.items():
-            if key in language:
-                self.language_changed.emit(code)
-                break
     
     def refresh_theme(self):
         """Refresh the page with current theme colors."""
         pass
+    
+    def load_saved_settings(self):
+        """Load previously saved settings from file."""
+        import json
+        import os
+        
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "user_settings.json")
+        
+        if not os.path.exists(config_path):
+            return
+        
+        try:
+            with open(config_path, 'r') as f:
+                settings = json.load(f)
+            
+            # Apply loaded settings
+            if settings.get('theme') == 'light':
+                self.theme_combo.setCurrentText("Light Mode")
+            
+            self.voice_enabled_check.setChecked(settings.get('voice_enabled', True))
+            self.speed_slider.setValue(settings.get('voice_speed', 150))
+            self.volume_slider.setValue(settings.get('voice_volume', 80))
+            
+            gender = settings.get('voice_gender', 'female').title()
+            if gender in ["Male", "Female"]:
+                self.voice_gender_combo.setCurrentText(gender)
+            
+            auto_speak = settings.get('auto_speak', 'Per Sentence')
+            if auto_speak in ["Per Sentence", "Per Word", "Manual Only"]:
+                self.auto_speak_combo.setCurrentText(auto_speak)
+            
+            self.two_hand_check.setChecked(settings.get('two_hand_mode', True))
+            self.confidence_spin.setValue(settings.get('confidence', 55))
+            self.autocorrect_check.setChecked(settings.get('autocorrect', True))
+            self.prediction_check.setChecked(settings.get('prediction', True))
+            
+            self.high_contrast_check.setChecked(settings.get('high_contrast', False))
+            self.large_text_check.setChecked(settings.get('large_text', False))
+            self.reduce_motion_check.setChecked(settings.get('reduce_motion', False))
+            
+            export_fmt = settings.get('export_format', 'TXT')
+            if export_fmt in ["TXT", "CSV", "JSON", "PDF", "HTML", "SRT"]:
+                self.export_format_combo.setCurrentText(export_fmt)
+            
+            self.timestamps_check.setChecked(settings.get('timestamps', True))
+            
+        except Exception as e:
+            print(f"Failed to load settings: {e}")
 

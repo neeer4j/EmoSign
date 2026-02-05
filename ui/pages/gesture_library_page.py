@@ -2,7 +2,7 @@
 Gesture Library Page - Visual ASL Sign Reference Guide
 
 Provides visual demonstrations of ASL signs with:
-- Hand shape diagrams for each letter
+- Video-based demonstrations for each letter
 - Detailed descriptions of how to form each sign
 - Common words and phrases
 - Searchable reference
@@ -13,10 +13,25 @@ from PySide6.QtWidgets import (
     QLineEdit, QTabWidget, QSizePolicy, QGraphicsDropShadowEffect,
     QTextEdit
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QUrl
 from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtMultimediaWidgets import QVideoWidget
+
+import json
+import os
 
 from ui.styles import COLORS
+
+# Load video timestamps
+SIGN_TIMESTAMPS = {}
+SIGN_VIDEO_PATH = ""
+_timestamps_file = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "asl_hands", "sign_timestamps.json")
+if os.path.exists(_timestamps_file):
+    with open(_timestamps_file, 'r') as f:
+        _data = json.load(f)
+        SIGN_TIMESTAMPS = _data.get("signs", {})
+        SIGN_VIDEO_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "asl_hands", _data.get("video_file", ""))
 
 
 # ASL Alphabet data with visual descriptions and hand shape instructions
@@ -706,13 +721,145 @@ ASL_WORDS_DATA = {
 }
 
 
+class SignVideoPlayer(QFrame):
+    """Widget for playing sign video segments based on timestamps."""
+    
+    def __init__(self, letter: str, parent=None):
+        super().__init__(parent)
+        self.letter = letter
+        self.timestamps = SIGN_TIMESTAMPS.get(letter, {})
+        self.start_time = self.timestamps.get('start', 0) * 1000  # Convert to ms
+        self.end_time = self.timestamps.get('end', 0) * 1000  # Convert to ms
+        self._loop_enabled = True
+        self._setup_ui()
+        
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        # Video widget
+        self.video_widget = QVideoWidget()
+        self.video_widget.setMinimumSize(320, 240)
+        self.video_widget.setStyleSheet(f"""
+            background-color: #000000;
+            border-radius: 8px;
+        """)
+        layout.addWidget(self.video_widget)
+        
+        # Media player setup
+        self.media_player = QMediaPlayer()
+        self.audio_output = QAudioOutput()
+        self.media_player.setAudioOutput(self.audio_output)
+        self.media_player.setVideoOutput(self.video_widget)
+        
+        # Position check timer for looping within segment
+        self.position_timer = QTimer()
+        self.position_timer.timeout.connect(self._check_position)
+        self.position_timer.setInterval(50)  # Check every 50ms
+        
+        # Control buttons
+        controls = QHBoxLayout()
+        
+        self.play_btn = QPushButton("▶ Play")
+        self.play_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['primary_dark']};
+            }}
+        """)
+        self.play_btn.clicked.connect(self._toggle_play)
+        controls.addWidget(self.play_btn)
+        
+        self.loop_btn = QPushButton("🔁 Loop: On")
+        self.loop_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['bg_input']};
+                color: {COLORS['text_primary']};
+                border: 1px solid {COLORS['border']};
+                padding: 8px 12px;
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['bg_hover']};
+            }}
+        """)
+        self.loop_btn.clicked.connect(self._toggle_loop)
+        controls.addWidget(self.loop_btn)
+        
+        controls.addStretch()
+        layout.addLayout(controls)
+        
+        # Load video if timestamps exist
+        if self.timestamps and os.path.exists(SIGN_VIDEO_PATH):
+            self.media_player.setSource(QUrl.fromLocalFile(SIGN_VIDEO_PATH))
+            self.media_player.mediaStatusChanged.connect(self._on_media_status_changed)
+        else:
+            no_video_label = QLabel("📹 No video available for this letter")
+            no_video_label.setStyleSheet(f"color: {COLORS['text_muted']}; padding: 20px;")
+            no_video_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(no_video_label)
+    
+    def _on_media_status_changed(self, status):
+        """Handle media status changes."""
+        if status == QMediaPlayer.MediaStatus.LoadedMedia:
+            # Seek to start position and auto-play
+            self.media_player.setPosition(int(self.start_time))
+            self.media_player.play()
+            self.position_timer.start()
+            self.play_btn.setText("⏸ Pause")
+    
+    def _check_position(self):
+        """Check if we've reached the end of the segment."""
+        current = self.media_player.position()
+        if current >= self.end_time:
+            if self._loop_enabled:
+                self.media_player.setPosition(int(self.start_time))
+            else:
+                self.media_player.pause()
+                self.play_btn.setText("▶ Play")
+    
+    def _toggle_play(self):
+        """Toggle play/pause."""
+        if self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self.media_player.pause()
+            self.position_timer.stop()
+            self.play_btn.setText("▶ Play")
+        else:
+            # Ensure we're within segment bounds
+            current = self.media_player.position()
+            if current < self.start_time or current >= self.end_time:
+                self.media_player.setPosition(int(self.start_time))
+            self.media_player.play()
+            self.position_timer.start()
+            self.play_btn.setText("⏸ Pause")
+    
+    def _toggle_loop(self):
+        """Toggle loop mode."""
+        self._loop_enabled = not self._loop_enabled
+        self.loop_btn.setText(f"🔁 Loop: {'On' if self._loop_enabled else 'Off'}")
+    
+    def cleanup(self):
+        """Stop playback and cleanup resources."""
+        self.position_timer.stop()
+        self.media_player.stop()
+
+
 class HandShapeWidget(QFrame):
-    """Widget showing the hand shape for a sign with ASCII art and description."""
+    """Widget showing the hand shape for a sign with video and description."""
     
     def __init__(self, letter: str, parent=None):
         super().__init__(parent)
         self.letter = letter
         self.data = ASL_ALPHABET_DATA.get(letter, {})
+        self.video_player = None
         self._setup_ui()
     
     def _setup_ui(self):
@@ -750,28 +897,52 @@ class HandShapeWidget(QFrame):
         desc.setWordWrap(True)
         layout.addWidget(desc)
         
-        # ASCII art visualization
-        ascii_art = self.data.get('ascii', '')
-        if ascii_art:
-            art_frame = QFrame()
-            art_frame.setStyleSheet(f"""
+        # Video player for this letter (if timestamp exists)
+        if self.letter in SIGN_TIMESTAMPS:
+            video_frame = QFrame()
+            video_frame.setStyleSheet(f"""
                 background-color: {COLORS['bg_input']};
                 border-radius: 8px;
                 padding: 8px;
             """)
-            art_layout = QVBoxLayout(art_frame)
+            video_layout = QVBoxLayout(video_frame)
             
-            art_label = QLabel(ascii_art)
-            art_label.setStyleSheet(f"""
-                font-family: Consolas, 'Courier New', monospace;
+            video_title = QLabel("📹 Video Demonstration")
+            video_title.setStyleSheet(f"""
                 font-size: 14px;
-                color: {COLORS['primary']};
+                font-weight: 600;
+                color: {COLORS['text_primary']};
                 background: transparent;
             """)
-            art_label.setAlignment(Qt.AlignCenter)
-            art_layout.addWidget(art_label)
+            video_layout.addWidget(video_title)
             
-            layout.addWidget(art_frame)
+            self.video_player = SignVideoPlayer(self.letter)
+            video_layout.addWidget(self.video_player)
+            
+            layout.addWidget(video_frame)
+        else:
+            # Fallback to ASCII art if no video timestamp
+            ascii_art = self.data.get('ascii', '')
+            if ascii_art:
+                art_frame = QFrame()
+                art_frame.setStyleSheet(f"""
+                    background-color: {COLORS['bg_input']};
+                    border-radius: 8px;
+                    padding: 8px;
+                """)
+                art_layout = QVBoxLayout(art_frame)
+                
+                art_label = QLabel(ascii_art)
+                art_label.setStyleSheet(f"""
+                    font-family: Consolas, 'Courier New', monospace;
+                    font-size: 14px;
+                    color: {COLORS['primary']};
+                    background: transparent;
+                """)
+                art_label.setAlignment(Qt.AlignCenter)
+                art_layout.addWidget(art_label)
+                
+                layout.addWidget(art_frame)
         
         # Detailed instructions
         detailed = QLabel(self.data.get('detailed', ''))
@@ -1165,11 +1336,15 @@ class GestureLibraryPage(QWidget):
         self._selected_letter = letter
         
         # Show detail
-        # Clear old content
+        # Clear old content - cleanup video players first
         while self.detail_layout.count():
             child = self.detail_layout.takeAt(0)
             if child.widget():
-                child.widget().deleteLater()
+                # Check if it's a HandShapeWidget with a video player
+                widget = child.widget()
+                if hasattr(widget, 'video_player') and widget.video_player:
+                    widget.video_player.cleanup()
+                widget.deleteLater()
         
         # Add new detail widget
         detail_widget = HandShapeWidget(letter)

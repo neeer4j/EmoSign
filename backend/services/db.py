@@ -372,6 +372,56 @@ class DatabaseService:
             return {"success": True}
         except Exception as e:
             return {"error": str(e)}
+    
+    def change_password(self, user_id: str, current_password: str, new_password: str) -> Dict[str, Any]:
+        """Change user password."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Get current password hash
+                cursor.execute("""
+                    SELECT password_hash, salt FROM users WHERE id = ?
+                """, (user_id,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    return {"error": "User not found"}
+                
+                # Verify current password
+                if not self._verify_password(current_password, row['password_hash'], row['salt']):
+                    return {"error": "Current password is incorrect"}
+                
+                # Hash new password
+                new_hash, new_salt = self._hash_password(new_password)
+                
+                # Update password
+                cursor.execute("""
+                    UPDATE users SET password_hash = ?, salt = ? WHERE id = ?
+                """, (new_hash, new_salt, user_id))
+                
+            return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def get_translation_history_sync(self, user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get translation history synchronously."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, sign_label, confidence, gesture_type, created_at
+                    FROM translations
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (user_id, limit))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Error fetching translations: {e}")
+            return []
 
 
 # Global instance

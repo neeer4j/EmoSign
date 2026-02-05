@@ -177,12 +177,14 @@ class AnalyticsPage(QWidget):
     def __init__(self, user_id: str = None, parent=None):
         super().__init__(parent)
         self.user_id = user_id or "guest"
+        self.main_layout = None
+        self.scroll_content = None
         self._setup_ui()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(24, 24, 24, 24)
+        self.main_layout.setSpacing(16)
         
         # Header
         header = QHBoxLayout()
@@ -197,13 +199,25 @@ class AnalyticsPage(QWidget):
         header.addWidget(title)
         header.addStretch()
         
-        layout.addLayout(header)
+        # Refresh button
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.setObjectName("secondaryButton")
+        refresh_btn.clicked.connect(self.refresh)
+        header.addWidget(refresh_btn)
         
-        # Scrollable content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
+        self.main_layout.addLayout(header)
         
+        # Scrollable content area
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+        self.main_layout.addWidget(self.scroll_area)
+        
+        # Build initial content
+        self._build_content()
+    
+    def _build_content(self):
+        """Build the content area with current data."""
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setSpacing(24)
@@ -398,15 +412,19 @@ class AnalyticsPage(QWidget):
         
         content_layout.addStretch()
         
-        scroll.setWidget(content)
-        layout.addWidget(scroll)
+        self.scroll_area.setWidget(content)
     
     def update_user(self, user_id: str):
         """Update the user and refresh data."""
         self.user_id = user_id
-        # Would need to rebuild UI or refresh data
+        self.refresh()
     
     def refresh(self):
-        """Refresh analytics data."""
-        # Rebuild the UI with fresh data
-        pass
+        """Refresh analytics data by rebuilding the content."""
+        # Clear old content
+        old_widget = self.scroll_area.widget()
+        if old_widget:
+            old_widget.deleteLater()
+        
+        # Rebuild with fresh data
+        self._build_content()

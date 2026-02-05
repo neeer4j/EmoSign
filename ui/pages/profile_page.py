@@ -2,15 +2,346 @@
 Profile Page - User settings and account management
 Clean profile view with stats and logout
 """
+import os
+import json
+from datetime import datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QFrame, QGridLayout, QMessageBox,
-    QGraphicsDropShadowEffect
+    QGraphicsDropShadowEffect, QDialog, QLineEdit,
+    QFormLayout, QFileDialog, QTextEdit, QScrollArea,
+    QCheckBox
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS, ICONS
+
+# Import export manager
+try:
+    from core.export_manager import ExportManager, ExportFormat, ExportConfig, TranslationRecord
+    EXPORT_AVAILABLE = True
+except ImportError:
+    EXPORT_AVAILABLE = False
+
+
+class ChangePasswordDialog(QDialog):
+    """Dialog for changing password."""
+    
+    def __init__(self, db_service, user_id, parent=None):
+        super().__init__(parent)
+        self.db = db_service
+        self.user_id = user_id
+        self.setWindowTitle("Change Password")
+        self.setFixedSize(400, 300)
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {COLORS['bg_primary']};
+            }}
+            QLabel {{
+                color: {COLORS['text_primary']};
+                font-size: 14px;
+            }}
+            QLineEdit {{
+                background-color: {COLORS['bg_input']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                padding: 12px;
+                color: {COLORS['text_primary']};
+                font-size: 14px;
+            }}
+            QLineEdit:focus {{
+                border-color: {COLORS['primary']};
+            }}
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 24px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['primary_hover']};
+            }}
+            QPushButton#cancel {{
+                background-color: {COLORS['bg_card']};
+                color: {COLORS['text_secondary']};
+            }}
+        """)
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+        
+        title = QLabel("🔑 Change Password")
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['text_primary']};")
+        layout.addWidget(title)
+        
+        form = QFormLayout()
+        form.setSpacing(12)
+        
+        self.current_password = QLineEdit()
+        self.current_password.setEchoMode(QLineEdit.Password)
+        self.current_password.setPlaceholderText("Enter current password")
+        form.addRow("Current:", self.current_password)
+        
+        self.new_password = QLineEdit()
+        self.new_password.setEchoMode(QLineEdit.Password)
+        self.new_password.setPlaceholderText("Enter new password (min 6 chars)")
+        form.addRow("New:", self.new_password)
+        
+        self.confirm_password = QLineEdit()
+        self.confirm_password.setEchoMode(QLineEdit.Password)
+        self.confirm_password.setPlaceholderText("Confirm new password")
+        form.addRow("Confirm:", self.confirm_password)
+        
+        layout.addLayout(form)
+        
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet(f"color: {COLORS['danger']}; font-size: 12px;")
+        layout.addWidget(self.error_label)
+        
+        layout.addStretch()
+        
+        buttons = QHBoxLayout()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("cancel")
+        cancel_btn.clicked.connect(self.reject)
+        
+        save_btn = QPushButton("Update Password")
+        save_btn.clicked.connect(self._save_password)
+        
+        buttons.addWidget(cancel_btn)
+        buttons.addWidget(save_btn)
+        layout.addLayout(buttons)
+    
+    def _save_password(self):
+        current = self.current_password.text()
+        new_pass = self.new_password.text()
+        confirm = self.confirm_password.text()
+        
+        if not current or not new_pass or not confirm:
+            self.error_label.setText("All fields are required")
+            return
+        
+        if len(new_pass) < 6:
+            self.error_label.setText("Password must be at least 6 characters")
+            return
+        
+        if new_pass != confirm:
+            self.error_label.setText("Passwords do not match")
+            return
+        
+        if self.db:
+            try:
+                result = self.db.change_password(self.user_id, current, new_pass)
+                if result.get("success"):
+                    QMessageBox.information(self, "Success", "Password updated successfully!")
+                    self.accept()
+                else:
+                    self.error_label.setText(result.get("error", "Failed to update password"))
+            except Exception as e:
+                self.error_label.setText(f"Error: {str(e)}")
+        else:
+            self.error_label.setText("Database not available")
+
+
+class NotificationSettingsDialog(QDialog):
+    """Dialog for notification settings."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Notification Settings")
+        self.setFixedSize(400, 350)
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {COLORS['bg_primary']};
+            }}
+            QLabel {{
+                color: {COLORS['text_primary']};
+            }}
+            QCheckBox {{
+                color: {COLORS['text_primary']};
+                font-size: 14px;
+                spacing: 8px;
+            }}
+            QCheckBox::indicator {{
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
+                border: 2px solid {COLORS['border']};
+                background: {COLORS['bg_input']};
+            }}
+            QCheckBox::indicator:checked {{
+                background: {COLORS['primary']};
+                border-color: {COLORS['primary']};
+            }}
+        """)
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+        
+        title = QLabel("🔔 Notification Settings")
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['text_primary']};")
+        layout.addWidget(title)
+        
+        desc = QLabel("Choose which notifications you'd like to receive:")
+        desc.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
+        layout.addWidget(desc)
+        
+        layout.addSpacing(8)
+        
+        self.practice_reminder = QCheckBox("Daily practice reminders")
+        self.practice_reminder.setChecked(True)
+        layout.addWidget(self.practice_reminder)
+        
+        self.achievement_notify = QCheckBox("Achievement unlocked notifications")
+        self.achievement_notify.setChecked(True)
+        layout.addWidget(self.achievement_notify)
+        
+        self.streak_notify = QCheckBox("Streak milestone alerts")
+        self.streak_notify.setChecked(True)
+        layout.addWidget(self.streak_notify)
+        
+        self.tip_notify = QCheckBox("Tips and learning suggestions")
+        self.tip_notify.setChecked(False)
+        layout.addWidget(self.tip_notify)
+        
+        self.sound_enabled = QCheckBox("Enable notification sounds")
+        self.sound_enabled.setChecked(True)
+        layout.addWidget(self.sound_enabled)
+        
+        layout.addStretch()
+        
+        save_btn = QPushButton("Save Settings")
+        save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 24px;
+                font-weight: bold;
+            }}
+        """)
+        save_btn.clicked.connect(self._save_settings)
+        layout.addWidget(save_btn)
+    
+    def _save_settings(self):
+        settings = {
+            "practice_reminder": self.practice_reminder.isChecked(),
+            "achievement_notify": self.achievement_notify.isChecked(),
+            "streak_notify": self.streak_notify.isChecked(),
+            "tip_notify": self.tip_notify.isChecked(),
+            "sound_enabled": self.sound_enabled.isChecked()
+        }
+        # Save to config file
+        config_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        config_path = os.path.join(config_dir, "notification_settings.json")
+        try:
+            with open(config_path, 'w') as f:
+                json.dump(settings, f, indent=2)
+            QMessageBox.information(self, "Saved", "Notification settings saved!")
+            self.accept()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not save settings: {e}")
+
+
+class HelpSupportDialog(QDialog):
+    """Help and support dialog."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Help & Support")
+        self.setFixedSize(500, 500)
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {COLORS['bg_primary']};
+            }}
+            QLabel {{
+                color: {COLORS['text_primary']};
+            }}
+            QTextEdit {{
+                background-color: {COLORS['bg_card']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                color: {COLORS['text_primary']};
+                padding: 12px;
+            }}
+        """)
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+        
+        title = QLabel("❓ Help & Support")
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['text_primary']};")
+        layout.addWidget(title)
+        
+        help_content = QTextEdit()
+        help_content.setReadOnly(True)
+        help_content.setHtml(f"""
+        <style>
+            h3 {{ color: {COLORS['primary']}; margin-top: 16px; }}
+            p {{ color: {COLORS['text_secondary']}; line-height: 1.6; }}
+            ul {{ color: {COLORS['text_secondary']}; }}
+        </style>
+        <h3>🚀 Getting Started</h3>
+        <p>Welcome to EmoSign! Here's how to get started:</p>
+        <ul>
+            <li>Go to <b>Live Translation</b> to start detecting signs</li>
+            <li>Position your hand clearly in front of the camera</li>
+            <li>Use good lighting for best results</li>
+        </ul>
+        
+        <h3>📚 Learning ASL</h3>
+        <p>Use the <b>Tutorials</b> and <b>Sign Library</b> pages to learn ASL alphabet and common signs.</p>
+        
+        <h3>⚙️ Settings</h3>
+        <p>Customize your experience in Settings:</p>
+        <ul>
+            <li><b>Theme:</b> Switch between dark and light mode</li>
+            <li><b>Voice:</b> Enable text-to-speech for translations</li>
+            <li><b>Detection:</b> Adjust confidence thresholds</li>
+        </ul>
+        
+        <h3>🎯 Tips for Better Recognition</h3>
+        <ul>
+            <li>Use a plain background</li>
+            <li>Ensure good, even lighting</li>
+            <li>Keep your hand steady</li>
+            <li>Face your palm towards the camera</li>
+        </ul>
+        
+        <h3>📧 Contact Support</h3>
+        <p>For additional help, please contact:<br>
+        <b>Email:</b> support@emosign.app<br>
+        <b>GitHub:</b> github.com/emosign/app</p>
+        """)
+        layout.addWidget(help_content)
+        
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 24px;
+                font-weight: bold;
+            }}
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
 
 
 class ProfileCard(QFrame):
@@ -166,9 +497,12 @@ class SettingsSection(QFrame):
     
     logout_requested = Signal()
     password_change_requested = Signal()
+    navigate_to_settings = Signal()
     
-    def __init__(self, parent=None):
+    def __init__(self, db_service=None, user_data=None, parent=None):
         super().__init__(parent)
+        self.db = db_service
+        self.user = user_data or {}
         self.setObjectName("card")
         self._setup_ui()
     
@@ -182,13 +516,13 @@ class SettingsSection(QFrame):
         title.setObjectName("sectionTitle")
         layout.addWidget(title)
         
-        # Settings buttons
+        # Settings buttons - all functional now
         settings = [
             ("🔑", "Change Password", self._change_password),
-            ("🔔", "Notifications", self._show_coming_soon),
-            ("🎨", "Appearance", self._show_coming_soon),
-            ("📤", "Export Data", self._show_coming_soon),
-            ("❓", "Help & Support", self._show_coming_soon),
+            ("🔔", "Notifications", self._show_notifications),
+            ("🎨", "Appearance", self._go_to_appearance),
+            ("📤", "Export Data", self._export_data),
+            ("❓", "Help & Support", self._show_help),
         ]
         
         for icon, text, action in settings:
@@ -219,13 +553,96 @@ class SettingsSection(QFrame):
         layout.addWidget(logout_btn)
     
     def _change_password(self):
-        self.password_change_requested.emit()
+        """Show change password dialog."""
+        if self.user.get("guest") or self.user.get("offline"):
+            QMessageBox.information(
+                self, "Not Available",
+                "Password change is not available in guest/offline mode."
+            )
+            return
+        
+        dialog = ChangePasswordDialog(self.db, self.user.get("id", ""), self)
+        dialog.exec()
     
-    def _show_coming_soon(self):
-        QMessageBox.information(
-            self, "Coming Soon",
-            "This feature is coming in a future update! 🚀"
+    def _show_notifications(self):
+        """Show notification settings dialog."""
+        dialog = NotificationSettingsDialog(self)
+        dialog.exec()
+    
+    def _go_to_appearance(self):
+        """Navigate to appearance/settings page."""
+        self.navigate_to_settings.emit()
+    
+    def _export_data(self):
+        """Export user data."""
+        if not EXPORT_AVAILABLE:
+            QMessageBox.warning(
+                self, "Export Error",
+                "Export functionality is not available."
+            )
+            return
+        
+        # Ask for export location
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export Translation Data",
+            os.path.expanduser("~/Documents/emosign_export.json"),
+            "JSON Files (*.json);;CSV Files (*.csv);;Text Files (*.txt)"
         )
+        
+        if not file_path:
+            return
+        
+        try:
+            # Determine format from extension
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == ".csv":
+                fmt = ExportFormat.CSV
+            elif ext == ".txt":
+                fmt = ExportFormat.TXT
+            else:
+                fmt = ExportFormat.JSON
+            
+            # Create export manager and export
+            exporter = ExportManager(os.path.dirname(file_path))
+            
+            # Get user's translation history if db available
+            translations = []
+            if self.db and self.user.get("id"):
+                try:
+                    history = self.db.get_translation_history_sync(self.user.get("id"), 1000)
+                    for item in history:
+                        translations.append(TranslationRecord(
+                            text=item.get("sign_label", ""),
+                            timestamp=datetime.fromisoformat(item.get("created_at", datetime.now().isoformat()).replace("Z", "")),
+                            confidence=item.get("confidence", 0),
+                            gesture_type=item.get("gesture_type", "static")
+                        ))
+                except:
+                    pass
+            
+            if translations:
+                result_path = exporter.export_translations(translations, fmt, os.path.basename(file_path))
+                QMessageBox.information(
+                    self, "Export Complete",
+                    f"Data exported successfully!\n\nFile: {result_path}"
+                )
+            else:
+                QMessageBox.information(
+                    self, "No Data",
+                    "No translation data to export. Start using the app to generate data!"
+                )
+        except Exception as e:
+            QMessageBox.warning(self, "Export Error", f"Failed to export data: {e}")
+    
+    def _show_help(self):
+        """Show help and support dialog."""
+        dialog = HelpSupportDialog(self)
+        dialog.exec()
+    
+    def update_user(self, user_data):
+        """Update user data."""
+        self.user = user_data
 
 
 class ProfilePage(QWidget):
@@ -280,9 +697,8 @@ class ProfilePage(QWidget):
         left_column.addStretch()
         
         # Right column: Settings
-        self.settings_section = SettingsSection()
+        self.settings_section = SettingsSection(self.db, self.user)
         self.settings_section.logout_requested.connect(self._handle_logout)
-        self.settings_section.password_change_requested.connect(self._change_password)
         
         content_layout.addLayout(left_column, 1)
         content_layout.addWidget(self.settings_section, 1)
@@ -354,23 +770,10 @@ class ProfilePage(QWidget):
             
             self.logout_requested.emit()
     
-    def _change_password(self):
-        """Handle password change request."""
-        if self.user.get("guest") or self.user.get("offline"):
-            QMessageBox.information(
-                self, "Not Available",
-                "Password change is not available in offline mode."
-            )
-            return
-        
-        QMessageBox.information(
-            self, "Change Password",
-            "To change your password, please visit your Supabase dashboard or use the password reset feature on the login page."
-        )
-    
     def update_user(self, user_data):
         """Update user data."""
         self.user = user_data
+        self.settings_section.user = user_data
         self._load_stats()
     
     def refresh(self):

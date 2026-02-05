@@ -397,9 +397,12 @@ class MainWindow(QMainWindow):
         self.settings_page.theme_changed.connect(self._apply_theme)
         self.settings_page.accent_changed.connect(self._apply_accent)
         self.settings_page.voice_settings_changed.connect(self._apply_voice_settings)
+        self.settings_page.accessibility_changed.connect(self._apply_accessibility)
+        self.settings_page.detection_settings_changed.connect(self._apply_detection_settings)
         
-        # Profile logout
+        # Profile signals
         self.profile_page.logout_requested.connect(self._on_logout)
+        self.profile_page.settings_section.navigate_to_settings.connect(lambda: self._navigate_to("settings"))
     
     def _apply_theme(self, theme: str):
         """Apply theme to the application."""
@@ -417,6 +420,43 @@ class MainWindow(QMainWindow):
             voice_output.set_enabled(settings.get('enabled', True))
             voice_output.set_rate(settings.get('speed', 150))
             voice_output.set_volume(settings.get('volume', 0.8))
+    
+    def _apply_accessibility(self, settings: dict):
+        """Apply accessibility settings."""
+        # Get current font size base
+        base_size = 14
+        
+        # Apply large text if enabled
+        if settings.get('large_text', False):
+            base_size = 18
+        
+        # Apply high contrast if enabled (modify colors)
+        if settings.get('high_contrast', False):
+            # Create high contrast stylesheet addition
+            high_contrast_style = """
+                QLabel { color: #ffffff !important; }
+                QPushButton { color: #ffffff !important; border: 2px solid #ffffff !important; }
+            """
+            current_style = self.styleSheet()
+            if "high_contrast_style" not in current_style:
+                self.setStyleSheet(current_style + high_contrast_style)
+        else:
+            # Remove high contrast styles
+            self.setStyleSheet(ThemeManager.get_theme())
+        
+        # Store settings for later use
+        self._accessibility_settings = settings
+    
+    def _apply_detection_settings(self, settings: dict):
+        """Apply detection settings to the pipeline."""
+        # Update confidence threshold
+        if hasattr(self.live_page, 'pipeline') and self.live_page.pipeline:
+            pipeline = self.live_page.pipeline
+            if hasattr(pipeline, 'config'):
+                pipeline.config.min_confidence = settings.get('confidence_threshold', 0.55)
+        
+        # Store settings for use across the app
+        self._detection_settings = settings
     
     def _on_translation_made(self, label, confidence, gesture_type):
         """Handle translation events for analytics and voice."""
