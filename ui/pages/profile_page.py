@@ -304,7 +304,7 @@ class HelpSupportDialog(QDialog):
         </ul>
         
         <h3>📚 Learning ASL</h3>
-        <p>Use the <b>Tutorials</b> and <b>Sign Library</b> pages to learn ASL alphabet and common signs.</p>
+        <p>Use the <b>Tutorials</b> page to learn ASL alphabet and common signs.</p>
         
         <h3>⚙️ Settings</h3>
         <p>Customize your experience in Settings:</p>

@@ -56,14 +56,14 @@ COLORS = {
 
 # Temporal Aggregation Settings
 TEMPORAL_WINDOW_SIZE = 15        # Frames to consider for voting/smoothing
-STABILITY_THRESHOLD = 5          # Consecutive frames for stable recognition
+STABILITY_THRESHOLD = 3          # Consecutive frames for stable recognition
 TRANSITION_FRAMES = 3            # Tolerance frames during gesture transition
 
 # Translation Settings (Sentence Mode)
 TRANSLATION_TIME_WINDOW = 3.0    # Seconds of inactivity before auto-translate
 WORD_TIMEOUT = 1.5               # Seconds of inactivity to finalize a word
 LETTER_DEBOUNCE_TIME = 0.8       # Minimum time between same letter
-CONFIDENCE_THRESHOLD = 0.55      # Minimum confidence for gesture acceptance
+CONFIDENCE_THRESHOLD = 0.45      # Minimum confidence for gesture acceptance
 
 # Translation Modes
 TRANSLATION_MODE_INSTANT = "instant"      # Output each gesture immediately

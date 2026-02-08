@@ -1293,7 +1293,6 @@ ICONS = {
     'mute': '🔇',
     'language': '🌍',
     'tutorial': '📚',
-    'library': '📖',
     'analytics': '📊',
     'achievement': '🏆',
     'streak': '🔥',

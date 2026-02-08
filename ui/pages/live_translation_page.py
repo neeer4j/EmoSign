@@ -1,21 +1,21 @@
 """
-Live Translation Page - Redesigned with New Interpretation Engine
+Live Translation Page - Simplified Unified Translation
 
 Real-time sign language detection with:
-- Sentence-level translation via predefined mappings
-- Temporal gesture accumulation with deduplication
+- Automatic detection of letters, words, and sentences
+- No mode selection needed - the engine figures it out
+- Predefined vocabulary for reliable communication
+- Camera and video input support
 - Text-to-sign reverse communication
-- Manual stop/translate or inactivity timeout
-- Bidirectional communication support
 
 ARCHITECTURE:
-    Camera/Video → Gesture Recognition → InterpretationEngine → Translation
+    Camera/Video → Gesture Recognition → SimpleTranslationEngine → Translation
     Text Input → TextToSignMapper → SignVisualizer → Display
 
-This uses the new modular interpretation engine that provides:
-- Constrained vocabulary for reliable communication
-- Clear separation of gesture recognition, sequence buffering, and sentence mapping
-- Explicit scope acknowledgment (not full ASL grammar)
+Uses SimpleTranslationEngine which:
+- Auto-detects if input is letter/word/sentence
+- Uses only predefined gestures for reliability
+- No modes - just works
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
@@ -32,14 +32,23 @@ from ui.video_player_widget import VideoPlayerWidget
 from ui.sign_visualizer import SignVisualizerWidget
 from ml.classifier import Classifier
 
-# New interpretation engine
-from core.interpretation_engine import (
-    SignLanguageEngine, EngineConfig, EngineMode,
-    TranslationTrigger, TranslationOutput
+# Simple unified translation engine
+from core.simple_engine import (
+    SimpleTranslationEngine, TranslationResult as SimpleResult,
+    OutputType, GestureEvent, WORD_GESTURES
 )
-from core.sequence_buffer import DetectedGesture, GestureState
-from core.sentence_mapper import SentenceMapping, OutputType
-from core.gesture_dictionary import GestureCategory
+
+# Legacy imports for compatibility (needed for some callback types)
+try:
+    from core.interpretation_engine import (
+        SignLanguageEngine, EngineConfig, EngineMode,
+        TranslationTrigger, TranslationOutput
+    )
+    from core.sequence_buffer import DetectedGesture, GestureState
+    from core.sentence_mapper import SentenceMapping
+    from core.gesture_dictionary import GestureCategory
+except ImportError:
+    pass  # These are optional now
 
 # Legacy imports for compatibility
 from core.pipeline import SignLanguagePipeline, PipelineMode, PipelineConfig
@@ -246,59 +255,6 @@ class CurrentGestureDisplay(QFrame):
         self.set_no_hand()
 
 
-class ModeSelector(QFrame):
-    """Mode selection for translation behavior."""
-    
-    mode_changed = Signal(str)  # 'instant', 'sentence', or 'word'
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._current_mode = "sentence"
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
-        
-        label = QLabel("Mode:")
-        label.setStyleSheet(f"color: {COLORS['text_secondary']}; font-weight: bold;")
-        layout.addWidget(label)
-        
-        self.instant_btn = QPushButton("⚡ Instant")
-        self.instant_btn.setCheckable(True)
-        self.instant_btn.setToolTip("Output each letter/gesture immediately")
-        self.instant_btn.clicked.connect(lambda: self._set_mode("instant"))
-        
-        self.word_btn = QPushButton("📖 Word")
-        self.word_btn.setCheckable(True)
-        self.word_btn.setToolTip("Accumulate letters into words")
-        self.word_btn.clicked.connect(lambda: self._set_mode("word"))
-        
-        self.sentence_btn = QPushButton("📝 Sentence")
-        self.sentence_btn.setCheckable(True)
-        self.sentence_btn.setChecked(True)
-        self.sentence_btn.setToolTip("Build complete sentences before output")
-        self.sentence_btn.clicked.connect(lambda: self._set_mode("sentence"))
-        
-        layout.addWidget(self.instant_btn)
-        layout.addWidget(self.word_btn)
-        layout.addWidget(self.sentence_btn)
-        layout.addStretch()
-        
-        self.setStyleSheet(f"background-color: {COLORS['bg_panel']}; border-radius: 8px;")
-    
-    def _set_mode(self, mode: str):
-        self._current_mode = mode
-        self.instant_btn.setChecked(mode == "instant")
-        self.word_btn.setChecked(mode == "word")
-        self.sentence_btn.setChecked(mode == "sentence")
-        self.mode_changed.emit(mode)
-    
-    def get_mode(self) -> str:
-        return self._current_mode
-
-
 class SourceSelector(QFrame):
     """Source selection tabs (camera/video)."""
     
@@ -376,21 +332,19 @@ class SourceSelector(QFrame):
 
 
 class LiveTranslationPage(QWidget):
-    """Redesigned live translation page with new interpretation engine.
+    """Simplified live translation page with unified translation engine.
     
     Features:
-    - Sentence-level translation via predefined gesture→sentence mappings
-    - Temporal gesture accumulation with deduplication
-    - Manual stop/translate button OR inactivity timeout
+    - Automatic detection of letters, words, and sentences
+    - No mode selection needed - engine auto-detects
+    - Predefined vocabulary for reliability
     - Camera and video input support
     - Text-to-sign reverse communication
-    - Real-time preview with partial match hints
     
-    Architecture:
-        The page uses SignLanguageEngine which coordinates:
-        - TemporalSequenceBuffer (gesture accumulation)
-        - SentenceMapper (predefined mappings + fingerspelling fallback)
-        - TextToSignMapper (reverse direction)
+    Uses SimpleTranslationEngine which:
+    - Auto-detects if input is letter/word/sentence
+    - Uses only predefined gestures for reliability
+    - No modes to configure
     """
     
     back_requested = Signal()
@@ -402,17 +356,14 @@ class LiveTranslationPage(QWidget):
         self.db = db_service
         self.user = user_data or {}
         
-        # === NEW: Initialize interpretation engine ===
-        engine_config = EngineConfig(
-            stability_frames=getattr(config, 'STABILITY_THRESHOLD', 5),
-            min_confidence=getattr(config, 'CONFIDENCE_THRESHOLD', 0.5),
+        # === SIMPLE TRANSLATION ENGINE ===
+        self.engine = SimpleTranslationEngine(
             inactivity_timeout=getattr(config, 'TRANSLATION_TIME_WINDOW', 2.5),
-            enable_auto_translate=True,
-            enable_partial_hints=True
+            stability_frames=getattr(config, 'STABILITY_THRESHOLD', 5),
+            min_confidence=getattr(config, 'CONFIDENCE_THRESHOLD', 0.5)
         )
-        self.engine = SignLanguageEngine(engine_config)
         
-        # Legacy pipeline for compatibility
+        # Legacy pipeline for fallback
         self.pipeline = SignLanguagePipeline(PipelineConfig(
             aggregation_window=getattr(config, 'TEMPORAL_WINDOW_SIZE', 15),
             stability_threshold=getattr(config, 'STABILITY_THRESHOLD', 5),
@@ -427,7 +378,6 @@ class LiveTranslationPage(QWidget):
         # State
         self._is_translating = False
         self._current_source = "camera"
-        self._use_new_engine = True  # Toggle to use new engine
         
         # Auto-check timer for timeout-based translation
         self._check_timer = QTimer()
@@ -460,17 +410,24 @@ class LiveTranslationPage(QWidget):
         self.model_label = QLabel("✓ Model Ready" if self._model_loaded else "✗ No Model")
         self.model_label.setObjectName("statusPillSuccess" if self._model_loaded else "statusPillDanger")
         
+        # Info label about auto-detection
+        info_label = QLabel("🤖 Auto-detects letters, words & sentences")
+        info_label.setStyleSheet(f"""
+            color: {COLORS['text_secondary']};
+            font-size: 12px;
+            padding: 4px 12px;
+            background-color: {COLORS['bg_card']};
+            border-radius: 4px;
+        """)
+        
         header.addWidget(back_btn)
         header.addWidget(title)
         header.addStretch()
+        header.addWidget(info_label)
         header.addWidget(self.fps_label)
         header.addWidget(self.model_label)
         
         main_layout.addLayout(header)
-        
-        # === MODE SELECTOR ===
-        self.mode_selector = ModeSelector()
-        main_layout.addWidget(self.mode_selector)
         
         # === SOURCE TABS ===
         self.source_selector = SourceSelector()
@@ -586,9 +543,6 @@ class LiveTranslationPage(QWidget):
         # Source selector
         self.source_selector.source_changed.connect(self._on_source_changed)
         
-        # Mode selector
-        self.mode_selector.mode_changed.connect(self._on_mode_changed)
-        
         # Camera widget
         self.camera_widget.features_ready.connect(self._on_features)
         self.camera_widget.hand_detected.connect(self._on_hand_detected)
@@ -598,14 +552,14 @@ class LiveTranslationPage(QWidget):
         self.camera_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
         self.camera_widget.dynamic_gesture_detected.connect(self._on_dynamic_gesture)
         
-        # Video widget
-        self.video_widget.features_ready.connect(self._on_features)
+        # Video widget - connect same signals for video translation
+        self.video_widget.features_ready.connect(self._on_video_features)
         self.video_widget.hand_detected.connect(self._on_hand_detected)
         self.video_widget.fps_updated.connect(
             lambda f: self.fps_label.setText(f"FPS: {f:.0f}")
         )
-        self.video_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
-        self.video_widget.dynamic_gesture_detected.connect(self._on_dynamic_gesture)
+        self.video_widget.heuristic_gesture_detected.connect(self._on_video_heuristic_gesture)
+        self.video_widget.dynamic_gesture_detected.connect(self._on_video_dynamic_gesture)
         self.video_widget.video_finished.connect(self._on_video_finished)
         self.video_widget.video_loaded.connect(self._on_video_loaded)
     
@@ -616,74 +570,107 @@ class LiveTranslationPage(QWidget):
         self.pipeline.set_on_translation_complete(self._on_translation_complete)
     
     def _setup_engine_callbacks(self):
-        """Setup callbacks from the new interpretation engine."""
-        self.engine.set_on_gesture_detected(self._on_engine_gesture)
-        self.engine.set_on_translation_complete(self._on_engine_translation)
-        self.engine.set_on_partial_hint(self._on_engine_partial_hint)
-        self.engine.set_on_timeout_triggered(self._on_engine_timeout)
+        """Setup callbacks from the simple translation engine."""
+        self.engine.set_on_gesture_confirmed(self._on_gesture_confirmed)
+        self.engine.set_on_translation_updated(self._on_translation_updated)
     
-    def _on_engine_gesture(self, gesture_name: str, confidence: float):
-        """Handle gesture detection from new engine."""
-        self.gesture_display.update_gesture(gesture_name, confidence, "engine")
+    def _on_gesture_confirmed(self, gesture: str, confidence: float):
+        """Handle gesture confirmation from SimpleTranslationEngine."""
+        self.gesture_display.update_gesture(gesture, confidence, "confirmed")
         
         # Update preview with accumulated gestures
-        sequence = self.engine._buffer.get_current_sequence()
-        if sequence:
-            preview_text = " ".join(g.gesture_name for g in sequence)
+        result = self.engine.get_translation()
+        if result:
+            preview_text = " ".join(result.gestures)
             self.translation_display.set_preview(f"📝 {preview_text}")
     
-    def _on_engine_translation(self, output: 'TranslationOutput'):
-        """Handle translation completion from new engine."""
-        self.translation_display.set_translation(output.text)
-        self.translation_display.set_preview("")
+    def _on_translation_updated(self, result: SimpleResult):
+        """Handle translation update from SimpleTranslationEngine."""
+        self.translation_display.set_translation(result.text)
         
         # Calculate statistics
-        word_count = len(output.text.split()) if output.text else 0
-        gesture_count = len(output.gesture_sequence) if output.gesture_sequence else 0
+        word_count = len(result.text.split()) if result.text else 0
+        gesture_count = len(result.gestures)
         
         self.translation_display.set_statistics(
             word_count,
             gesture_count,
-            output.confidence
+            result.confidence
         )
         
-        # Show matched sentence info
-        if output.is_predefined:
-            self.translation_display.set_status(
-                f"✓ Matched predefined phrase ({output.output_type.value})"
-            )
-        else:
-            self.translation_display.set_status(
-                f"📝 Fingerspelling result"
-            )
+        # Show output type info
+        type_info = {
+            OutputType.LETTER: "📄 Letter detected",
+            OutputType.WORD: "📖 Word gesture detected",
+            OutputType.FINGERSPELLED: "✍️ Fingerspelling",
+            OutputType.SENTENCE: "💬 Sentence matched"
+        }
+        self.translation_display.set_status(
+            type_info.get(result.output_type, "Translating..."),
+            is_active=not result.is_complete
+        )
         
-        # Save to history
-        self._save_engine_translation(output)
+        # If complete, save to history
+        if result.is_complete:
+            self._save_translation_result(result)
     
-    def _on_engine_partial_hint(self, hint: str):
-        """Handle partial match hint from engine."""
-        if hint:
-            self.translation_display.set_status(f"💡 Possible: {hint}...")
-    
-    def _on_engine_timeout(self):
-        """Handle inactivity timeout from engine."""
-        if self._is_translating and self._use_new_engine:
-            # Auto-translate on timeout
-            output = self.engine.translate()
-            if output and output.text:
-                self._on_engine_translation(output)
-    
-    def _save_engine_translation(self, output: 'TranslationOutput'):
-        """Save translation from new engine to history."""
+    def _save_translation_result(self, result: SimpleResult):
+        """Save translation result to history."""
         if not self.db or self.user.get("guest"):
             return
         
-        translation_type = "predefined" if output.is_predefined else "fingerspelling"
         self.translation_made.emit(
-            output.text,
-            output.confidence,
-            translation_type
+            result.text,
+            result.confidence,
+            result.output_type.value
         )
+    
+    # === Video-specific signal handlers ===
+    
+    @Slot(object)
+    def _on_video_features(self, features):
+        """Handle extracted features from video (always process when video loaded)."""
+        # For video, we process as long as video is loaded, not just when "translating"
+        if not self._model_loaded or features is None:
+            return
+        
+        if not self.video_widget.is_loaded():
+            return
+        
+        # Get ML prediction
+        label, confidence = self.classifier.predict(features)
+        
+        if label and confidence > config.CONFIDENCE_THRESHOLD:
+            # Feed to simple engine
+            self.engine.add_gesture(label, confidence)
+            
+            # Update gesture display
+            self.gesture_display.update_gesture(label, confidence, "video")
+    
+    @Slot(str, float)
+    def _on_video_heuristic_gesture(self, gesture: str, confidence: float):
+        """Handle heuristic gesture from video widget (always process)."""
+        if not self.video_widget.is_loaded():
+            return
+        
+        # Feed to simple engine
+        self.engine.add_gesture(gesture, confidence)
+        
+        # Update gesture display
+        self.gesture_display.update_gesture(gesture, confidence, "heuristic")
+    
+    @Slot(str, float)
+    def _on_video_dynamic_gesture(self, gesture: str, confidence: float):
+        """Handle dynamic gesture from video widget (always process)."""
+        if not self.video_widget.is_loaded():
+            return
+        
+        # Prefix with WORD_ for word-level gestures
+        gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
+        self.engine.add_gesture(gesture_name, confidence)
+        
+        # Update gesture display
+        self.gesture_display.update_gesture(f"✨{gesture}", confidence, "dynamic")
     
     # === Source Handling ===
     
@@ -721,22 +708,9 @@ class LiveTranslationPage(QWidget):
         self.translation_display.clear()
         self.gesture_display.clear()
         self.pipeline.clear()
-        if self._use_new_engine:
-            self.engine.stop()  # Reset engine state
-    
-    def _on_mode_changed(self, mode: str):
-        """Handle translation mode change."""
-        # Update button visibility
-        if mode == "sentence":
-            self.stop_translate_btn.show() if self._is_translating else None
-        else:
-            self.stop_translate_btn.hide()
-        
-        # Clear and restart if translating
-        if self._is_translating:
-            self.pipeline.clear()
-            self.translation_display.clear()
-            self.gesture_display.clear()
+        self.engine.clear()
+        # Auto-start engine for video
+        self.engine.start()
     
     # === Translation Control ===
     
@@ -763,14 +737,12 @@ class LiveTranslationPage(QWidget):
                 self.translation_display.set_status("Please load a video first")
                 return
         
-        # Start both old pipeline and new engine
-        mode = PipelineMode.LIVE_ACCUMULATE if self.mode_selector.get_mode() == "sentence" else PipelineMode.LIVE_CONTINUOUS
+        # Start legacy pipeline for fallback
+        mode = PipelineMode.LIVE_ACCUMULATE
         self.pipeline.start(mode)
         
-        # Start new engine
-        if self._use_new_engine:
-            engine_mode = EngineMode.LIVE_CAMERA if self._current_source == "camera" else EngineMode.VIDEO_FILE
-            self.engine.start(engine_mode)
+        # Start simple translation engine
+        self.engine.start()
         
         # Update UI
         if self._current_source == "camera":
@@ -781,8 +753,8 @@ class LiveTranslationPage(QWidget):
         self.start_btn.style().unpolish(self.start_btn)
         self.start_btn.style().polish(self.start_btn)
         
-        if self.mode_selector.get_mode() == "sentence":
-            self.stop_translate_btn.show()
+        # Always show stop & translate button
+        self.stop_translate_btn.show()
         
         self.translation_display.set_status("Translating...", True)
         self._check_timer.start()
@@ -797,8 +769,7 @@ class LiveTranslationPage(QWidget):
         
         # Stop both pipeline and engine
         self.pipeline.stop()
-        if self._use_new_engine:
-            self.engine.stop()
+        self.engine.stop()
         
         # Update UI
         if self._current_source == "camera":
@@ -820,28 +791,14 @@ class LiveTranslationPage(QWidget):
         
         self._is_translating = False
         
-        # Use new engine if enabled
-        if self._use_new_engine:
-            output = self.engine.translate()
-            self.engine.stop()
-            
-            if output and output.text:
-                self._on_engine_translation(output)
-            else:
-                self.translation_display.set_status("No translation available")
+        # Get final translation from simple engine
+        result = self.engine.finalize()
+        self.engine.stop()
+        
+        if result and result.text:
+            self._on_translation_updated(result)
         else:
-            # Fallback to old pipeline
-            result = self.pipeline.stop_and_translate()
-            
-            if result.text:
-                self.translation_display.set_translation(result.text)
-                self.translation_display.set_preview("")
-                self.translation_display.set_statistics(
-                    result.word_count,
-                    result.gesture_count,
-                    result.confidence
-                )
-                self._save_translation(result)
+            self.translation_display.set_status("No translation available")
         
         # Stop camera
         self.camera_widget.stop()
@@ -861,14 +818,14 @@ class LiveTranslationPage(QWidget):
         if not self._is_translating:
             return
         
-        if self._use_new_engine and self.mode_selector.get_mode() == "sentence":
-            # Check if engine has timeout ready
-            if self.engine._buffer.check_timeout():
-                output = self.engine.translate()
-                if output and output.text:
-                    self._on_engine_translation(output)
-                    # Reset for next sentence
-                    self.engine._buffer.clear()
+        # Check if engine has timeout ready
+        if self.engine.check_timeout():
+            result = self.engine.finalize()
+            if result and result.text:
+                self._on_translation_updated(result)
+                # Reset for next translation
+                self.engine.clear()
+                self.engine.start()  # Restart for next sequence
     
     # === Gesture Processing ===
     
@@ -876,58 +833,45 @@ class LiveTranslationPage(QWidget):
     def _on_features(self, features):
         """Handle extracted features from camera/video."""
         if not self._is_translating or not self._model_loaded or features is None:
+            self._ml_handled_frame = False
             return
         
         # Get ML prediction
         label, confidence = self.classifier.predict(features)
         
         if label and confidence > config.CONFIDENCE_THRESHOLD:
-            # Process through pipeline
-            self.pipeline.process_frame(
-                landmarks=None,  # Features already extracted
-                features=features,
-                predicted_label=label,
-                confidence=confidence,
-                gesture_type=GestureType.STATIC
-            )
+            # Feed to simple translation engine (primary — ML is more accurate)
+            self.engine.add_gesture(label, confidence)
+            self.gesture_display.update_gesture(label, confidence, "ml")
+            self._ml_handled_frame = True  # Skip heuristic for this frame
+        else:
+            self._ml_handled_frame = False
     
     @Slot(str, float)
     def _on_heuristic_gesture(self, gesture: str, confidence: float):
-        """Handle heuristic gesture detection."""
+        """Handle heuristic gesture detection from camera.
+        
+        Only used as fallback when ML didn't produce a result this frame.
+        """
         if not self._is_translating:
             return
         
-        # Heuristic gestures are pre-smoothed, process directly
-        self.pipeline.process_gesture(
-            label=gesture,
-            confidence=confidence,
-            gesture_type=GestureType.STATIC
-        )
+        # Skip if ML already handled this frame (avoid double-feeding)
+        if getattr(self, '_ml_handled_frame', False):
+            return
         
-        # Also feed to new engine
-        if self._use_new_engine:
-            self.engine.process_gesture(gesture, confidence)
-        
-        # Update gesture display
+        self.engine.add_gesture(gesture, confidence)
         self.gesture_display.update_gesture(gesture, confidence, "heuristic")
     
     @Slot(str, float)
     def _on_dynamic_gesture(self, gesture: str, confidence: float):
-        """Handle dynamic gesture detection."""
+        """Handle dynamic gesture detection from camera."""
         if not self._is_translating:
             return
         
-        self.pipeline.process_gesture(
-            label=gesture,
-            confidence=confidence,
-            gesture_type=GestureType.DYNAMIC
-        )
-        
-        # Also feed to new engine (prefix with WORD_ for word-level gestures)
-        if self._use_new_engine:
-            # Dynamic gestures are typically word-level
-            gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
-            self.engine.process_gesture(gesture_name, confidence)
+        # Dynamic gestures are word-level - prefix with WORD_
+        gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
+        self.engine.add_gesture(gesture_name, confidence)
         
         self.gesture_display.update_gesture(f"✨{gesture}", confidence, "dynamic")
     
@@ -936,16 +880,20 @@ class LiveTranslationPage(QWidget):
         """Handle hand detection status."""
         if not detected:
             self.gesture_display.set_no_hand()
-            # Mark that hand was removed - this allows same gesture to be added again
             if self._is_translating:
+                # Allow same gesture to register again after hand re-enters
+                self.engine.reset_held()
                 self.pipeline.mark_no_hand()
     
     def _on_video_finished(self):
         """Handle video playback finished."""
-        if self._is_translating:
-            self._stop_and_translate()
+        # Auto-translate when video ends
+        result = self.engine.finalize()
+        if result and result.text:
+            self._on_translation_updated(result)
+        self.translation_display.set_status("Video complete")
     
-    # === Pipeline Callbacks ===
+    # === Pipeline Callbacks (legacy fallback) ===
     
     def _on_gesture_recognized(self, gesture: RecognizedGesture):
         """Handle gesture recognition from pipeline."""
@@ -992,20 +940,21 @@ class LiveTranslationPage(QWidget):
     def _clear_translation(self):
         """Clear current translation."""
         self.pipeline.clear()
-        if self._use_new_engine:
-            self.engine._buffer.clear()
+        self.engine.clear()
         self.translation_display.clear()
         self.gesture_display.clear()
     
     def _insert_space(self):
         """Insert a word boundary."""
-        if self._is_translating:
-            self.pipeline.insert_space()
+        # For simple engine, we don't need explicit space handling
+        # The engine auto-detects word boundaries
+        pass
     
     def _delete_last(self):
         """Delete last character/word."""
-        if self._is_translating:
-            self.pipeline.delete_last(delete_word=False)
+        # For simple engine, we can clear and restart
+        # In future, implement proper deletion from buffer
+        pass
     
     def _save_translation(self, result: TranslationResult):
         """Save translation to history."""
@@ -1027,9 +976,4 @@ class LiveTranslationPage(QWidget):
             self._stop_translation()
         self.camera_widget.stop()
         self.video_widget.release()
-        if self._use_new_engine:
-            self.engine.stop()
-
-
-# Alias for compatibility with existing code
-LivePage = LiveTranslationPage
+        self.engine.stop()

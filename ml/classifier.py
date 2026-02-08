@@ -11,7 +11,7 @@ from config import MODEL_PATH, LABELS_PATH
 class Classifier:
     """Load trained model and make predictions with temporal smoothing."""
     
-    def __init__(self, smoothing_window: int = 12):
+    def __init__(self, smoothing_window: int = 5):
         """Initialize classifier.
         
         Args:
@@ -110,13 +110,12 @@ class Classifier:
             # Consistency: fraction of buffer that matches best_label
             consistency = label_counts[best_label] / len(self.prediction_buffer)
             
-            # REJECT if consistency is too low (e.g. < 50% of frames agree)
-            if consistency < 0.5:
+            # REJECT if consistency is too low (< 35% of frames agree)
+            if consistency < 0.35:
                 return None, 0.0
             
-            # Boost confidence if consistent predictions
-            # If 100% consistent, confidence boosted by 1.2x.
-            adjusted_confidence = avg_confidence * (0.8 + 0.5 * consistency)
+            # Scale confidence by consistency (no artificial inflation)
+            adjusted_confidence = avg_confidence * consistency
             
             return best_label, float(min(adjusted_confidence, 1.0))
         

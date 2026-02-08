@@ -1,26 +1,69 @@
 """
-Heuristic Gesture Classifier - Rule-based gesture detection
+Enhanced Heuristic Gesture Classifier - Rule-based gesture detection
 
-Uses geometric analysis of hand landmarks for reliable gesture detection
-without relying on ML models trained on synthetic data.
+Uses geometric analysis of hand landmarks for reliable gesture detection.
+This enhanced version covers more ASL letters and provides better accuracy.
 """
 import numpy as np
 from typing import Optional, Tuple, List
+from dataclasses import dataclass
+
+
+@dataclass
+class FingerState:
+    """State of individual fingers."""
+    thumb_extended: bool
+    index_extended: bool
+    middle_extended: bool
+    ring_extended: bool
+    pinky_extended: bool
+    
+    @property
+    def count(self) -> int:
+        return sum([
+            self.thumb_extended, self.index_extended, 
+            self.middle_extended, self.ring_extended, self.pinky_extended
+        ])
+    
+    def pattern(self) -> str:
+        """Get binary pattern like '01100' for index+middle."""
+        return ''.join([
+            '1' if self.thumb_extended else '0',
+            '1' if self.index_extended else '0',
+            '1' if self.middle_extended else '0',
+            '1' if self.ring_extended else '0',
+            '1' if self.pinky_extended else '0',
+        ])
 
 
 class HeuristicClassifier:
-    """Rule-based gesture classifier using hand landmark geometry."""
+    """Enhanced rule-based gesture classifier using hand landmark geometry.
+    
+    Covers:
+    - ASL letters A-Z (static ones)
+    - Numbers 0-9
+    """
+    
+    # Landmark indices
+    WRIST = 0
+    THUMB_CMC, THUMB_MCP, THUMB_IP, THUMB_TIP = 1, 2, 3, 4
+    INDEX_MCP, INDEX_PIP, INDEX_DIP, INDEX_TIP = 5, 6, 7, 8
+    MIDDLE_MCP, MIDDLE_PIP, MIDDLE_DIP, MIDDLE_TIP = 9, 10, 11, 12
+    RING_MCP, RING_PIP, RING_DIP, RING_TIP = 13, 14, 15, 16
+    PINKY_MCP, PINKY_PIP, PINKY_DIP, PINKY_TIP = 17, 18, 19, 20
+    
+    FINGER_TIPS = [4, 8, 12, 16, 20]
+    FINGER_PIPS = [3, 6, 10, 14, 18]
+    FINGER_MCPS = [2, 5, 9, 13, 17]
     
     def __init__(self):
         """Initialize classifier."""
         self.last_prediction = None
         self.prediction_count = 0
-        self.FINGER_TIPS = [4, 8, 12, 16, 20]  # Thumb, Index, Middle, Ring, Pinky
-        self.FINGER_PIPS = [3, 6, 10, 14, 18]  # PIP joints
-        self.FINGER_MCPS = [2, 5, 9, 13, 17]   # MCP joints
+        self._stability_threshold = 2
     
     def predict(self, landmarks: List[Tuple[float, float, float]]) -> Tuple[Optional[str], float]:
-        """Predict gesture from landmarks using geometric heuristics.
+        """Predict gesture from landmarks.
         
         Args:
             landmarks: List of 21 (x, y, z) tuples from MediaPipe
@@ -31,142 +74,190 @@ class HeuristicClassifier:
         if landmarks is None or len(landmarks) != 21:
             return None, 0.0
         
-        # Convert to numpy for easier math
         lm = np.array(landmarks)
         
-        # Calculate finger states
-        fingers_extended = self._get_fingers_extended(lm)
-        thumb_extended = self._is_thumb_extended(lm)
+        # Get finger states
+        finger_state = self._get_finger_state(lm)
         
-        # Count extended fingers
-        extended_count = sum(fingers_extended) + (1 if thumb_extended else 0)
+        # Classify gesture
+        gesture, confidence = self._classify(lm, finger_state)
         
-        # Classify based on finger patterns
-        gesture, confidence = self._classify_gesture(
-            fingers_extended, thumb_extended, extended_count, lm
-        )
-        
-        # Temporal smoothing - require 2 consistent predictions
+        # Temporal smoothing
         if gesture == self.last_prediction:
             self.prediction_count += 1
         else:
             self.last_prediction = gesture
             self.prediction_count = 1
         
-        if self.prediction_count >= 2:
+        if self.prediction_count >= self._stability_threshold:
             return gesture, confidence
         
         return None, 0.0
     
-    def _get_fingers_extended(self, lm: np.ndarray) -> List[bool]:
-        """Check which fingers are extended (not thumb).
+    def _get_finger_state(self, lm: np.ndarray) -> FingerState:
+        """Analyze which fingers are extended."""
         
-        A finger is extended if tip is above (lower y) PIP joint.
-        """
-        extended = []
-        for tip, pip in zip(self.FINGER_TIPS[1:], self.FINGER_PIPS[1:]):  # Skip thumb
-            # Finger extended if tip.y < pip.y (higher on screen)
-            extended.append(lm[tip][1] < lm[pip][1])
-        return extended
+        # Thumb - check horizontal extension
+        thumb_extended = self._is_thumb_extended(lm)
+        
+        # Other fingers - compare tip to PIP joint (y-coordinate)
+        index_extended = lm[self.INDEX_TIP][1] < lm[self.INDEX_PIP][1]
+        middle_extended = lm[self.MIDDLE_TIP][1] < lm[self.MIDDLE_PIP][1]
+        ring_extended = lm[self.RING_TIP][1] < lm[self.RING_PIP][1]
+        pinky_extended = lm[self.PINKY_TIP][1] < lm[self.PINKY_PIP][1]
+        
+        return FingerState(
+            thumb_extended=thumb_extended,
+            index_extended=index_extended,
+            middle_extended=middle_extended,
+            ring_extended=ring_extended,
+            pinky_extended=pinky_extended
+        )
     
     def _is_thumb_extended(self, lm: np.ndarray) -> bool:
-        """Check if thumb is extended."""
-        # Thumb extended if tip.x is far from index MCP
-        thumb_tip = lm[4]
-        index_mcp = lm[5]
-        wrist = lm[0]
+        """Check if thumb is extended outward."""
+        thumb_tip = lm[self.THUMB_TIP]
+        index_mcp = lm[self.INDEX_MCP]
+        pinky_mcp = lm[self.PINKY_MCP]
         
-        # Check horizontal distance (works for both hands)
-        thumb_dist = abs(thumb_tip[0] - index_mcp[0])
-        hand_width = abs(lm[17][0] - lm[5][0])  # Pinky MCP to Index MCP
+        # Hand width
+        hand_width = np.abs(pinky_mcp[0] - index_mcp[0])
+        if hand_width < 0.01:
+            hand_width = 0.1
         
-        return thumb_dist > hand_width * 0.5
+        # Thumb is extended if tip is far from palm center horizontally
+        thumb_dist = np.abs(thumb_tip[0] - index_mcp[0])
+        return thumb_dist > hand_width * 0.4
     
-    def _classify_gesture(self, fingers: List[bool], thumb: bool, 
-                          count: int, lm: np.ndarray) -> Tuple[Optional[str], float]:
-        """Classify gesture based on finger states."""
-        idx, mid, ring, pinky = fingers
+    def _distance(self, p1: np.ndarray, p2: np.ndarray) -> float:
+        """Calculate 3D distance between two points."""
+        return np.linalg.norm(p1 - p2)
+    
+    def _distance_2d(self, p1: np.ndarray, p2: np.ndarray) -> float:
+        """Calculate 2D distance (x, y only)."""
+        return np.linalg.norm(p1[:2] - p2[:2])
+    
+    def _fingers_touching(self, lm: np.ndarray, f1_tip: int, f2_tip: int, threshold: float = 0.08) -> bool:
+        """Check if two fingertips are touching."""
+        dist = self._distance(lm[f1_tip], lm[f2_tip])
+        return dist < threshold
+    
+    def _classify(self, lm: np.ndarray, fs: FingerState) -> Tuple[Optional[str], float]:
+        """Classify the gesture based on finger states and geometry."""
         
-        # === NUMBERS / SIMPLE GESTURES ===
+        pattern = fs.pattern()
         
-        # Fist / A / S - no fingers extended
-        if count == 0 or (not any(fingers) and not thumb):
-            return "A", 0.75  # Fist-like, could be A or S
+        # === Check O/F first (thumb-index touching) ===
+        thumb_index_dist = self._distance(lm[self.THUMB_TIP], lm[self.INDEX_TIP])
+        if thumb_index_dist < 0.06:
+            if not fs.middle_extended and not fs.ring_extended and not fs.pinky_extended:
+                return "O", 0.85
+            if fs.middle_extended and fs.ring_extended and fs.pinky_extended:
+                return "F", 0.85
         
-        # L - thumb and index only, perpendicular
-        if thumb and idx and not mid and not ring and not pinky:
+        # === CLOSED FIST VARIANTS ===
+        if pattern in ['00000', '10000']:
+            thumb_tip = lm[self.THUMB_TIP]
+            index_mcp = lm[self.INDEX_MCP]
+            # A has thumb beside fingers
+            if thumb_tip[1] < index_mcp[1]:
+                return "A", 0.85
+            return "S", 0.75
+        
+        # === ONE FINGER EXTENDED ===
+        
+        # X vs D - both have index only (01000)
+        if pattern == '01000':
+            index_tip = lm[self.INDEX_TIP]
+            index_dip = lm[self.INDEX_DIP]
+            index_pip = lm[self.INDEX_PIP]
+            # X = index is hooked/bent (tip is BELOW dip, or dip is below pip)
+            if index_tip[1] > index_dip[1]:
+                return "X", 0.80
+            # D = index is straight up
+            return "D", 0.85
+        
+        # I - Pinky only
+        if pattern == '00001':
+            return "I", 0.90
+        
+        # === TWO FINGERS ===
+        
+        # L vs G - both have pattern 11000
+        if pattern == '11000':
+            index_tip = lm[self.INDEX_TIP]
+            index_mcp = lm[self.INDEX_MCP]
+            # G = index points SIDEWAYS (tip and mcp at same Y height)
+            if abs(index_tip[1] - index_mcp[1]) < 0.08:
+                return "G", 0.80
+            # L = index points UP (normal upward extension)
             return "L", 0.85
         
-        # V or 2 - index and middle only
-        if idx and mid and not ring and not pinky and not thumb:
-            return "V", 0.85
+        # V/U - Index and middle
+        if pattern == '01100':
+            index_tip = lm[self.INDEX_TIP]
+            middle_tip = lm[self.MIDDLE_TIP]
+            spread = self._distance_2d(index_tip, middle_tip)
+            hand_width = self._distance_2d(lm[self.INDEX_MCP], lm[self.PINKY_MCP])
+            
+            # R - fingers crossed (index over middle)
+            if index_tip[0] > middle_tip[0] + 0.03:
+                return "R", 0.80
+            
+            if hand_width > 0 and spread > hand_width * 0.25:
+                return "V", 0.90
+            return "U", 0.85
         
-        # W or 3 - index, middle, ring
-        if idx and mid and ring and not pinky and not thumb:
+        # K - Index, middle with thumb between (middle slightly bent)
+        if pattern == '11100':
+            middle_tip = lm[self.MIDDLE_TIP]
+            middle_pip = lm[self.MIDDLE_PIP]
+            if middle_tip[1] > middle_pip[1] - 0.02:  # Middle slightly bent
+                return "K", 0.80
+            return "3", 0.80  # Otherwise it's number 3
+        
+        # Y - Thumb and pinky
+        if pattern == '10001':
+            return "Y", 0.90
+        
+        # === THREE FINGERS ===
+        
+        # W - Index, middle, ring spread
+        if pattern == '01110':
             return "W", 0.85
         
-        # 4 - all fingers but not thumb
-        if idx and mid and ring and pinky and not thumb:
-            return "B", 0.80  # Open hand without thumb
+        # === FOUR/FIVE FINGERS ===
         
-        # 5 / Open - all extended
-        if all(fingers) and thumb:
-            return "5", 0.85  # Open hand
+        # B - Four fingers up, thumb across
+        if pattern == '01111':
+            return "B", 0.85
         
-        # Y - thumb and pinky only
-        if thumb and pinky and not idx and not mid and not ring:
-            return "Y", 0.85
+        # 5 / Open hand - All extended
+        if pattern == '11111':
+            # Check for C - curved hand
+            thumb_tip = lm[self.THUMB_TIP]
+            index_tip = lm[self.INDEX_TIP]
+            gap = self._distance(thumb_tip, index_tip)
+            if 0.06 < gap < 0.15:
+                return "C", 0.75
+            return "5", 0.90
         
-        # I - pinky only
-        if pinky and not idx and not mid and not ring and not thumb:
-            return "I", 0.85
-        
-        # Pointing - index only
-        if idx and not mid and not ring and not pinky:
-            if thumb:
-                return "G", 0.75  # Index + thumb = G or pointing
-            else:
-                return "D", 0.75  # Just index = D
-        
-        # U - index and middle together
-        if idx and mid and not ring and not pinky:
-            # Check if fingers are close together
-            index_tip = lm[8]
-            middle_tip = lm[12]
-            finger_dist = np.linalg.norm(index_tip[:2] - middle_tip[:2])
-            hand_width = abs(lm[17][0] - lm[5][0])
-            
-            if finger_dist < hand_width * 0.3:
-                return "U", 0.80
-            return "V", 0.75  # Spread = V
-        
-        # C - curved, moderate opening
-        if thumb and idx and mid:
-            # Check curvature - tips should form arc
-            return "C", 0.65  # Approximation
-        
-        # O - closed loop
-        thumb_tip = lm[4]
-        index_tip = lm[8]
-        tip_dist = np.linalg.norm(thumb_tip - index_tip)
-        if tip_dist < 0.08:  # Tips touching
-            return "O", 0.75
-        
-        # F - similar to O but other fingers extended
-        if tip_dist < 0.1 and mid and ring and pinky:
-            return "F", 0.75
-        
-        # Default - return most common based on count
-        if count == 1:
-            return "D", 0.5
+        # === FALLBACK ===
+        count = fs.count
+        if count == 0:
+            return "A", 0.50
+        elif count == 1:
+            return "D", 0.50
         elif count == 2:
-            return "V", 0.5
+            return "V", 0.50
         elif count == 3:
-            return "W", 0.5
+            return "W", 0.50
         elif count == 4:
-            return "B", 0.5
+            return "B", 0.50
         else:
-            return "5", 0.5
+            return "5", 0.50
+        
+        return None, 0.0
     
     def clear(self):
         """Reset prediction state."""

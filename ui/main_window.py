@@ -21,17 +21,17 @@ from PySide6.QtGui import QFont, QColor
 from ui.styles import DARK_THEME, LIGHT_THEME, COLORS, ICONS, ThemeManager
 from ui.pages.login_page import LoginPage
 from ui.pages.dashboard_page import DashboardPage
-from ui.pages.live_translation_page import LivePage  # Updated to new pipeline
+from ui.pages.live_translation_page import LiveTranslationPage
 from ui.pages.history_page import HistoryPage
 from ui.pages.profile_page import ProfilePage
 from ui.pages.admin_page import AdminPage
 
 # New feature pages
 from ui.pages.tutorial_page import TutorialPage
-from ui.pages.gesture_library_page import GestureLibraryPage
 from ui.pages.settings_page import SettingsPage
 from ui.pages.analytics_page import AnalyticsPage
 from ui.pages.conversation_page import ConversationPage
+from ui.pages.training_page import TrainingPage
 
 from ml.classifier import Classifier
 from ml.data_collector import DataCollector
@@ -163,7 +163,7 @@ class Sidebar(QFrame):
         
         learn_items = [
             ("tutorial", "📚", "Tutorials"),
-            ("library", "📖", "Sign Library"),
+            ("training", "🎯", "Train Gestures"),
         ]
         
         for page_id, icon, text in learn_items:
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
         self.page_stack.addWidget(self.dashboard_page)
         
         # Live translation
-        self.live_page = LivePage(self.classifier, self.db, self.user)
+        self.live_page = LiveTranslationPage(self.classifier, self.db, self.user)
         self.page_stack.addWidget(self.live_page)
         
         # Conversation mode
@@ -341,9 +341,9 @@ class MainWindow(QMainWindow):
         self.tutorial_page = TutorialPage()
         self.page_stack.addWidget(self.tutorial_page)
         
-        # Gesture library
-        self.library_page = GestureLibraryPage()
-        self.page_stack.addWidget(self.library_page)
+        # Training page for predefined gestures
+        self.training_page = TrainingPage()
+        self.page_stack.addWidget(self.training_page)
         
         # Analytics page
         self.analytics_page = AnalyticsPage()
@@ -384,10 +384,13 @@ class MainWindow(QMainWindow):
         self.history_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.profile_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.tutorial_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.library_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        self.training_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.analytics_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.settings_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.conversation_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        
+        # Training page signals
+        self.training_page.model_trained.connect(self._on_model_trained)
         
         # Live page translation events
         self.live_page.translation_made.connect(self._save_translation)
@@ -534,8 +537,8 @@ class MainWindow(QMainWindow):
             self.page_stack.setCurrentWidget(self.history_page)
         elif page_id == "tutorial":
             self.page_stack.setCurrentWidget(self.tutorial_page)
-        elif page_id == "library":
-            self.page_stack.setCurrentWidget(self.library_page)
+        elif page_id == "training":
+            self.page_stack.setCurrentWidget(self.training_page)
         elif page_id == "analytics":
             self.analytics_page.refresh()
             self.page_stack.setCurrentWidget(self.analytics_page)
@@ -604,6 +607,13 @@ class MainWindow(QMainWindow):
             self, "Training Complete",
             f"Model trained successfully!\n\nAccuracy: {summary['accuracy']:.1%}"
         )
+    
+    @Slot(str)
+    def _on_model_trained(self, gesture: str):
+        """Handle model trained from training page."""
+        # Reload classifier to pick up new model
+        self.model_loaded = self.classifier.load()
+        print(f"Model updated after training gesture: {gesture}")
     
     @Slot(str)
     def _on_training_error(self, error):
