@@ -1297,35 +1297,33 @@ class AlphabetLesson(QWidget):
 
 
 # ─────────────────────────────────────────────────────────────
-# NumbersLesson
+# Generic phrase / word lesson — reusable for all non-alphabet
+# lessons: Numbers, Greetings, Basics, Questions, etc.
 # ─────────────────────────────────────────────────────────────
 
-class NumbersLesson(QWidget):
-    """Numbers 0-9 learning lesson."""
+class _PhraseLesson(QWidget):
+    """A reusable lesson widget that shows a list of items with
+    emoji, name, description, detailed steps, and a spelling helper
+    that shows each letter with the SignCard.
+
+    Subclasses just set TITLE, ICON, and DATA.
+    """
 
     back_requested = Signal()
 
-    NUMBERS_DATA = {
-        '0': {'desc': 'All fingers form O shape (same as letter O)', 'emoji': '👌'},
-        '1': {'desc': 'Index finger pointing up', 'emoji': '☝️'},
-        '2': {'desc': 'Peace sign (index and middle up, spread)', 'emoji': '✌️'},
-        '3': {'desc': 'Thumb, index, and middle up', 'emoji': '🤟'},
-        '4': {'desc': 'Four fingers up, thumb tucked', 'emoji': '🖐️'},
-        '5': {'desc': 'All five fingers spread open', 'emoji': '🖐️'},
-        '6': {'desc': 'Pinky and thumb touching, others up', 'emoji': '🤙'},
-        '7': {'desc': 'Ring finger and thumb touching, others up', 'emoji': '🖐️'},
-        '8': {'desc': 'Middle finger and thumb touching, others up', 'emoji': '🖐️'},
-        '9': {'desc': 'Index and thumb touching, others up', 'emoji': '👌'},
-    }
+    TITLE = ""
+    ICON  = ""
+    DATA  = []   # list of dicts: {name, emoji, desc, steps, tip?}
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._current = 0
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
 
         # Header
         header = QHBoxLayout()
@@ -1334,57 +1332,709 @@ class NumbersLesson(QWidget):
         back_btn.clicked.connect(self.back_requested.emit)
         header.addWidget(back_btn)
 
-        title = QLabel("🔢 Numbers 0-9")
-        title.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {COLORS['text_primary']};")
+        title = QLabel(f"{self.ICON} {self.TITLE}")
+        title.setStyleSheet(f"font-size: 20px; font-weight: 700; color: {COLORS['text_primary']};")
         header.addWidget(title)
         header.addStretch()
+
+        self._indicator = QLabel()
+        self._indicator.setStyleSheet(f"""
+            font-size: 14px; font-weight: 600;
+            color: {COLORS['primary']};
+            background: {COLORS['primary']}20;
+            padding: 4px 12px; border-radius: 8px;
+        """)
+        header.addWidget(self._indicator)
         layout.addLayout(header)
 
-        # Numbers grid
+        # Progress
+        prog_row = QHBoxLayout()
+        self._prog_bar = QProgressBar()
+        self._prog_bar.setMaximum(max(len(self.DATA), 1))
+        self._prog_bar.setFixedHeight(6)
+        self._prog_bar.setTextVisible(False)
+        self._prog_bar.setStyleSheet(f"""
+            QProgressBar {{ background: {COLORS['bg_input']}; border-radius: 3px; }}
+            QProgressBar::chunk {{ background: {COLORS['primary']}; border-radius: 3px; }}
+        """)
+        prog_row.addWidget(self._prog_bar)
+        self._prog_lbl = QLabel()
+        self._prog_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        prog_row.addWidget(self._prog_lbl)
+        layout.addLayout(prog_row)
+
+        # Scroll area with content
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
 
-        scroll_content = QWidget()
-        grid = QGridLayout(scroll_content)
-        grid.setSpacing(16)
+        content = QWidget()
+        cl = QVBoxLayout(content)
+        cl.setSpacing(14)
 
-        for i, (num, data) in enumerate(self.NUMBERS_DATA.items()):
-            card = QFrame()
-            card.setObjectName("card")
-            card.setFixedHeight(150)
-            card_layout = QVBoxLayout(card)
-            card_layout.setAlignment(Qt.AlignCenter)
+        # Emoji + name row
+        top = QHBoxLayout()
+        self._emoji = QLabel()
+        self._emoji.setStyleSheet("font-size: 52px; background: transparent;")
+        top.addWidget(self._emoji)
+        self._name = QLabel()
+        self._name.setStyleSheet(f"font-size: 28px; font-weight: 800; color: {COLORS['text_primary']}; background: transparent;")
+        top.addWidget(self._name)
+        top.addStretch()
+        cl.addLayout(top)
 
-            emoji = QLabel(data['emoji'])
-            emoji.setStyleSheet("font-size: 36px; background: transparent;")
-            emoji.setAlignment(Qt.AlignCenter)
-            card_layout.addWidget(emoji)
+        # Description
+        self._desc = QLabel()
+        self._desc.setWordWrap(True)
+        self._desc.setStyleSheet(f"""
+            font-size: 15px; color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']}; padding: 12px 16px; border-radius: 12px;
+        """)
+        cl.addWidget(self._desc)
 
-            num_label = QLabel(num)
-            num_label.setStyleSheet(f"""
-                font-size: 48px;
-                font-weight: bold;
-                color: {COLORS['primary']};
-                background: transparent;
+        # Steps
+        self._step_labels = []
+        for _ in range(6):
+            s = QLabel()
+            s.setWordWrap(True)
+            s.setStyleSheet(f"""
+                font-size: 14px; color: {COLORS['text_primary']};
+                background: {COLORS['bg_card']};
+                padding: 8px 14px; border-radius: 10px;
+                border-left: 4px solid {COLORS['primary']};
             """)
-            num_label.setAlignment(Qt.AlignCenter)
-            card_layout.addWidget(num_label)
+            cl.addWidget(s)
+            self._step_labels.append(s)
 
-            desc = QLabel(data['desc'])
-            desc.setStyleSheet(f"""
-                font-size: 12px;
-                color: {COLORS['text_secondary']};
-                background: transparent;
-            """)
-            desc.setAlignment(Qt.AlignCenter)
-            desc.setWordWrap(True)
-            card_layout.addWidget(desc)
+        # Tip (optional)
+        self._tip = QLabel()
+        self._tip.setWordWrap(True)
+        self._tip.setStyleSheet(f"""
+            font-size: 13px; font-weight: 600; color: {COLORS['primary']};
+            background: {COLORS['primary']}12; padding: 10px 14px; border-radius: 10px;
+        """)
+        cl.addWidget(self._tip)
 
-            grid.addWidget(card, i // 5, i % 5)
+        # Spelling helper — "Finger-spell it" section
+        spell_title = QLabel("🔤 Finger-Spell It")
+        spell_title.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent; margin-top: 8px;")
+        cl.addWidget(spell_title)
 
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
+        self._spell_desc = QLabel()
+        self._spell_desc.setStyleSheet(f"font-size: 12px; color: {COLORS['text_muted']}; background: transparent;")
+        cl.addWidget(self._spell_desc)
+
+        # Row of letter buttons for the current word
+        self._letter_btn_container = QWidget()
+        self._letter_btn_layout = QHBoxLayout(self._letter_btn_container)
+        self._letter_btn_layout.setContentsMargins(0, 0, 0, 0)
+        self._letter_btn_layout.setSpacing(4)
+        cl.addWidget(self._letter_btn_container)
+
+        # SignCard for showing the selected letter
+        card_frame = QFrame()
+        card_frame.setObjectName("card")
+        cf_layout = QVBoxLayout(card_frame)
+        cf_layout.setContentsMargins(8, 8, 8, 8)
+        self._sign_card = SignCard("")
+        cf_layout.addWidget(self._sign_card)
+        cl.addWidget(card_frame)
+
+        cl.addStretch()
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+        # Navigation
+        nav = QHBoxLayout()
+        self._prev_btn = QPushButton("← Previous")
+        self._prev_btn.setObjectName("secondaryButton")
+        self._prev_btn.clicked.connect(self._prev)
+        nav.addWidget(self._prev_btn)
+        nav.addStretch()
+        self._next_btn = QPushButton("Next →")
+        self._next_btn.setObjectName("primaryButton")
+        self._next_btn.clicked.connect(self._next)
+        nav.addWidget(self._next_btn)
+        layout.addLayout(nav)
+
+        self._refresh()
+
+    def _refresh(self):
+        if not self.DATA:
+            return
+        d = self.DATA[self._current]
+        self._emoji.setText(d.get('emoji', ''))
+        self._name.setText(d['name'])
+        self._desc.setText(d.get('desc', ''))
+        self._indicator.setText(f"{self._current + 1}/{len(self.DATA)}")
+        self._prog_bar.setValue(self._current + 1)
+        self._prog_lbl.setText(f"{self._current + 1}/{len(self.DATA)}")
+
+        steps = d.get('steps', [])
+        for i, lbl in enumerate(self._step_labels):
+            if i < len(steps):
+                lbl.setText(steps[i])
+                lbl.show()
+            else:
+                lbl.hide()
+
+        tip = d.get('tip', '')
+        if tip:
+            self._tip.setText(f"💡 {tip}")
+            self._tip.show()
+        else:
+            self._tip.hide()
+
+        # Spelling buttons
+        # Clear old buttons
+        while self._letter_btn_layout.count():
+            item = self._letter_btn_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        spell_word = d['name'].upper()
+        letters_only = [c for c in spell_word if c.isalpha()]
+        self._spell_desc.setText(f'Tap a letter to see its sign — spell "{d["name"]}" letter by letter')
+        for ch in spell_word:
+            if ch.isalpha():
+                btn = QPushButton(ch)
+                btn.setFixedSize(36, 36)
+                btn.setCursor(Qt.PointingHandCursor)
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: {COLORS['bg_input']};
+                        color: {COLORS['text_primary']};
+                        border: 1px solid {COLORS['border']};
+                        border-radius: 6px; font-size: 14px; font-weight: 700;
+                    }}
+                    QPushButton:hover {{
+                        background: {COLORS['primary']}; color: white;
+                    }}
+                """)
+                btn.clicked.connect(lambda checked, c=ch: self._sign_card.set_letter(c))
+                self._letter_btn_layout.addWidget(btn)
+            else:
+                spacer = QLabel("  ")
+                spacer.setStyleSheet("background: transparent; font-size: 14px;")
+                self._letter_btn_layout.addWidget(spacer)
+        self._letter_btn_layout.addStretch()
+
+        # Show first letter by default
+        if letters_only:
+            self._sign_card.set_letter(letters_only[0])
+
+        self._prev_btn.setEnabled(self._current > 0)
+        self._next_btn.setText("Complete ✓" if self._current >= len(self.DATA) - 1 else "Next →")
+
+    def _prev(self):
+        if self._current > 0:
+            self._current -= 1
+            self._refresh()
+
+    def _next(self):
+        if self._current < len(self.DATA) - 1:
+            self._current += 1
+            self._refresh()
+        else:
+            self.back_requested.emit()
+
+    def cleanup(self):
+        self._sign_card.cleanup()
+
+
+# ─── Numbers ────────────────────────────────────────────────
+
+class NumbersLesson(_PhraseLesson):
+    TITLE = "Numbers 0-9"
+    ICON  = "🔢"
+    DATA  = [
+        {
+            'name': '0', 'emoji': '👌',
+            'desc': 'All fingers form an O shape — same hand shape as the letter O.',
+            'steps': [
+                '1️⃣  Curve all your fingers together',
+                '2️⃣  Touch ALL fingertips to your thumb tip (makes a circle)',
+                '3️⃣  Your hand looks like a round O — that\'s zero!',
+            ],
+            'tip': 'This is identical to the letter O in ASL!',
+        },
+        {
+            'name': '1', 'emoji': '☝️',
+            'desc': 'Index finger pointing straight up — everything else closed.',
+            'steps': [
+                '1️⃣  Make a fist',
+                '2️⃣  Extend ONLY your index finger straight up',
+                '3️⃣  Thumb wraps across other fingers — done!',
+            ],
+        },
+        {
+            'name': '2', 'emoji': '✌️',
+            'desc': 'Peace/victory sign — index and middle fingers up and apart.',
+            'steps': [
+                '1️⃣  Make a fist',
+                '2️⃣  Extend index + middle fingers UP',
+                '3️⃣  Spread them apart in a V shape',
+            ],
+            'tip': 'Same as the letter V in ASL!',
+        },
+        {
+            'name': '3', 'emoji': '🤟',
+            'desc': 'Thumb, index, and middle finger all extended.',
+            'steps': [
+                '1️⃣  Extend your THUMB out to the side',
+                '2️⃣  Extend INDEX + MIDDLE fingers straight up',
+                '3️⃣  Curl ring + pinky down',
+            ],
+            'tip': 'This looks like an "OK" but with the thumb out too.',
+        },
+        {
+            'name': '4', 'emoji': '🖐️',
+            'desc': 'Four fingers up, thumb tucked across the palm.',
+            'steps': [
+                '1️⃣  Hold up all 4 fingers (index through pinky)',
+                '2️⃣  Spread them slightly apart',
+                '3️⃣  Fold your thumb DOWN across your palm',
+            ],
+            'tip': 'Same as the letter B but with fingers spread!',
+        },
+        {
+            'name': '5', 'emoji': '🖐️',
+            'desc': 'All five fingers wide open — the full "high five" hand.',
+            'steps': [
+                '1️⃣  Spread ALL five fingers wide open',
+                '2️⃣  Include your thumb — stick it out to the side',
+                '3️⃣  Like you\'re giving a high five — nice and wide!',
+            ],
+        },
+        {
+            'name': '6', 'emoji': '🤙',
+            'desc': 'Pinky touches thumb; index, middle, ring stay up.',
+            'steps': [
+                '1️⃣  Hold index, middle, and ring fingers UP',
+                '2️⃣  Bring your PINKY down to touch your THUMB tip',
+                '3️⃣  They should form a small circle at the bottom',
+            ],
+            'tip': 'Think of "hang loose" 🤙 but upright with 3 fingers up.',
+        },
+        {
+            'name': '7', 'emoji': '🖐️',
+            'desc': 'Ring finger touches thumb; index, middle, pinky stay up.',
+            'steps': [
+                '1️⃣  Hold index, middle, and pinky fingers UP',
+                '2️⃣  Bring your RING finger down to touch your THUMB tip',
+                '3️⃣  The ring finger + thumb make a small circle',
+            ],
+        },
+        {
+            'name': '8', 'emoji': '🖐️',
+            'desc': 'Middle finger touches thumb; index, ring, pinky stay up.',
+            'steps': [
+                '1️⃣  Hold index, ring, and pinky fingers UP',
+                '2️⃣  Bring your MIDDLE finger down to touch your THUMB tip',
+                '3️⃣  The middle finger + thumb make a small circle',
+            ],
+        },
+        {
+            'name': '9', 'emoji': '👌',
+            'desc': 'Index finger touches thumb (OK sign); middle, ring, pinky stay up.',
+            'steps': [
+                '1️⃣  Touch your INDEX fingertip to your THUMB tip',
+                '2️⃣  This forms the "OK" circle',
+                '3️⃣  Extend middle, ring, and pinky UP',
+            ],
+            'tip': 'Same as the letter F in ASL!',
+        },
+    ]
+
+
+# ─── Greetings ──────────────────────────────────────────────
+
+class GreetingsLesson(_PhraseLesson):
+    TITLE = "Greetings"
+    ICON  = "👋"
+    DATA  = [
+        {
+            'name': 'Hello', 'emoji': '👋',
+            'desc': 'A flat-hand salute that moves away from your forehead.',
+            'steps': [
+                '1️⃣  Hold your dominant hand flat (fingers together, like a salute)',
+                '2️⃣  Bring the fingertips to your forehead (near your temple)',
+                '3️⃣  Move your hand forward and slightly outward — like a friendly wave!',
+            ],
+            'tip': 'This is the same motion as a casual military salute.',
+        },
+        {
+            'name': 'Goodbye', 'emoji': '👋',
+            'desc': 'Open your hand and wave — just like a regular goodbye wave!',
+            'steps': [
+                '1️⃣  Open your hand with all fingers spread',
+                '2️⃣  Face your palm toward the other person',
+                '3️⃣  Wave your hand back and forth — bye-bye!',
+            ],
+        },
+        {
+            'name': 'Nice to meet you', 'emoji': '🤝',
+            'desc': 'A 3-part phrase: NICE + MEET + YOU.',
+            'steps': [
+                '1️⃣  NICE: Slide your dominant flat hand across your other flat palm (like brushing crumbs off)',
+                '2️⃣  MEET: Both index fingers point up and come together, meeting in the middle',
+                '3️⃣  YOU: Point your index finger at the other person',
+            ],
+            'tip': 'Practice each part separately, then combine them smoothly.',
+        },
+        {
+            'name': 'Good morning', 'emoji': '🌅',
+            'desc': 'GOOD + MORNING: flat hand from chin forward, then arm rises like the sun.',
+            'steps': [
+                '1️⃣  GOOD: Touch your chin with a flat hand, then move it forward and down onto your other palm',
+                '2️⃣  MORNING: Place your non-dominant hand flat (horizon), rest your dominant elbow on it',
+                '3️⃣  Raise your dominant flat hand upward — like the sun rising over the horizon!',
+            ],
+        },
+        {
+            'name': 'Good night', 'emoji': '🌙',
+            'desc': 'GOOD + NIGHT: flat hand from chin, then hand bends down like the sun setting.',
+            'steps': [
+                '1️⃣  GOOD: Same as above — flat hand from chin to palm',
+                '2️⃣  NIGHT: Hold non-dominant arm flat (horizon)',
+                '3️⃣  Bend your dominant hand downward over it — like the sun going down',
+            ],
+        },
+        {
+            'name': 'How are you', 'emoji': '😊',
+            'desc': 'HOW + YOU: bent hands move outward, then point at the person.',
+            'steps': [
+                '1️⃣  HOW: Hold both fists knuckles-together, then roll them forward and open your fingers',
+                '2️⃣  YOU: Point your index finger at the other person',
+                '3️⃣  Add a questioning facial expression (raised eyebrows)!',
+            ],
+            'tip': 'In ASL, facial expressions are part of the grammar — raise your eyebrows for questions!',
+        },
+    ]
+
+
+# ─── Basic Words ─────────────────────────────────────────────
+
+class BasicsLesson(_PhraseLesson):
+    TITLE = "Basic Words"
+    ICON  = "💬"
+    DATA  = [
+        {
+            'name': 'Yes', 'emoji': '✅',
+            'desc': 'Make a fist and nod it up and down — like your hand is nodding "yes"!',
+            'steps': [
+                '1️⃣  Make a fist (like the letter S)',
+                '2️⃣  Bend your wrist DOWN, then UP repeatedly',
+                '3️⃣  It looks like your fist is nodding — yes, yes, yes!',
+            ],
+        },
+        {
+            'name': 'No', 'emoji': '❌',
+            'desc': 'Snap your index + middle finger against your thumb — like a tiny mouth saying "no".',
+            'steps': [
+                '1️⃣  Extend your index + middle fingers (and thumb)',
+                '2️⃣  Bring them together to your thumb quickly, like a snap',
+                '3️⃣  Do it once or twice — like a little beak closing shut',
+            ],
+        },
+        {
+            'name': 'Please', 'emoji': '🙏',
+            'desc': 'Flat hand circles on your chest — like rubbing your heart.',
+            'steps': [
+                '1️⃣  Place your flat hand on the center of your chest',
+                '2️⃣  Move it in a circular motion (clockwise)',
+                '3️⃣  Keep a polite facial expression!',
+            ],
+            'tip': 'The circular motion is important — it shows sincerity.',
+        },
+        {
+            'name': 'Thank you', 'emoji': '🙏',
+            'desc': 'Flat hand touches chin, then moves forward — like blowing a kiss of thanks.',
+            'steps': [
+                '1️⃣  Touch your chin (or lips) with your flat fingertips',
+                '2️⃣  Move your hand forward and slightly down, away from your face',
+                '3️⃣  Like you\'re sending a "thank you" out to the person',
+            ],
+        },
+        {
+            'name': 'Sorry', 'emoji': '😔',
+            'desc': 'Make a fist and rub it in a circle on your chest.',
+            'steps': [
+                '1️⃣  Make a fist (letter A shape — thumb on the side)',
+                '2️⃣  Place it on the center of your chest',
+                '3️⃣  Rub in a circular motion — shows you feel regret',
+            ],
+            'tip': 'Use a sincere facial expression — it matters in ASL!',
+        },
+        {
+            'name': 'Excuse me', 'emoji': '🤚',
+            'desc': 'Brush your non-dominant flat hand with your dominant fingertips.',
+            'steps': [
+                '1️⃣  Hold your non-dominant hand flat, palm up',
+                '2️⃣  Place your dominant fingertips on it',
+                '3️⃣  Brush your fingertips across the palm twice — like gently sweeping',
+            ],
+        },
+    ]
+
+
+# ─── Question Words ─────────────────────────────────────────
+
+class QuestionsLesson(_PhraseLesson):
+    TITLE = "Question Words"
+    ICON  = "❓"
+    DATA  = [
+        {
+            'name': 'What', 'emoji': '❓',
+            'desc': 'Index finger slides down across your other open palm.',
+            'steps': [
+                '1️⃣  Hold your non-dominant hand flat, palm up',
+                '2️⃣  Point your dominant index finger down',
+                '3️⃣  Slide it across the open palm from one side to the other',
+            ],
+            'tip': 'Furrow your eyebrows for WH- questions (what, where, who, etc.).',
+        },
+        {
+            'name': 'Where', 'emoji': '📍',
+            'desc': 'Point your index finger and wave it side to side.',
+            'steps': [
+                '1️⃣  Point your index finger up (like number 1)',
+                '2️⃣  Wave it side to side — left, right, left',
+                '3️⃣  Furrow your eyebrows with a questioning look',
+            ],
+        },
+        {
+            'name': 'When', 'emoji': '⏰',
+            'desc': 'Circle your index finger around your other index finger, then land on it.',
+            'steps': [
+                '1️⃣  Hold your non-dominant index finger up (like a pole)',
+                '2️⃣  Circle your dominant index finger around it',
+                '3️⃣  Land your dominant index finger on top of the other one',
+            ],
+        },
+        {
+            'name': 'Why', 'emoji': '🤔',
+            'desc': 'Touch your forehead, then form a Y hand shape moving outward.',
+            'steps': [
+                '1️⃣  Touch your forehead with your middle fingertip',
+                '2️⃣  Pull your hand away while shifting to a Y shape (thumb + pinky out)',
+                '3️⃣  The motion goes: forehead → outward + Y hand',
+            ],
+        },
+        {
+            'name': 'How', 'emoji': '🔧',
+            'desc': 'Both fists roll forward and open up.',
+            'steps': [
+                '1️⃣  Hold both hands in fists, knuckles touching each other',
+                '2️⃣  Roll them forward (away from you)',
+                '3️⃣  As they roll, open your fingers — like unfolding something',
+            ],
+        },
+        {
+            'name': 'Who', 'emoji': '🧑',
+            'desc': 'Circle your index finger around your puckered lips.',
+            'steps': [
+                '1️⃣  Pucker your lips slightly',
+                '2️⃣  Point your index finger at your lips',
+                '3️⃣  Circle it around your mouth area — like asking "who?"',
+            ],
+            'tip': 'Pucker your lips — this is part of the ASL grammar for "who".',
+        },
+    ]
+
+
+# ─── Emotions ───────────────────────────────────────────────
+
+class EmotionsLesson(_PhraseLesson):
+    TITLE = "Emotions"
+    ICON  = "😊"
+    DATA  = [
+        {
+            'name': 'Happy', 'emoji': '😄',
+            'desc': 'Flat hand brushes UP your chest repeatedly — happiness rises!',
+            'steps': [
+                '1️⃣  Place your flat hand on your chest',
+                '2️⃣  Brush it UPWARD with a quick, light motion',
+                '3️⃣  Repeat twice — the upward motion shows happiness rising!',
+            ],
+            'tip': 'Smile while signing — facial expressions are essential!',
+        },
+        {
+            'name': 'Sad', 'emoji': '😢',
+            'desc': 'Both open hands slide DOWN your face — like tears falling.',
+            'steps': [
+                '1️⃣  Hold both hands open in front of your face, palms facing inward',
+                '2️⃣  Move them DOWNWARD slowly',
+                '3️⃣  Make a sad facial expression — drooping face, frown',
+            ],
+        },
+        {
+            'name': 'Angry', 'emoji': '😡',
+            'desc': 'Claw hand pulls away from your face — frustration bursting out!',
+            'steps': [
+                '1️⃣  Hold your hand in a "claw" shape (fingers spread and bent) near your face',
+                '2️⃣  Pull it sharply AWAY from your face',
+                '3️⃣  Show an angry expression — it\'s crucial for this sign!',
+            ],
+        },
+        {
+            'name': 'Scared', 'emoji': '😨',
+            'desc': 'Both fists open suddenly in front of your chest — like getting startled!',
+            'steps': [
+                '1️⃣  Hold both fists near your chest',
+                '2️⃣  Suddenly OPEN both hands (spread fingers wide)',
+                '3️⃣  Move them slightly forward — like a flinch reaction',
+            ],
+            'tip': 'Widen your eyes and look startled — the expression sells it!',
+        },
+        {
+            'name': 'Excited', 'emoji': '🤩',
+            'desc': 'Both middle fingers brush UP on your chest alternately — energy!',
+            'steps': [
+                '1️⃣  Bend both middle fingers (others tucked)',
+                '2️⃣  Place them on your chest',
+                '3️⃣  Brush them upward in alternating circles — showing building excitement!',
+            ],
+        },
+        {
+            'name': 'Love', 'emoji': '❤️',
+            'desc': 'Cross both fists (or hands) over your heart.',
+            'steps': [
+                '1️⃣  Make fists with both hands',
+                '2️⃣  Cross your arms over your chest (like a hug)',
+                '3️⃣  Press them against your heart — showing love!',
+            ],
+            'tip': 'You can also sign I-L-Y (I Love You): thumb + index + pinky out at once 🤟',
+        },
+    ]
+
+
+# ─── Family ─────────────────────────────────────────────────
+
+class FamilyLesson(_PhraseLesson):
+    TITLE = "Family"
+    ICON  = "👨‍👩‍👧‍👦"
+    DATA  = [
+        {
+            'name': 'Mom', 'emoji': '👩',
+            'desc': 'Thumb taps your chin — the CHIN area = female signs in ASL.',
+            'steps': [
+                '1️⃣  Open your hand with fingers spread (number 5 shape)',
+                '2️⃣  Tap your THUMB against your CHIN',
+                '3️⃣  Tap twice — that\'s mom!',
+            ],
+            'tip': 'In ASL, female family signs are near the CHIN, male ones near the FOREHEAD.',
+        },
+        {
+            'name': 'Dad', 'emoji': '👨',
+            'desc': 'Thumb taps your forehead — the FOREHEAD area = male signs in ASL.',
+            'steps': [
+                '1️⃣  Open your hand with fingers spread (number 5 shape)',
+                '2️⃣  Tap your THUMB against your FOREHEAD',
+                '3️⃣  Tap twice — that\'s dad!',
+            ],
+        },
+        {
+            'name': 'Sister', 'emoji': '👧',
+            'desc': 'GIRL + SAME: thumb along chin, then both index fingers side by side.',
+            'steps': [
+                '1️⃣  GIRL: Trace your thumb along your jawline (chin area)',
+                '2️⃣  SAME: Hold both hands as fists with index fingers pointing out',
+                '3️⃣  Bring them together side by side — "same" = sibling, chin = girl → sister!',
+            ],
+        },
+        {
+            'name': 'Brother', 'emoji': '👦',
+            'desc': 'BOY + SAME: thumb along forehead, then both index fingers side by side.',
+            'steps': [
+                '1️⃣  BOY: Pretend to grab a baseball cap brim at your forehead',
+                '2️⃣  SAME: Hold both fists with index fingers pointing out',
+                '3️⃣  Bring them together side by side — forehead = boy, same = sibling → brother!',
+            ],
+        },
+        {
+            'name': 'Baby', 'emoji': '👶',
+            'desc': 'Rock your arms like you\'re cradling a baby.',
+            'steps': [
+                '1️⃣  Place one arm on top of the other (like holding a baby)',
+                '2️⃣  Rock your arms gently side to side',
+                '3️⃣  Just like rocking a real baby to sleep!',
+            ],
+        },
+        {
+            'name': 'Family', 'emoji': '👨‍👩‍👧‍👦',
+            'desc': 'Both hands make F shapes and circle around to meet — a family circle!',
+            'steps': [
+                '1️⃣  Both hands make the letter F (thumb + index circle, 3 fingers up)',
+                '2️⃣  Start with them touching in front of you',
+                '3️⃣  Circle them outward and around until the pinkies touch — a complete family circle!',
+            ],
+        },
+    ]
+
+
+# ─── Common Actions ─────────────────────────────────────────
+
+class ActionsLesson(_PhraseLesson):
+    TITLE = "Common Actions"
+    ICON  = "🏃"
+    DATA  = [
+        {
+            'name': 'Help', 'emoji': '🆘',
+            'desc': 'Fist on flat palm, both rise together — one hand lifting the other.',
+            'steps': [
+                '1️⃣  Make a fist with your dominant hand (thumbs-up position)',
+                '2️⃣  Place it on your non-dominant flat palm',
+                '3️⃣  Lift BOTH hands up together — like boosting someone up!',
+            ],
+        },
+        {
+            'name': 'Want', 'emoji': '🤲',
+            'desc': 'Both hands reach forward with spread bent fingers, then pull toward you.',
+            'steps': [
+                '1️⃣  Hold both hands out, palms up, fingers spread and slightly bent (claw shape)',
+                '2️⃣  Pull both hands toward your body',
+                '3️⃣  Like you\'re pulling something you want toward you!',
+            ],
+        },
+        {
+            'name': 'Need', 'emoji': '💪',
+            'desc': 'Bent index finger (X shape) bends downward — firm and urgent.',
+            'steps': [
+                '1️⃣  Make an X hand shape (index finger hooked)',
+                '2️⃣  Hold it in front of you',
+                '3️⃣  Bend your wrist downward firmly — showing urgency/need',
+            ],
+        },
+        {
+            'name': 'Stop', 'emoji': '🛑',
+            'desc': 'Flat hand chops down onto your other flat palm — a firm stop.',
+            'steps': [
+                '1️⃣  Hold your non-dominant hand flat, palm facing up',
+                '2️⃣  Bring your dominant flat hand DOWN sharply',
+                '3️⃣  Chop it onto the other palm — like a karate chop = STOP!',
+            ],
+        },
+        {
+            'name': 'Go', 'emoji': '🏃',
+            'desc': 'Both index fingers point forward and flick outward — GO!',
+            'steps': [
+                '1️⃣  Point both index fingers forward',
+                '2️⃣  Bend them slightly (like they\'re bent at the knuckle)',
+                '3️⃣  Flick them forward — like launching something — GO!',
+            ],
+        },
+        {
+            'name': 'Like', 'emoji': '👍',
+            'desc': 'Thumb and middle finger pull away from your chest — like pulling heartstrings.',
+            'steps': [
+                '1️⃣  Place your thumb and middle finger on your chest (others extended)',
+                '2️⃣  Pull them forward, bringing thumb and middle together',
+                '3️⃣  Like pulling a thread from your heart — you LIKE it!',
+            ],
+            'tip': 'The sign starts at your heart because "liking" is a feeling!',
+        },
+    ]
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1436,6 +2086,36 @@ class TutorialPage(QWidget):
         self.numbers_lesson = NumbersLesson()
         self.numbers_lesson.back_requested.connect(self._show_lesson_list)
         self.stack.addWidget(self.numbers_lesson)
+
+        # Greetings lesson
+        self.greetings_lesson = GreetingsLesson()
+        self.greetings_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.greetings_lesson)
+
+        # Basic Words lesson
+        self.basics_lesson = BasicsLesson()
+        self.basics_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.basics_lesson)
+
+        # Question Words lesson
+        self.questions_lesson = QuestionsLesson()
+        self.questions_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.questions_lesson)
+
+        # Emotions lesson
+        self.emotions_lesson = EmotionsLesson()
+        self.emotions_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.emotions_lesson)
+
+        # Family lesson
+        self.family_lesson = FamilyLesson()
+        self.family_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.family_lesson)
+
+        # Actions lesson
+        self.actions_lesson = ActionsLesson()
+        self.actions_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.actions_lesson)
 
         layout.addWidget(self.stack)
 
@@ -1566,6 +2246,18 @@ class TutorialPage(QWidget):
             self.stack.setCurrentWidget(self.alphabet_lesson)
         elif lesson_id == "numbers":
             self.stack.setCurrentWidget(self.numbers_lesson)
+        elif lesson_id == "greetings":
+            self.stack.setCurrentWidget(self.greetings_lesson)
+        elif lesson_id == "basics":
+            self.stack.setCurrentWidget(self.basics_lesson)
+        elif lesson_id == "questions":
+            self.stack.setCurrentWidget(self.questions_lesson)
+        elif lesson_id == "emotions":
+            self.stack.setCurrentWidget(self.emotions_lesson)
+        elif lesson_id == "family":
+            self.stack.setCurrentWidget(self.family_lesson)
+        elif lesson_id == "actions":
+            self.stack.setCurrentWidget(self.actions_lesson)
 
     def _show_lesson_list(self):
         """Return to the lesson list."""
