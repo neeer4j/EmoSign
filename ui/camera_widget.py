@@ -41,6 +41,8 @@ class CameraWidget(QFrame):
         self.is_running = False
         self._last_hand_detected = False
         self._last_emotion = None
+        self._emotion_buffer = []          # rolling window for smoothing
+        self._emotion_buffer_size = 8      # vote over last N frames (increased for stability)
         self.dynamic_gestures_enabled = True  # Toggle for dynamic gesture recognition
         self.emotion_detection_enabled = True  # Toggle for emotion detection
         
@@ -130,15 +132,25 @@ class CameraWidget(QFrame):
             if gesture_name is not None and confidence > 0.6:
                 self.dynamic_gesture_detected.emit(gesture_name, confidence)
         
-        # Face/Emotion detection
+        # Face/Emotion detection with temporal smoothing
         emotion_result = None
         if self.emotion_detection_enabled:
             emotion_result = self.face_detector.process(frame_rgb)
             if emotion_result and emotion_result.landmarks_detected:
-                if emotion_result.emotion != self._last_emotion:
-                    self._last_emotion = emotion_result.emotion
+                # Add to rolling buffer
+                self._emotion_buffer.append(emotion_result.emotion)
+                if len(self._emotion_buffer) > self._emotion_buffer_size:
+                    self._emotion_buffer.pop(0)
+                
+                # Majority vote over the buffer
+                from collections import Counter
+                counts = Counter(self._emotion_buffer)
+                smoothed_emotion = counts.most_common(1)[0][0]
+                
+                if smoothed_emotion != self._last_emotion:
+                    self._last_emotion = smoothed_emotion
                     self.emotion_detected.emit(
-                        emotion_result.emotion.value, 
+                        smoothed_emotion.value, 
                         emotion_result.confidence
                     )
         

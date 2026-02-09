@@ -518,6 +518,18 @@ class MainWindow(QMainWindow):
         # Stop any active camera
         self.live_page.stop_camera()
         
+        # Clear user data from all pages
+        self.live_page.user = None
+        self.dashboard_page.update_user({})
+        self.history_page.update_user({})
+        self.profile_page.update_user({})
+        
+        # Hide admin link
+        self.sidebar.show_admin_link(False)
+        
+        # Clear the login form for fresh state
+        self.login_page.clear_form()
+        
         # Show login
         self._show_login()
     

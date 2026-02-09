@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QProgressBar, QSizePolicy, QGraphicsDropShadowEffect
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QFont, QColor, QPixmap
 
 from ui.styles import COLORS
 from ui.hand_widget import AnimatedHandWidget
@@ -512,29 +512,31 @@ SIGN_GUIDE = {
     'F': {
         'emoji': '👌',
         'imagine': 'Like the "OK" sign — thumb and index make a circle',
-        'fingers': [1, 0, 3, 3, 3],
+        'fingers': [1, 1, 3, 3, 3],
         'do_this': [
-            '1️⃣  Touch your THUMB tip to your INDEX fingertip (makes a circle)',
+            '1️⃣  Touch your THUMB tip to your INDEX fingertip (makes a small circle)',
             '2️⃣  Stick the other 3 fingers (middle, ring, pinky) STRAIGHT UP',
-            '3️⃣  Keep those 3 fingers spread slightly apart',
+            '3️⃣  Keep those 3 fingers straight and slightly apart',
         ],
     },
     'G': {
         'emoji': '👉',
-        'imagine': 'Like a finger gun pointing sideways',
+        'imagine': 'Like a finger gun pointing sideways →',
         'fingers': [2, 2, 0, 0, 0],
+        'direction': 'side',
         'do_this': [
-            '1️⃣  Point your INDEX finger SIDEWAYS (to the left)',
-            '2️⃣  Extend your thumb parallel above it (like a finger gun)',
+            '1️⃣  Point your INDEX finger SIDEWAYS → (not up!)',
+            '2️⃣  Extend your THUMB parallel above it (like a finger gun)',
             '3️⃣  Curl the other 3 fingers into your palm',
         ],
     },
     'H': {
         'emoji': '✌️',
-        'imagine': 'Like a peace sign, but pointing sideways',
+        'imagine': 'Like a peace sign, but pointing sideways →',
         'fingers': [0, 2, 2, 0, 0],
+        'direction': 'side',
         'do_this': [
-            '1️⃣  Extend INDEX + MIDDLE fingers SIDEWAYS (pointing left)',
+            '1️⃣  Extend INDEX + MIDDLE fingers SIDEWAYS → (not up!)',
             '2️⃣  Keep them together (touching side by side)',
             '3️⃣  Curl ring, pinky, and tuck thumb underneath',
         ],
@@ -544,9 +546,9 @@ SIGN_GUIDE = {
         'imagine': 'Like a fist, but your PINKY sticks up alone',
         'fingers': [0, 0, 0, 0, 3],
         'do_this': [
-            '1️⃣  Make a fist',
+            '1️⃣  Make a fist with your thumb across the front',
             '2️⃣  Stick ONLY your PINKY finger straight up',
-            '3️⃣  Thumb wraps across the front of your fist',
+            '3️⃣  Keep all other fingers curled tight',
         ],
     },
     'J': {
@@ -554,11 +556,11 @@ SIGN_GUIDE = {
         'imagine': 'Start like "I" (pinky up), then draw a J in the air',
         'fingers': [0, 0, 0, 0, 3],
         'do_this': [
-            '1️⃣  Make the letter I (fist with pinky up)',
-            '2️⃣  Move your hand DOWN, then CURVE it toward you',
+            '1️⃣  Start in the letter I position (fist with pinky up)',
+            '2️⃣  Move your hand DOWN ↓ then CURVE it toward you ↩',
             '3️⃣  Your pinky traces the shape of the letter J!',
         ],
-        'motion': '↓ Move hand down, then curve inward — drawing a J with your pinky',
+        'motion': '↓↩ Move hand down, then curve inward — drawing a J with your pinky',
     },
     'K': {
         'emoji': '✌️',
@@ -612,21 +614,23 @@ SIGN_GUIDE = {
     },
     'P': {
         'emoji': '👇',
-        'imagine': 'Like the letter K, but pointing downward',
-        'fingers': [2, 2, 2, 0, 0],
+        'imagine': 'Like the letter K, but your hand points DOWNWARD ↓',
+        'fingers': [2, 3, 3, 0, 0],
+        'direction': 'down',
         'do_this': [
-            '1️⃣  Make the letter K (V + thumb between)',
-            '2️⃣  Now tilt your whole hand DOWNWARD',
-            '3️⃣  Your fingers should point toward the ground',
+            '1️⃣  Make the letter K (V shape + thumb wedged between)',
+            '2️⃣  Now rotate your whole hand to point DOWNWARD ↓',
+            '3️⃣  Index + middle should point toward the ground',
         ],
     },
     'Q': {
         'emoji': '👇',
-        'imagine': 'Like the letter G, but pointing downward',
+        'imagine': 'Like the letter G, but your hand points DOWNWARD ↓',
         'fingers': [2, 2, 0, 0, 0],
+        'direction': 'down',
         'do_this': [
             '1️⃣  Make the letter G (index + thumb pointing)',
-            '2️⃣  Now point your whole hand DOWNWARD',
+            '2️⃣  Now rotate your whole hand to point DOWNWARD ↓',
             '3️⃣  Thumb + index point toward the ground',
         ],
     },
@@ -642,12 +646,12 @@ SIGN_GUIDE = {
     },
     'S': {
         'emoji': '✊',
-        'imagine': 'A tight fist — thumb wraps across the front',
-        'fingers': [2, 0, 0, 0, 0],
+        'imagine': 'A tight fist — thumb wraps across the FRONT',
+        'fingers': [1, 0, 0, 0, 0],
         'do_this': [
-            '1️⃣  Make a tight FIST',
+            '1️⃣  Make a tight FIST (all fingers curled in)',
             '2️⃣  Wrap your thumb across the FRONT of your fingers',
-            '3️⃣  Thumb sits on top of index + middle fingers',
+            '3️⃣  Thumb tip sits near your ring/pinky knuckles',
         ],
     },
     'T': {
@@ -662,22 +666,22 @@ SIGN_GUIDE = {
     },
     'U': {
         'emoji': '✌️',
-        'imagine': 'Two fingers up and TOGETHER — like a peace sign but closed',
+        'imagine': 'Two fingers up and pressed TOGETHER — like a closed peace sign',
         'fingers': [0, 3, 3, 0, 0],
         'do_this': [
-            '1️⃣  Hold INDEX + MIDDLE fingers straight UP',
-            '2️⃣  Keep them TOGETHER (touching each other)',
-            '3️⃣  Curl ring + pinky down, tuck thumb',
+            '1️⃣  Hold INDEX + MIDDLE fingers straight UP ↑',
+            '2️⃣  Keep them pressed TOGETHER (touching each other)',
+            '3️⃣  Curl ring + pinky down, tuck thumb across palm',
         ],
     },
     'V': {
         'emoji': '✌️',
-        'imagine': 'Peace sign / Victory sign!',
+        'imagine': 'Peace sign / Victory sign — fingers SPREAD!',
         'fingers': [0, 3, 3, 0, 0],
         'do_this': [
-            '1️⃣  Hold INDEX + MIDDLE fingers straight UP',
-            '2️⃣  Spread them APART (making a V shape)',
-            '3️⃣  Curl ring + pinky down, tuck thumb',
+            '1️⃣  Hold INDEX + MIDDLE fingers straight UP ↑',
+            '2️⃣  SPREAD them APART (making a V / peace shape)',
+            '3️⃣  Curl ring + pinky down, tuck thumb across palm',
         ],
     },
     'W': {
@@ -965,10 +969,12 @@ class LessonCard(QFrame):
 # AlphabetLesson — the main interactive A-Z lesson
 # Now uses SignCard (bar chart + analogies + steps) instead of
 # ASCII art and technical descriptions.
+# Includes live camera practice panel in a single-screen layout.
 # ─────────────────────────────────────────────────────────────
 
 class AlphabetLesson(QWidget):
-    """Interactive alphabet learning lesson with beginner-friendly visuals."""
+    """Interactive alphabet learning lesson with beginner-friendly visuals
+    and integrated camera practice — all on a single screen (no scrolling)."""
 
     back_requested = Signal()
 
@@ -976,224 +982,207 @@ class AlphabetLesson(QWidget):
         super().__init__(parent)
         self.current_letter_index = 0
         self.letters = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        self._camera_widget = None  # Lazy-loaded
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
 
-        # ── Header ──
+        # ── Header (compact) ──
         header = QHBoxLayout()
+        header.setSpacing(12)
 
-        back_btn = QPushButton("← Back to Lessons")
+        back_btn = QPushButton("← Back")
         back_btn.setObjectName("secondaryButton")
-        back_btn.clicked.connect(self.back_requested.emit)
+        back_btn.setFixedWidth(80)
+        back_btn.clicked.connect(self._on_back)
         header.addWidget(back_btn)
 
-        title = QLabel("🔤 Learn the ASL Alphabet")
-        title.setStyleSheet(f"font-size: 20px; font-weight: 700; color: {COLORS['text_primary']};")
+        title = QLabel("🔤 ASL Alphabet")
+        title.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {COLORS['text_primary']};")
         header.addWidget(title)
+
+        # Progress bar inline
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximum(26)
+        self.progress_bar.setValue(1)
+        self.progress_bar.setFixedHeight(8)
+        self.progress_bar.setFixedWidth(200)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{ background-color: {COLORS['bg_input']}; border-radius: 4px; }}
+            QProgressBar::chunk {{ background-color: {COLORS['primary']}; border-radius: 4px; }}
+        """)
+        header.addWidget(self.progress_bar)
+
+        self.progress_text = QLabel("1/26")
+        self.progress_text.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px;")
+        header.addWidget(self.progress_text)
+
         header.addStretch()
 
         # Letter indicator
         self.letter_indicator = QLabel("A")
         self.letter_indicator.setStyleSheet(f"""
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 20px; font-weight: bold;
             color: {COLORS['primary']};
             background: {COLORS['primary']}20;
-            padding: 4px 12px;
-            border-radius: 8px;
+            padding: 4px 10px; border-radius: 6px;
         """)
         header.addWidget(self.letter_indicator)
 
         layout.addLayout(header)
 
-        # ── Progress bar ──
-        progress_layout = QHBoxLayout()
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setMaximum(26)
-        self.progress_bar.setValue(1)
-        self.progress_bar.setFixedHeight(8)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                background-color: {COLORS['bg_input']};
-                border-radius: 4px;
-            }}
-            QProgressBar::chunk {{
-                background-color: {COLORS['primary']};
-                border-radius: 4px;
-            }}
-        """)
-        progress_layout.addWidget(self.progress_bar)
+        # ── Main content: 3 columns (no scroll) ──
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(12)
 
-        self.progress_text = QLabel("1/26")
-        self.progress_text.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
-        progress_layout.addWidget(self.progress_text)
-
-        layout.addLayout(progress_layout)
-
-        # ── Main content (scrollable) ──
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        content_widget = QWidget()
-        content_layout = QHBoxLayout(content_widget)
-        content_layout.setSpacing(20)
-
-        # --- Left panel: SignCard (the beginner-friendly visual) ---
+        # === LEFT COLUMN: SignCard ===
         left_panel = QFrame()
         left_panel.setObjectName("card")
-        left_panel.setFixedWidth(380)
+        left_panel.setFixedWidth(320)
         left_inner = QVBoxLayout(left_panel)
-        left_inner.setContentsMargins(8, 8, 8, 8)
+        left_inner.setContentsMargins(6, 6, 6, 6)
+        left_inner.setSpacing(4)
 
         self.sign_card = SignCard()
         left_inner.addWidget(self.sign_card)
-        left_inner.addStretch()
 
         content_layout.addWidget(left_panel)
 
-        # --- Right panel: Detailed info + common mistakes + tips ---
-        right_panel = QFrame()
-        right_panel.setObjectName("card")
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setSpacing(16)
+        # === MIDDLE COLUMN: Tips (compact) ===
+        mid_panel = QFrame()
+        mid_panel.setObjectName("card")
+        mid_layout = QVBoxLayout(mid_panel)
+        mid_layout.setContentsMargins(10, 10, 10, 10)
+        mid_layout.setSpacing(8)
 
-        # "Similar letters" helper
-        similar_title = QLabel("🔍 Watch Out — Similar Letters")
-        similar_title.setStyleSheet(f"""
-            font-size: 16px;
-            font-weight: 600;
-            color: {COLORS['text_primary']};
-            background: transparent;
-        """)
-        right_layout.addWidget(similar_title)
+        # Similar letters
+        similar_title = QLabel("🔍 Similar Letters")
+        similar_title.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {COLORS['text_primary']}; background: transparent;")
+        mid_layout.addWidget(similar_title)
 
         self.similar_label = QLabel()
         self.similar_label.setStyleSheet(f"""
-            font-size: 13px;
-            color: {COLORS['text_secondary']};
-            background: {COLORS['bg_input']};
-            padding: 12px;
-            border-radius: 10px;
+            font-size: 11px; color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']}; padding: 8px; border-radius: 8px;
         """)
         self.similar_label.setWordWrap(True)
-        right_layout.addWidget(self.similar_label)
+        mid_layout.addWidget(self.similar_label)
 
         # Common mistakes
-        mistakes_title = QLabel("⚠️ Common Mistakes to Avoid")
-        mistakes_title.setStyleSheet(f"""
-            font-size: 16px;
-            font-weight: 600;
-            color: {COLORS['warning']};
-            background: transparent;
-            margin-top: 8px;
-        """)
-        right_layout.addWidget(mistakes_title)
+        mistakes_title = QLabel("⚠️ Common Mistakes")
+        mistakes_title.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {COLORS['warning']}; background: transparent;")
+        mid_layout.addWidget(mistakes_title)
 
         self.mistakes_label = QLabel()
         self.mistakes_label.setStyleSheet(f"""
-            font-size: 13px;
-            color: {COLORS['text_muted']};
-            background: {COLORS['warning']}15;
-            padding: 12px;
-            border-radius: 10px;
+            font-size: 11px; color: {COLORS['text_muted']};
+            background: {COLORS['warning']}15; padding: 8px; border-radius: 8px;
         """)
         self.mistakes_label.setWordWrap(True)
-        right_layout.addWidget(self.mistakes_label)
+        mid_layout.addWidget(self.mistakes_label)
 
-        # Quick description
-        desc_title = QLabel("📝 Quick Description")
-        desc_title.setStyleSheet(f"""
-            font-size: 16px;
-            font-weight: 600;
-            color: {COLORS['text_primary']};
-            background: transparent;
-            margin-top: 8px;
-        """)
-        right_layout.addWidget(desc_title)
+        # Description
+        desc_title = QLabel("📝 Description")
+        desc_title.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {COLORS['text_primary']}; background: transparent;")
+        mid_layout.addWidget(desc_title)
 
         self.desc_label = QLabel()
         self.desc_label.setStyleSheet(f"""
-            font-size: 14px;
-            color: {COLORS['text_secondary']};
-            background: {COLORS['bg_input']};
-            padding: 12px;
-            border-radius: 10px;
+            font-size: 11px; color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']}; padding: 8px; border-radius: 8px;
         """)
         self.desc_label.setWordWrap(True)
-        right_layout.addWidget(self.desc_label)
+        mid_layout.addWidget(self.desc_label)
 
-        # Practice tip
-        practice_frame = QFrame()
-        practice_frame.setStyleSheet(f"""
-            background: {COLORS['primary']}15;
+        mid_layout.addStretch()
+        content_layout.addWidget(mid_panel, 1)
+
+        # === RIGHT COLUMN: Camera Practice ===
+        right_panel = QFrame()
+        right_panel.setObjectName("card")
+        right_panel.setFixedWidth(340)
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        right_layout.setSpacing(6)
+
+        cam_title = QLabel("📷 Practice with Camera")
+        cam_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']}; background: transparent;")
+        right_layout.addWidget(cam_title)
+
+        # Camera container (placeholder until started)
+        self.camera_container = QFrame()
+        self.camera_container.setStyleSheet(f"""
+            background: #000;
             border-radius: 10px;
-            padding: 8px;
-            margin-top: 8px;
+            min-height: 200px;
         """)
-        practice_layout = QVBoxLayout(practice_frame)
+        self.camera_container.setFixedHeight(210)
+        cam_inner = QVBoxLayout(self.camera_container)
+        cam_inner.setContentsMargins(0, 0, 0, 0)
 
-        practice_title = QLabel("💡 Practice Tip")
-        practice_title.setStyleSheet(f"""
-            font-size: 14px;
-            font-weight: 600;
-            color: {COLORS['primary']};
-            background: transparent;
-        """)
-        practice_layout.addWidget(practice_title)
+        self.camera_placeholder = QLabel("Click 'Start Camera' to practice")
+        self.camera_placeholder.setAlignment(Qt.AlignCenter)
+        self.camera_placeholder.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        cam_inner.addWidget(self.camera_placeholder)
 
-        practice_text = QLabel(
-            "Try signing this letter in the Live Translation page "
-            "to see if the camera recognizes it!"
-        )
-        practice_text.setStyleSheet(f"""
-            font-size: 13px;
+        right_layout.addWidget(self.camera_container)
+
+        # Feedback label (shows if letter is correct)
+        self.feedback_label = QLabel("👆 Show the letter to camera")
+        self.feedback_label.setAlignment(Qt.AlignCenter)
+        self.feedback_label.setStyleSheet(f"""
+            font-size: 14px; font-weight: 600;
             color: {COLORS['text_secondary']};
-            background: transparent;
+            background: {COLORS['bg_input']};
+            padding: 10px; border-radius: 8px;
         """)
-        practice_text.setWordWrap(True)
-        practice_layout.addWidget(practice_text)
+        right_layout.addWidget(self.feedback_label)
 
-        right_layout.addWidget(practice_frame)
+        # Camera control buttons
+        cam_btns = QHBoxLayout()
+        self.start_cam_btn = QPushButton("▶ Start Camera")
+        self.start_cam_btn.setObjectName("primaryButton")
+        self.start_cam_btn.clicked.connect(self._start_camera)
+        cam_btns.addWidget(self.start_cam_btn)
+
+        self.stop_cam_btn = QPushButton("⏹ Stop")
+        self.stop_cam_btn.setObjectName("secondaryButton")
+        self.stop_cam_btn.clicked.connect(self._stop_camera)
+        self.stop_cam_btn.setEnabled(False)
+        cam_btns.addWidget(self.stop_cam_btn)
+
+        right_layout.addLayout(cam_btns)
         right_layout.addStretch()
 
-        content_layout.addWidget(right_panel, 1)
+        content_layout.addWidget(right_panel)
 
-        scroll.setWidget(content_widget)
-        layout.addWidget(scroll, 1)
+        layout.addLayout(content_layout, 1)
 
-        # ── Navigation buttons ──
+        # ── Navigation bar (compact quick-jump) ──
         nav_layout = QHBoxLayout()
+        nav_layout.setSpacing(4)
 
-        self.prev_btn = QPushButton("← Previous Letter")
+        self.prev_btn = QPushButton("◀")
+        self.prev_btn.setFixedSize(32, 32)
         self.prev_btn.setObjectName("secondaryButton")
         self.prev_btn.clicked.connect(self._prev_letter)
         nav_layout.addWidget(self.prev_btn)
 
-        nav_layout.addStretch()
-
-        # Quick jump
-        quick_jump = QLabel("Quick jump:")
-        quick_jump.setStyleSheet(f"color: {COLORS['text_muted']};")
-        nav_layout.addWidget(quick_jump)
-
+        # Quick jump letters
         for i, letter in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
             btn = QPushButton(letter)
-            btn.setFixedSize(28, 28)
+            btn.setFixedSize(26, 26)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background: {COLORS['bg_input']};
                     color: {COLORS['text_secondary']};
-                    border: none;
-                    border-radius: 4px;
-                    font-size: 11px;
-                    font-weight: bold;
+                    border: none; border-radius: 4px;
+                    font-size: 10px; font-weight: bold;
                 }}
                 QPushButton:hover {{
                     background: {COLORS['primary']};
@@ -1203,9 +1192,8 @@ class AlphabetLesson(QWidget):
             btn.clicked.connect(lambda checked, idx=i: self._jump_to_letter(idx))
             nav_layout.addWidget(btn)
 
-        nav_layout.addStretch()
-
-        self.next_btn = QPushButton("Next Letter →")
+        self.next_btn = QPushButton("▶")
+        self.next_btn.setFixedSize(32, 32)
         self.next_btn.setObjectName("primaryButton")
         self.next_btn.clicked.connect(self._next_letter)
         nav_layout.addWidget(self.next_btn)
@@ -1214,6 +1202,80 @@ class AlphabetLesson(QWidget):
 
         # Initialize display
         self._update_display()
+
+    def _on_back(self):
+        """Clean up and go back."""
+        self._stop_camera()
+        self.back_requested.emit()
+
+    def _start_camera(self):
+        """Start the camera for practice."""
+        try:
+            from ui.camera_widget import CameraWidget
+        except ImportError:
+            self.feedback_label.setText("❌ Camera not available")
+            return
+
+        if self._camera_widget is None:
+            self._camera_widget = CameraWidget()
+            self._camera_widget.setFixedSize(320, 200)
+            self._camera_widget.video_label.setMinimumSize(320, 200)
+            self._camera_widget.video_label.setMaximumSize(320, 200)
+            # Connect heuristic gesture signal for feedback
+            self._camera_widget.heuristic_gesture_detected.connect(self._on_gesture_detected)
+
+            # Replace placeholder with camera
+            self.camera_placeholder.hide()
+            self.camera_container.layout().addWidget(self._camera_widget)
+
+        if self._camera_widget.start():
+            self.start_cam_btn.setEnabled(False)
+            self.stop_cam_btn.setEnabled(True)
+            self.feedback_label.setText("👀 Show the letter to the camera...")
+            self.feedback_label.setStyleSheet(f"""
+                font-size: 14px; font-weight: 600;
+                color: {COLORS['text_secondary']};
+                background: {COLORS['bg_input']};
+                padding: 10px; border-radius: 8px;
+            """)
+        else:
+            self.feedback_label.setText("❌ Could not start camera")
+
+    def _stop_camera(self):
+        """Stop the camera."""
+        if self._camera_widget:
+            self._camera_widget.stop()
+        self.start_cam_btn.setEnabled(True)
+        self.stop_cam_btn.setEnabled(False)
+        self.feedback_label.setText("👆 Click Start to practice")
+        self.feedback_label.setStyleSheet(f"""
+            font-size: 14px; font-weight: 600;
+            color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']};
+            padding: 10px; border-radius: 8px;
+        """)
+
+    def _on_gesture_detected(self, gesture_name: str, confidence: float):
+        """Handle gesture detection from camera."""
+        current_letter = self.letters[self.current_letter_index]
+        detected = gesture_name.upper()
+
+        if detected == current_letter:
+            self.feedback_label.setText(f"✅ Correct! You signed '{detected}'")
+            self.feedback_label.setStyleSheet(f"""
+                font-size: 14px; font-weight: 700;
+                color: white;
+                background: {COLORS['success']};
+                padding: 10px; border-radius: 8px;
+            """)
+        else:
+            self.feedback_label.setText(f"🔄 Detected '{detected}' — try '{current_letter}'")
+            self.feedback_label.setStyleSheet(f"""
+                font-size: 14px; font-weight: 600;
+                color: {COLORS['warning']};
+                background: {COLORS['warning']}20;
+                padding: 10px; border-radius: 8px;
+            """)
 
     # ── Similar-letter map (common confusions) ──
     SIMILAR_MAP = {
@@ -1275,9 +1337,30 @@ class AlphabetLesson(QWidget):
 
         # Nav buttons
         self.prev_btn.setEnabled(self.current_letter_index > 0)
-        self.next_btn.setText(
-            "Complete ✓" if self.current_letter_index == 25 else "Next Letter →"
-        )
+        # Next button: show checkmark on last letter
+        if self.current_letter_index == 25:
+            self.next_btn.setText("✓")
+            self.next_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {COLORS['success']};
+                    color: white;
+                    border: none; border-radius: 4px;
+                    font-weight: bold;
+                }}
+            """)
+        else:
+            self.next_btn.setText("▶")
+            self.next_btn.setStyleSheet("")  # Reset to default
+
+        # Reset feedback when changing letters
+        if self._camera_widget and self._camera_widget.is_running:
+            self.feedback_label.setText(f"👀 Now try signing '{letter}'")
+            self.feedback_label.setStyleSheet(f"""
+                font-size: 14px; font-weight: 600;
+                color: {COLORS['text_secondary']};
+                background: {COLORS['bg_input']};
+                padding: 10px; border-radius: 8px;
+            """)
 
     def _prev_letter(self):
         if self.current_letter_index > 0:

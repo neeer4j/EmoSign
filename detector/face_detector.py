@@ -133,79 +133,235 @@ class FaceDetector:
         return self._analyze_landmarks(self.results.face_landmarks[0])
     
     def _analyze_blendshapes(self, blendshapes) -> Tuple[Emotion, float]:
-        """Analyze face blendshapes for emotion detection."""
+        """Analyze face blendshapes for emotion detection.
+        
+        Uses compound signals from multiple blendshapes for each emotion
+        rather than relying on a single feature.  Thresholds are tuned for
+        real-world webcam usage where subtle expressions matter.
+        """
         # Convert blendshapes to dict for easier access
         bs_dict = {bs.category_name: bs.score for bs in blendshapes}
         
-        scores = {
-            Emotion.NEUTRAL: 0.5,
-            Emotion.HAPPY: 0.0,
-            Emotion.SAD: 0.0,
-            Emotion.SURPRISED: 0.0,
-            Emotion.ANGRY: 0.0
-        }
+        # --- Extract all relevant blendshape values ---
+        # Smile
+        smile_L = bs_dict.get('mouthSmileLeft', 0)
+        smile_R = bs_dict.get('mouthSmileRight', 0)
+        smile = (smile_L + smile_R) / 2
         
-        # Happy: mouth smile + cheek squint
-        mouth_smile_left = bs_dict.get('mouthSmileLeft', 0)
-        mouth_smile_right = bs_dict.get('mouthSmileRight', 0)
-        smile_score = (mouth_smile_left + mouth_smile_right) / 2
-        if smile_score > 0.3:
-            scores[Emotion.HAPPY] += smile_score
+        # Cheek raise (accompanies genuine smiles)
+        cheek_squint_L = bs_dict.get('cheekSquintLeft', 0)
+        cheek_squint_R = bs_dict.get('cheekSquintRight', 0)
+        cheek_squint = (cheek_squint_L + cheek_squint_R) / 2
         
-        # Surprised: eyebrows raised + jaw open
+        # Frown / lip corner depressor
+        frown_L = bs_dict.get('mouthFrownLeft', 0)
+        frown_R = bs_dict.get('mouthFrownRight', 0)
+        frown = (frown_L + frown_R) / 2
+        
+        # Brow movements
         brow_inner_up = bs_dict.get('browInnerUp', 0)
+        brow_down_L = bs_dict.get('browDownLeft', 0)
+        brow_down_R = bs_dict.get('browDownRight', 0)
+        brow_down = (brow_down_L + brow_down_R) / 2
+        brow_outer_up_L = bs_dict.get('browOuterUpLeft', 0)
+        brow_outer_up_R = bs_dict.get('browOuterUpRight', 0)
+        brow_outer_up = (brow_outer_up_L + brow_outer_up_R) / 2
+        
+        # Jaw / mouth opening
         jaw_open = bs_dict.get('jawOpen', 0)
-        if brow_inner_up > 0.3 and jaw_open > 0.2:
-            scores[Emotion.SURPRISED] += (brow_inner_up + jaw_open) / 2
+        mouth_close = bs_dict.get('mouthClose', 0)
         
-        # Sad: mouth frown + brow down
-        mouth_frown_left = bs_dict.get('mouthFrownLeft', 0)
-        mouth_frown_right = bs_dict.get('mouthFrownRight', 0)
-        frown_score = (mouth_frown_left + mouth_frown_right) / 2
-        if frown_score > 0.2:
-            scores[Emotion.SAD] += frown_score
+        # Nose sneer (wrinkled nose — anger)
+        nose_sneer_L = bs_dict.get('noseSneerLeft', 0)
+        nose_sneer_R = bs_dict.get('noseSneerRight', 0)
+        nose_sneer = (nose_sneer_L + nose_sneer_R) / 2
         
-        # Angry: brow down + eye squint
-        brow_down_left = bs_dict.get('browDownLeft', 0)
-        brow_down_right = bs_dict.get('browDownRight', 0)
-        brow_down = (brow_down_left + brow_down_right) / 2
-        if brow_down > 0.3:
-            scores[Emotion.ANGRY] += brow_down
+        # Eye squint (anger / disgust)
+        eye_squint_L = bs_dict.get('eyeSquintLeft', 0)
+        eye_squint_R = bs_dict.get('eyeSquintRight', 0)
+        eye_squint = (eye_squint_L + eye_squint_R) / 2
+        
+        # Lip press (anger / tension)
+        mouth_press_L = bs_dict.get('mouthPressLeft', 0)
+        mouth_press_R = bs_dict.get('mouthPressRight', 0)
+        mouth_press = (mouth_press_L + mouth_press_R) / 2
+        
+        # Mouth lower-down & upper-up for exaggerated sad
+        mouth_lower_down_L = bs_dict.get('mouthLowerDownLeft', 0)
+        mouth_lower_down_R = bs_dict.get('mouthLowerDownRight', 0)
+        mouth_lower_down = (mouth_lower_down_L + mouth_lower_down_R) / 2
+        
+        # Lip stretch (can accompany grimace / sadness)
+        mouth_stretch_L = bs_dict.get('mouthStretchLeft', 0)
+        mouth_stretch_R = bs_dict.get('mouthStretchRight', 0)
+        mouth_stretch = (mouth_stretch_L + mouth_stretch_R) / 2
+        
+        # Eye wide (surprise)
+        eye_wide_L = bs_dict.get('eyeWideLeft', 0)
+        eye_wide_R = bs_dict.get('eyeWideRight', 0)
+        eye_wide = (eye_wide_L + eye_wide_R) / 2
+        
+        # --- Compute per-emotion scores using compound signals ---
+        scores = {}
+        
+        # ── HAPPY ──
+        # Primary: smile.  Boosted by cheek squint (genuine Duchenne smile).
+        # Requires noticeable smile to trigger.
+        happy_score = 0
+        if smile > 0.15:  # Threshold: must actually be smiling
+            happy_score = smile * 1.5 + cheek_squint * 0.4
+        scores[Emotion.HAPPY] = max(0, happy_score)
+        
+        # ── SAD ──
+        # Primary signal: inner brow raise ("puppy dog eyes") — this is the most
+        # reliable indicator of sadness.  Mouth frown is secondary.
+        # Also look for droopy/pout expression.
+        sad_score = 0
+        # Inner brow raise is the KEY sad indicator
+        if brow_inner_up > 0.1:
+            sad_score += brow_inner_up * 2.0
+        # Mouth frown adds to it (but is unreliable alone)
+        sad_score += frown * 2.5
+        # Mouth corners pulled down
+        sad_score += mouth_lower_down * 0.6
+        # Penalize if smiling (not sad)
+        sad_score -= smile * 1.0
+        # Penalize if brow is furrowed down (that's angry, not sad)
+        sad_score -= brow_down * 0.5
+        scores[Emotion.SAD] = max(0, sad_score)
+        
+        # ── ANGRY ──
+        # Require MULTIPLE anger signals to fire — don't trigger on single cues.
+        # This prevents neutral faces with slightly furrowed brows from reading as angry.
+        angry_signals = 0
+        angry_score = 0
+        
+        # Count how many anger signals are present
+        if brow_down > 0.15:
+            angry_signals += 1
+            angry_score += brow_down * 1.0
+        if nose_sneer > 0.1:
+            angry_signals += 1
+            angry_score += nose_sneer * 1.2
+        if eye_squint > 0.2:
+            angry_signals += 1
+            angry_score += eye_squint * 0.5
+        if mouth_press > 0.15:
+            angry_signals += 1
+            angry_score += mouth_press * 0.5
+        
+        # Only count as angry if at least 2 signals are present
+        if angry_signals < 2:
+            angry_score = angry_score * 0.3  # Heavily dampen single-signal anger
+        
+        # Penalize if smiling or inner brow raised (not angry)
+        angry_score -= smile * 0.8
+        angry_score -= brow_inner_up * 0.4
+        scores[Emotion.ANGRY] = max(0, angry_score)
+        
+        # ── SURPRISED ──
+        # Primary: brow raise + jaw open + eyes wide.
+        surprised_score = 0
+        if brow_inner_up > 0.15 or brow_outer_up > 0.15:
+            surprised_score += (brow_inner_up + brow_outer_up) * 0.8
+        if jaw_open > 0.15:
+            surprised_score += jaw_open * 1.0
+        if eye_wide > 0.1:
+            surprised_score += eye_wide * 0.8
+        scores[Emotion.SURPRISED] = max(0, surprised_score)
+        
+        # ── NEUTRAL ──
+        # Neutral is the default when no strong emotion signals are present.
+        # Calculate total "expression intensity" — if low, it's neutral.
+        expression_intensity = (
+            smile * 1.5 
+            + frown * 2.0 
+            + brow_down * 1.2 
+            + brow_inner_up * 1.5
+            + jaw_open * 0.8 
+            + nose_sneer * 1.5 
+            + eye_squint * 0.6 
+            + mouth_press * 0.6
+        )
+        
+        # Neutral score is high when expression intensity is low
+        # Use a sigmoid-like falloff so neutral stays strong until expressions get noticeable
+        if expression_intensity < 0.25:
+            neutral_score = 0.6  # Strong neutral for very relaxed face
+        elif expression_intensity < 0.4:
+            neutral_score = 0.4  # Moderate neutral
+        elif expression_intensity < 0.6:
+            neutral_score = 0.2  # Weak neutral
+        else:
+            neutral_score = 0.05  # Very weak — some emotion is happening
+        
+        scores[Emotion.NEUTRAL] = neutral_score
         
         # Get highest scoring emotion
         best_emotion = max(scores, key=scores.get)
-        confidence = min(1.0, scores[best_emotion])
+        confidence = min(1.0, max(0.1, scores[best_emotion]))
+        
+        # If the winning score is extremely low, default to neutral
+        if scores[best_emotion] < 0.1:
+            return Emotion.NEUTRAL, 0.5
         
         return best_emotion, confidence
     
     def _analyze_landmarks(self, landmarks) -> Tuple[Emotion, float]:
-        """Fallback: Analyze landmarks for emotion (less accurate)."""
-        # Simple heuristics based on landmark positions
-        # Get mouth and eye metrics
+        """Fallback: Analyze landmarks for emotion (less accurate than blendshapes)."""
         try:
-            # Mouth height
+            # Mouth height (jaw open)
             top_lip = landmarks[13]
             bottom_lip = landmarks[14]
             mouth_height = abs(top_lip.y - bottom_lip.y)
             
-            # Mouth corners
+            # Mouth corners vs center-bottom  (smile vs frown)
             left_corner = landmarks[61]
             right_corner = landmarks[291]
             center_bottom = landmarks[17]
             
             corner_avg_y = (left_corner.y + right_corner.y) / 2
+            # Positive  → corners lower than center  → smile
+            # Negative  → corners higher than center → frown
             mouth_curve = center_bottom.y - corner_avg_y
             
-            # Simple classification
-            if mouth_curve > 0.02:
-                return Emotion.HAPPY, 0.7
-            elif mouth_height > 0.05:
-                return Emotion.SURPRISED, 0.6
-            elif mouth_curve < -0.02:
-                return Emotion.SAD, 0.6
-            else:
-                return Emotion.NEUTRAL, 0.5
-        except:
+            # Eyebrow height relative to eye center
+            left_brow_top = landmarks[105]
+            left_eye_center = landmarks[159]
+            right_brow_top = landmarks[334]
+            right_eye_center = landmarks[386]
+            
+            left_brow_dist  = left_eye_center.y - left_brow_top.y
+            right_brow_dist = right_eye_center.y - right_brow_top.y
+            avg_brow_dist = (left_brow_dist + right_brow_dist) / 2
+            
+            # Inner brow points for furrowing
+            left_inner_brow  = landmarks[66]
+            right_inner_brow = landmarks[296]
+            inner_brow_dist  = abs(left_inner_brow.x - right_inner_brow.x)
+            
+            # Happy: mouth corners up
+            if mouth_curve > 0.015:
+                return Emotion.HAPPY, min(0.9, 0.5 + mouth_curve * 10)
+            
+            # Surprised: mouth open wide + brows raised
+            if mouth_height > 0.04 and avg_brow_dist > 0.06:
+                return Emotion.SURPRISED, 0.7
+            
+            # Angry: brows furrowed (close together) + mouth not smiling
+            if inner_brow_dist < 0.035 and mouth_curve < 0.005:
+                return Emotion.ANGRY, 0.6
+            
+            # Sad: mouth corners down OR brows raised with no smile
+            if mouth_curve < -0.008:
+                return Emotion.SAD, min(0.8, 0.5 + abs(mouth_curve) * 12)
+            
+            # Mild sad: flat mouth + slightly raised inner brows
+            if avg_brow_dist > 0.055 and mouth_curve < 0.005 and mouth_height < 0.02:
+                return Emotion.SAD, 0.5
+            
+            return Emotion.NEUTRAL, 0.5
+        except Exception:
             return Emotion.NEUTRAL, 0.5
     
     def draw_landmarks(self, frame_bgr: np.ndarray, 
