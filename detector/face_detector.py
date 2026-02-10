@@ -213,19 +213,36 @@ class FaceDetector:
         scores[Emotion.HAPPY] = max(0, happy_score)
         
         # ── SAD ──
-        # Primary signal: inner brow raise ("puppy dog eyes") — this is the most
-        # reliable indicator of sadness.  Mouth frown is secondary.
-        # Also look for droopy/pout expression.
+        # Two primary pathways:
+        #   1. Mouth arched down / frown (most visible sad cue)
+        #   2. Inner brow raise ("puppy dog eyes")
+        # Either pathway alone can trigger sadness if strong enough.
         sad_score = 0
-        # Inner brow raise is the KEY sad indicator
+        
+        # Mouth frown / arch-down is a STRONG standalone sad indicator
+        # mouthFrownLeft/Right fire when mouth corners pull downward
+        if frown > 0.12:
+            sad_score += frown * 3.5  # Heavily weighted — arched-down mouth is clearly sad
+        else:
+            sad_score += frown * 2.0
+        
+        # Mouth corners pulled down (mouthLowerDown) reinforces frown
+        sad_score += mouth_lower_down * 1.2
+        
+        # Mouth stretch with frown = exaggerated sad / about to cry
+        if frown > 0.1 and mouth_stretch > 0.1:
+            sad_score += mouth_stretch * 0.8
+        
+        # Inner brow raise is the secondary sad indicator
         if brow_inner_up > 0.1:
-            sad_score += brow_inner_up * 2.0
-        # Mouth frown adds to it (but is unreliable alone)
-        sad_score += frown * 2.5
-        # Mouth corners pulled down
-        sad_score += mouth_lower_down * 0.6
+            sad_score += brow_inner_up * 1.8
+        
+        # Combination bonus: frown + inner brow raise together = very sad
+        if frown > 0.1 and brow_inner_up > 0.1:
+            sad_score += 0.3  # Bonus for compound expression
+        
         # Penalize if smiling (not sad)
-        sad_score -= smile * 1.0
+        sad_score -= smile * 1.2
         # Penalize if brow is furrowed down (that's angry, not sad)
         sad_score -= brow_down * 0.5
         scores[Emotion.SAD] = max(0, sad_score)
@@ -260,14 +277,35 @@ class FaceDetector:
         scores[Emotion.ANGRY] = max(0, angry_score)
         
         # ── SURPRISED ──
-        # Primary: brow raise + jaw open + eyes wide.
+        # Two strong pathways:
+        #   1. Eyes wide open (large opened eyes) — standalone trigger
+        #   2. Brow raise + jaw open (classic surprise)
+        # Eyes wide is a STRONG standalone indicator of surprise.
         surprised_score = 0
-        if brow_inner_up > 0.15 or brow_outer_up > 0.15:
-            surprised_score += (brow_inner_up + brow_outer_up) * 0.8
-        if jaw_open > 0.15:
+        
+        # Eyes wide open is the PRIMARY surprise signal
+        # When eyes are noticeably wide, that alone indicates surprise
+        if eye_wide > 0.25:
+            surprised_score += eye_wide * 3.0  # Strong standalone trigger
+        elif eye_wide > 0.1:
+            surprised_score += eye_wide * 1.8
+        
+        # Brow raise reinforces surprise
+        if brow_inner_up > 0.12 or brow_outer_up > 0.12:
+            surprised_score += (brow_inner_up + brow_outer_up) * 0.9
+        
+        # Jaw open / mouth open adds to surprise
+        if jaw_open > 0.12:
             surprised_score += jaw_open * 1.0
-        if eye_wide > 0.1:
-            surprised_score += eye_wide * 0.8
+        
+        # Combination bonus: wide eyes + open mouth = very surprised
+        if eye_wide > 0.15 and jaw_open > 0.15:
+            surprised_score += 0.4  # Bonus for classic shock expression
+        
+        # Combination bonus: wide eyes + raised brows
+        if eye_wide > 0.15 and (brow_inner_up > 0.12 or brow_outer_up > 0.12):
+            surprised_score += 0.3
+        
         scores[Emotion.SURPRISED] = max(0, surprised_score)
         
         # ── NEUTRAL ──
@@ -283,6 +321,10 @@ class FaceDetector:
             + eye_squint * 0.6 
             + mouth_press * 0.6
         )
+        
+        # Also factor eye wideness and frown into expression intensity
+        expression_intensity += eye_wide * 1.5
+        expression_intensity += frown * 1.5
         
         # Neutral score is high when expression intensity is low
         # Use a sigmoid-like falloff so neutral stays strong until expressions get noticeable
@@ -340,21 +382,33 @@ class FaceDetector:
             right_inner_brow = landmarks[296]
             inner_brow_dist  = abs(left_inner_brow.x - right_inner_brow.x)
             
+            # Eye openness (for surprise detection)
+            left_eye_top = landmarks[159]
+            left_eye_bottom = landmarks[145]
+            right_eye_top = landmarks[386]
+            right_eye_bottom = landmarks[374]
+            left_eye_height = abs(left_eye_top.y - left_eye_bottom.y)
+            right_eye_height = abs(right_eye_top.y - right_eye_bottom.y)
+            avg_eye_height = (left_eye_height + right_eye_height) / 2
+            
             # Happy: mouth corners up
             if mouth_curve > 0.015:
                 return Emotion.HAPPY, min(0.9, 0.5 + mouth_curve * 10)
             
-            # Surprised: mouth open wide + brows raised
+            # Surprised: eyes wide open (standalone) OR mouth open + brows raised
+            if avg_eye_height > 0.025:
+                conf = min(0.9, 0.5 + avg_eye_height * 12)
+                return Emotion.SURPRISED, conf
             if mouth_height > 0.04 and avg_brow_dist > 0.06:
                 return Emotion.SURPRISED, 0.7
+            
+            # Sad: mouth corners/arch down (primary pathway)
+            if mouth_curve < -0.006:
+                return Emotion.SAD, min(0.9, 0.5 + abs(mouth_curve) * 15)
             
             # Angry: brows furrowed (close together) + mouth not smiling
             if inner_brow_dist < 0.035 and mouth_curve < 0.005:
                 return Emotion.ANGRY, 0.6
-            
-            # Sad: mouth corners down OR brows raised with no smile
-            if mouth_curve < -0.008:
-                return Emotion.SAD, min(0.8, 0.5 + abs(mouth_curve) * 12)
             
             # Mild sad: flat mouth + slightly raised inner brows
             if avg_brow_dist > 0.055 and mouth_curve < 0.005 and mouth_height < 0.02:
