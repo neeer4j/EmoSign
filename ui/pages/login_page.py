@@ -527,9 +527,13 @@ class LoginPage(QWidget):
             self._show_error("Please fill in all fields")
             return
         
-        if not self.is_login_mode and password != self.confirm_input.text():
-            self._show_error("Passwords do not match")
-            return
+        if not self.is_login_mode:
+            if len(password) < 6:
+                self._show_error("Password must be at least 6 characters")
+                return
+            if password != self.confirm_input.text():
+                self._show_error("Passwords do not match")
+                return
         
         self.submit_btn.setEnabled(False)
         self.submit_btn.setText("Processing...")
@@ -542,7 +546,6 @@ class LoginPage(QWidget):
                     res = loop.run_until_complete(self.db.sign_in(email, password))
                 else:
                     res = loop.run_until_complete(self.db.sign_up(email, password))
-                loop.close()
                 
                 if "error" in res:
                     self._show_error(res["error"])
@@ -554,7 +557,12 @@ class LoginPage(QWidget):
             except Exception as e:
                 self._show_error(str(e))
                 self.submit_btn.setEnabled(True)
+                self.submit_btn.setText("Sign In" if self.is_login_mode else "Sign Up")
+            finally:
+                loop.close()
         else:
+            self.submit_btn.setEnabled(True)
+            self.submit_btn.setText("Sign In" if self.is_login_mode else "Sign Up")
             self._complete_auth({"id": "offline", "email": email})
     
     def _complete_auth(self, user):

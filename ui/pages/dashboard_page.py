@@ -12,6 +12,12 @@ from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS, ICONS
 
+# Import analytics for streak data
+try:
+    from core.analytics import analytics
+except ImportError:
+    analytics = None
+
 
 class StatCard(QFrame):
     """Animated statistic card with icon and value."""
@@ -342,6 +348,12 @@ class DashboardPage(QWidget):
             self.total_card.update_value(stats.get("total", 0))
             self.today_card.update_value(stats.get("today", 0))
             self.unique_card.update_value(stats.get("unique_signs", 0))
+            
+            # Get streak from analytics
+            if analytics:
+                user_id = self.user.get('id', 'guest')
+                progress = analytics.get_learning_progress(user_id)
+                self.streak_card.update_value(progress.get('current_streak', 0))
         except Exception as e:
             print(f"Failed to load stats: {e}")
     

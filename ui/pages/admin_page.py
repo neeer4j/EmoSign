@@ -103,41 +103,48 @@ class AdminPage(QWidget):
         """Reload all data."""
         if not self.db: return
         
-        # Load Users
         try:
-            with self.db._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT id, email, created_at FROM users ORDER BY created_at DESC")
-                rows = cursor.fetchall()
-                
-                self.users_table.setRowCount(len(rows))
-                for i, row in enumerate(rows):
-                    self.users_table.setItem(i, 0, QTableWidgetItem(str(row['id'])))
-                    self.users_table.setItem(i, 1, QTableWidgetItem(str(row['email'])))
-                    self.users_table.setItem(i, 2, QTableWidgetItem(str(row['created_at'])))
-                    
-                # Load Translations
-                cursor.execute("""
-                    SELECT t.id, t.sign_label, t.confidence, t.gesture_type, u.email, t.created_at 
-                    FROM translations t
-                    JOIN users u ON t.user_id = u.id
-                    ORDER BY t.created_at DESC LIMIT 100
-                """)
-                t_rows = cursor.fetchall()
-                self.trans_table.setRowCount(len(t_rows))
-                for i, row in enumerate(t_rows):
-                    # Store ID in user role for deletion
-                    item = QTableWidgetItem(str(row['sign_label']))
-                    item.setData(Qt.UserRole, row['id'])
-                    self.trans_table.setItem(i, 0, item)
-                    
-                    self.trans_table.setItem(i, 1, QTableWidgetItem(f"{row['confidence']*100:.1f}%"))
-                    self.trans_table.setItem(i, 2, QTableWidgetItem(str(row['gesture_type'])))
-                    self.trans_table.setItem(i, 3, QTableWidgetItem(str(row['email'])))
-                    self.trans_table.setItem(i, 4, QTableWidgetItem(str(row['created_at'])))
-                    
+            self._load_users()
+            self._load_translations()
         except Exception as e:
             print(f"Admin load error: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to load data: {e}")
+    
+    def _load_users(self):
+        """Load users into table."""
+        with self.db._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, email, created_at FROM users ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+            
+            self.users_table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                self.users_table.setItem(i, 0, QTableWidgetItem(str(row['id'])))
+                self.users_table.setItem(i, 1, QTableWidgetItem(str(row['email'])))
+                self.users_table.setItem(i, 2, QTableWidgetItem(str(row['created_at'])))
+    
+    def _load_translations(self):
+        """Load translations into table."""
+        with self.db._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT t.id, t.sign_label, t.confidence, t.gesture_type, u.email, t.created_at 
+                FROM translations t
+                JOIN users u ON t.user_id = u.id
+                ORDER BY t.created_at DESC LIMIT 100
+            """)
+            t_rows = cursor.fetchall()
+            self.trans_table.setRowCount(len(t_rows))
+            for i, row in enumerate(t_rows):
+                # Store ID in user role for deletion
+                item = QTableWidgetItem(str(row['sign_label']))
+                item.setData(Qt.UserRole, row['id'])
+                self.trans_table.setItem(i, 0, item)
+                
+                self.trans_table.setItem(i, 1, QTableWidgetItem(f"{row['confidence']*100:.1f}%"))
+                self.trans_table.setItem(i, 2, QTableWidgetItem(str(row['gesture_type'])))
+                self.trans_table.setItem(i, 3, QTableWidgetItem(str(row['email'])))
+                self.trans_table.setItem(i, 4, QTableWidgetItem(str(row['created_at'])))
             
     def _delete_user(self):
         rows = self.users_table.selectionModel().selectedRows()

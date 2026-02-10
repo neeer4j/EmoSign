@@ -618,8 +618,8 @@ class SettingsSection(QFrame):
                             confidence=item.get("confidence", 0),
                             gesture_type=item.get("gesture_type", "static")
                         ))
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Failed to load translation history for export: {e}")
             
             if translations:
                 result_path = exporter.export_translations(translations, fmt, os.path.basename(file_path))
@@ -747,8 +747,20 @@ class ProfilePage(QWidget):
     
     def _update_stats_display(self):
         """Update the stats row with new data."""
-        # Would need to rebuild stats_row widget
-        pass
+        # Remove old stats row and rebuild with new data
+        if hasattr(self, 'stats_row') and self.stats_row:
+            self.stats_row.deleteLater()
+        self.stats_row = StatsRow(self._stats)
+        # Find the left column layout and insert the new stats row
+        content_layout = self.centralWidget().layout() if hasattr(self, 'centralWidget') else None
+        # Re-insert into the layout - find it by traversing
+        main_layout = self.layout()
+        if main_layout and main_layout.count() > 1:
+            content_item = main_layout.itemAt(1)  # content_layout is second item
+            if content_item and content_item.layout():
+                left_col = content_item.layout().itemAt(0)
+                if left_col and left_col.layout():
+                    left_col.layout().insertWidget(1, self.stats_row)
     
     def _handle_logout(self):
         """Handle logout request."""
@@ -765,8 +777,8 @@ class ProfilePage(QWidget):
                     loop = asyncio.new_event_loop()
                     loop.run_until_complete(self.db.sign_out())
                     loop.close()
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Sign out error: {e}")
             
             self.logout_requested.emit()
     

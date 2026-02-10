@@ -311,6 +311,9 @@ class MainWindow(QMainWindow):
         # Create pages
         self._create_pages()
         
+        # Load saved settings
+        self.settings_page.load_saved_settings()
+        
         # Start analytics session if available
         if analytics and self.user:
             analytics.start_session(self.user.get('id', 'guest'))
@@ -377,7 +380,7 @@ class MainWindow(QMainWindow):
         self.dashboard_page.navigate_to_live.connect(lambda: self._navigate_to("live"))
         self.dashboard_page.navigate_to_history.connect(lambda: self._navigate_to("history"))
         self.dashboard_page.navigate_to_profile.connect(lambda: self._navigate_to("profile"))
-        self.dashboard_page.navigate_to_training.connect(self._start_training)
+        self.dashboard_page.navigate_to_training.connect(lambda: self._navigate_to("training"))
         
         # Page back buttons
         self.live_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
@@ -467,6 +470,7 @@ class MainWindow(QMainWindow):
         if analytics and self.user:
             user_id = self.user.get('id', 'guest')
             analytics.record_sign(user_id, label, confidence)
+            analytics.save_stats(user_id)
         
         # Speak the translation
         if voice_output and voice_output.config.enabled:
@@ -488,6 +492,7 @@ class MainWindow(QMainWindow):
         self.live_page.user = user_data
         self.history_page.update_user(user_data)
         self.profile_page.update_user(user_data)
+        self.analytics_page.update_user(user_data.get('id', 'guest'))
         
         # Check if admin
         is_admin = user_data.get("email") == "admin"
@@ -552,6 +557,8 @@ class MainWindow(QMainWindow):
         elif page_id == "training":
             self.page_stack.setCurrentWidget(self.training_page)
         elif page_id == "analytics":
+            if self.user:
+                self.analytics_page.update_user(self.user.get('id', 'guest'))
             self.analytics_page.refresh()
             self.page_stack.setCurrentWidget(self.analytics_page)
         elif page_id == "profile":
@@ -620,12 +627,12 @@ class MainWindow(QMainWindow):
             f"Model trained successfully!\n\nAccuracy: {summary['accuracy']:.1%}"
         )
     
-    @Slot(str)
-    def _on_model_trained(self, gesture: str):
+    @Slot(float)
+    def _on_model_trained(self, accuracy: float):
         """Handle model trained from training page."""
         # Reload classifier to pick up new model
         self.model_loaded = self.classifier.load()
-        print(f"Model updated after training gesture: {gesture}")
+        print(f"Model updated after training. Accuracy: {accuracy:.1%}")
     
     @Slot(str)
     def _on_training_error(self, error):

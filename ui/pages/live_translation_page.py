@@ -969,6 +969,12 @@ class LiveTranslationPage(QWidget):
     
     # === Lifecycle ===
     
+    def stop_camera(self):
+        """Stop the camera (called from main window on logout)."""
+        if self._is_translating:
+            self._stop_translation()
+        self.camera_widget.stop()
+    
     def cleanup(self):
         """Cleanup resources."""
         self._check_timer.stop()
