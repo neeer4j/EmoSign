@@ -5,6 +5,7 @@ from .live_translation_page import LiveTranslationPage
 from .history_page import HistoryPage
 from .profile_page import ProfilePage
 from .admin_page import AdminPage
+from .game_page import GamePage
 
 __all__ = [
     'LoginPage',
@@ -13,4 +14,5 @@ __all__ = [
     'HistoryPage',
     'ProfilePage',
     'AdminPage',
+    'GamePage',
 ]

@@ -32,6 +32,7 @@ from ui.pages.settings_page import SettingsPage
 from ui.pages.analytics_page import AnalyticsPage
 from ui.pages.conversation_page import ConversationPage
 from ui.pages.training_page import TrainingPage
+from ui.pages.game_page import GamePage
 
 from ml.classifier import Classifier
 from ml.data_collector import DataCollector
@@ -114,19 +115,20 @@ class Sidebar(QFrame):
         brand_layout = QHBoxLayout()
         brand_layout.setSpacing(12)
         
-        logo = QLabel("✋")
-        logo.setStyleSheet("font-size: 28px; background: transparent;")
-        
-        brand_text = QLabel("SignLang")
-        brand_text.setStyleSheet(f"""
-            font-size: 20px;
-            font-weight: 700;
-            color: {COLORS['text_primary']};
-            background: transparent;
-        """)
+        import os, sys
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        logo_path = os.path.join(project_root, "assets", "emosign.png")
+        logo = QLabel()
+        logo.setStyleSheet("background: transparent;")
+        from PySide6.QtGui import QPixmap
+        pm = QPixmap(logo_path)
+        if not pm.isNull():
+            logo.setPixmap(pm.scaledToHeight(40, Qt.SmoothTransformation))
+        else:
+            logo.setText("EmoSign")
+            logo.setStyleSheet(f"font-size: 20px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
         
         brand_layout.addWidget(logo)
-        brand_layout.addWidget(brand_text)
         brand_layout.addStretch()
         
         layout.addLayout(brand_layout)
@@ -164,6 +166,7 @@ class Sidebar(QFrame):
         learn_items = [
             ("tutorial", "📚", "Tutorials"),
             ("training", "🎯", "Train Gestures"),
+            ("game", "🎮", "Sign Game"),
         ]
         
         for page_id, icon, text in learn_items:
@@ -286,7 +289,7 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Setup the main UI."""
-        self.setWindowTitle("EmoSign")
+        self.setWindowTitle("EmoSign v2.0.0")
         self.setMinimumSize(1400, 900)
         self.setStyleSheet(DARK_THEME)
         
@@ -348,6 +351,10 @@ class MainWindow(QMainWindow):
         self.training_page = TrainingPage()
         self.page_stack.addWidget(self.training_page)
         
+        # Game page
+        self.game_page = GamePage(self.classifier)
+        self.page_stack.addWidget(self.game_page)
+        
         # Analytics page
         self.analytics_page = AnalyticsPage()
         self.page_stack.addWidget(self.analytics_page)
@@ -388,6 +395,7 @@ class MainWindow(QMainWindow):
         self.profile_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.tutorial_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.training_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        self.game_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.analytics_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.settings_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         self.conversation_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
@@ -556,6 +564,8 @@ class MainWindow(QMainWindow):
             self.page_stack.setCurrentWidget(self.tutorial_page)
         elif page_id == "training":
             self.page_stack.setCurrentWidget(self.training_page)
+        elif page_id == "game":
+            self.page_stack.setCurrentWidget(self.game_page)
         elif page_id == "analytics":
             if self.user:
                 self.analytics_page.update_user(self.user.get('id', 'guest'))
@@ -643,6 +653,7 @@ class MainWindow(QMainWindow):
         """Handle window close."""
         # Stop camera
         self.live_page.cleanup()
+        self.game_page.cleanup()
         
         # Stop training thread
         if self.trainer_thread and self.trainer_thread.isRunning():

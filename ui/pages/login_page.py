@@ -92,8 +92,11 @@ class NeuralNetworkBackground(QWidget):
         assets_dir = os.path.join(base_dir, "assets")
         
         valid_exts = {".jpg", ".jpeg", ".png", ".webp"}
+        excluded_files = {"icon.png", "emosign.png"}
         if os.path.exists(assets_dir):
             for f in sorted(os.listdir(assets_dir)):
+                if f.lower() in excluded_files:
+                    continue
                 if os.path.splitext(f)[1].lower() in valid_exts:
                     pm = QPixmap(os.path.join(assets_dir, f))
                     if not pm.isNull():

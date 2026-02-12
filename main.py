@@ -384,7 +384,7 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
         logger: Logger instance
     """
     from PySide6.QtWidgets import QApplication
-    from PySide6.QtGui import QFont
+    from PySide6.QtGui import QFont, QIcon
     
     from ui.main_window import MainWindow
     import config
@@ -400,6 +400,11 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
     
     logger.info(f"Translation mode: {args.mode}")
     
+    # Set Windows AppUserModelID so taskbar shows custom icon instead of Python logo
+    if sys.platform == 'win32':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('SignLanguageProject.EmoSign.2.0')
+
     # Create Qt application
     app = QApplication(sys.argv)
     
@@ -407,6 +412,11 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
     app.setApplicationName(__title__)
     app.setApplicationVersion(__version__)
     app.setOrganizationName("SignLanguageProject")
+    
+    # Set application icon (window title bar + taskbar)
+    icon_path = os.path.join(PROJECT_ROOT, "assets", "icon.png")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     
     # Set application-wide font
     font = QFont("Segoe UI", 10)
@@ -416,7 +426,7 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
     
     # Create and show main window
     window = MainWindow()
-    window.setWindowTitle(f"{__title__} v{__version__}")
+    window.setWindowTitle(f"EmoSign v{__version__}")
     window.show()
     
     logger.info("Application started successfully")

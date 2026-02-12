@@ -4,14 +4,14 @@
   "total_signs_detected": 0,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 2,
-  "total_practice_time": 11.0814208,
+  "total_sessions": 4,
+  "total_practice_time": 11.384850933333333,
   "sign_counts": {},
   "correct_predictions": 0,
   "total_predictions": 0,
   "current_streak": 1,
   "longest_streak": 1,
-  "last_active_date": "2026-02-06",
+  "last_active_date": "2026-02-09",
   "signs_learned": [],
   "signs_mastered": [],
   "unlocked_achievements": [],
@@ -19,6 +19,7 @@
   "total_points": 0,
   "session_dates": [
     "2026-02-02",
-    "2026-02-06"
+    "2026-02-06",
+    "2026-02-09"
   ]
 }
