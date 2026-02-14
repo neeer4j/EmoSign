@@ -419,41 +419,19 @@ class MainWindow(QMainWindow):
         self.profile_page.settings_section.navigate_to_settings.connect(lambda: self._navigate_to("settings"))
     
     def _apply_theme(self, theme: str):
-        """Apply theme to the application — lightweight, no page rebuilds."""
+        """Apply theme — deferred rebuild for responsive button animation."""
         ThemeManager.set_theme(theme)
         self.setStyleSheet(ThemeManager.get_theme())
-        # Update sidebar theme button text
-        if hasattr(self, 'sidebar') and hasattr(self.sidebar, 'theme_btn'):
-            if not ThemeManager.is_dark():
-                self.sidebar.theme_btn.setText("☀️ Light")
-            else:
-                self.sidebar.theme_btn.setText("🌙 Dark")
-        # Repolish all widgets so QSS styles update instantly
-        self._repolish_all()
+        # Defer the full page rebuild so the button press animates first
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._rebuild_pages)
     
     def _apply_accent(self, accent: str):
         """Apply accent color to the application."""
         ThemeManager.set_accent(accent)
         self.setStyleSheet(ThemeManager.get_theme())
-        self._repolish_all()
-
-    def _repolish_all(self):
-        """Force Qt to repolish all widgets so QSS changes take effect.
-        
-        This is ~100x faster than _rebuild_pages() because it just tells
-        Qt to re-evaluate styles on existing widgets instead of destroying
-        and recreating every page.
-        """
-        from PySide6.QtWidgets import QApplication
-        app = QApplication.instance()
-        if app:
-            for widget in app.allWidgets():
-                try:
-                    widget.style().unpolish(widget)
-                    widget.style().polish(widget)
-                    widget.update()
-                except RuntimeError:
-                    pass  # Widget was deleted
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._rebuild_pages)
 
     def _rebuild_pages(self):
         """Destroy and recreate all pages so inline styles use current COLORS."""

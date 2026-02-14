@@ -157,7 +157,7 @@ DARK_THEME = """
 QWidget {
     background-color: #0f0f14;
     color: #f8fafc;
-    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, sans-serif;
+    font-family: 'Nunito', 'Segoe UI', 'SF Pro Display', sans-serif;
     font-size: 14px;
     selection-background-color: #8b5cf6;
     selection-color: white;
@@ -767,7 +767,7 @@ def _generate_light_theme(accent='teal'):
 QWidget {{
     background-color: #f8fafc;
     color: #0f172a;
-    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, sans-serif;
+    font-family: 'Nunito', 'Segoe UI', 'SF Pro Display', sans-serif;
     font-size: 14px;
     selection-background-color: {primary};
     selection-color: white;

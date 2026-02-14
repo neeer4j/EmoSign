@@ -418,8 +418,18 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     
-    # Set application-wide font
-    font = QFont("Segoe UI", 10)
+    # Load and set application-wide font (Nunito — calm, rounded, friendly)
+    from PySide6.QtGui import QFontDatabase
+    font_path = os.path.join(PROJECT_ROOT, "assets", "fonts", "Nunito-Variable.ttf")
+    font_family = "Segoe UI"  # fallback
+    if os.path.exists(font_path):
+        font_id = QFontDatabase.addApplicationFont(font_path)
+        if font_id >= 0:
+            families = QFontDatabase.applicationFontFamilies(font_id)
+            if families:
+                font_family = families[0]
+                logger.info(f"Loaded custom font: {font_family}")
+    font = QFont(font_family, 10)
     app.setFont(font)
     
     logger.info("Creating main window...")
