@@ -745,8 +745,8 @@ def _build_light_colors(accent='teal'):
         'text_disabled': '#94a3b8',
         
         # Borders & Dividers
-        'border': '#e2e8f0',
-        'border_light': '#f1f5f9',
+        'border': 'transparent',
+        'border_light': 'transparent',
         'divider': '#e2e8f0',
         
         # Gradients
@@ -853,19 +853,19 @@ QFrame {{
 
 QFrame#card {{
     background-color: #ffffff;
-    border: 1px solid #e2e8f0;
+    border: none;
     border-radius: 16px;
 }}
 
 QFrame#cardHover {{
     background-color: #ffffff;
-    border: 1px solid #e2e8f0;
+    border: none;
     border-radius: 16px;
 }}
 
 QFrame#cardHover:hover {{
-    background-color: #f8fafc;
-    border-color: #cbd5e1;
+    background-color: #f1f5f9;
+    border: none;
 }}
 
 QFrame#highlightCard {{
@@ -877,7 +877,7 @@ QFrame#highlightCard {{
 QFrame#cameraView {{
     background-color: #1e293b;
     border-radius: 16px;
-    border: 2px solid #e2e8f0;
+    border: none;
 }}
 
 QFrame#sidebar {{
@@ -893,8 +893,8 @@ QFrame#divider {{
 
 /* ========== BUTTONS ========== */
 QPushButton {{
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
+    background-color: #f1f5f9;
+    border: none;
     border-radius: 10px;
     color: #0f172a;
     padding: 12px 20px;
@@ -903,8 +903,8 @@ QPushButton {{
 }}
 
 QPushButton:hover {{
-    background-color: #f1f5f9;
-    border-color: #cbd5e1;
+    background-color: #e2e8f0;
+    border: none;
 }}
 
 QPushButton:pressed {{
@@ -914,7 +914,7 @@ QPushButton:pressed {{
 QPushButton:disabled {{
     background-color: #f8fafc;
     color: #94a3b8;
-    border-color: #e2e8f0;
+    border: none;
 }}
 
 QPushButton#primary, QPushButton#primaryButton {{
@@ -984,8 +984,8 @@ QPushButton#navButton:checked {{
 }}
 
 QPushButton#iconButton {{
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: #f1f5f9;
+    border: none;
     border-radius: 12px;
     padding: 12px;
     min-width: 44px;
@@ -995,8 +995,8 @@ QPushButton#iconButton {{
 }}
 
 QPushButton#iconButton:hover {{
-    background: #f1f5f9;
-    border-color: #cbd5e1;
+    background: #e2e8f0;
+    border: none;
 }}
 
 /* ========== INPUTS ========== */
