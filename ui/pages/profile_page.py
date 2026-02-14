@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS, ICONS
+from ui.page_header import make_page_header
 
 # Import export manager
 try:
@@ -662,23 +663,11 @@ class ProfilePage(QWidget):
     def _setup_ui(self):
         """Setup profile page UI."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(40, 32, 40, 32)
+        main_layout.setContentsMargins(24, 16, 24, 16)
         main_layout.setSpacing(24)
         
         # === HEADER ===
-        header = QHBoxLayout()
-        
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("ghost")
-        back_btn.clicked.connect(self.back_requested.emit)
-        
-        title = QLabel("👤 Profile & Settings")
-        title.setObjectName("pageTitle")
-        
-        header.addWidget(back_btn)
-        header.addWidget(title)
-        header.addStretch()
-        
+        header, _ = make_page_header("👤 Profile & Settings", back_signal=self.back_requested)
         main_layout.addLayout(header)
         
         # === CONTENT ===

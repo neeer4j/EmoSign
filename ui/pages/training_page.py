@@ -20,6 +20,7 @@ from PySide6.QtCore import Qt, Signal, Slot, QTimer
 from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS
+from ui.page_header import make_page_header
 from ui.camera_widget import CameraWidget
 from ml.data_collector import DataCollector
 from ml.trainer import Trainer
@@ -443,20 +444,7 @@ class TrainingPage(QWidget):
         main_layout.setSpacing(16)
         
         # Header
-        header = QHBoxLayout()
-        
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("ghost")
-        back_btn.clicked.connect(self.back_requested.emit)
-        
-        title = QLabel("🎓 Train Gestures")
-        title.setObjectName("pageTitle")
-        title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {COLORS['text_primary']};")
-        
-        header.addWidget(back_btn)
-        header.addWidget(title)
-        header.addStretch()
-        
+        header, _ = make_page_header("🎓 Train Gestures", back_signal=self.back_requested)
         main_layout.addLayout(header)
         
         # Info banner

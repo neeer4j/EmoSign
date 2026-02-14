@@ -18,6 +18,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS, ACCENT_PRESETS, ThemeManager
+from ui.page_header import make_page_header
 
 
 class ColorButton(QPushButton):
@@ -143,34 +144,11 @@ class SettingsPage(QWidget):
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 32, 32, 32)
+        layout.setContentsMargins(24, 16, 24, 16)
         layout.setSpacing(24)
         
         # ========== HEADER ==========
-        header = QHBoxLayout()
-        header.setSpacing(16)
-        
-        back_btn = QPushButton("←")
-        back_btn.setFixedSize(44, 44)
-        back_btn.setObjectName("iconButton")
-        back_btn.setCursor(Qt.PointingHandCursor)
-        back_btn.clicked.connect(self.back_requested.emit)
-        header.addWidget(back_btn)
-        
-        title_section = QVBoxLayout()
-        title_section.setSpacing(4)
-        
-        title = QLabel("Settings")
-        title.setStyleSheet(f"font-size: 28px; font-weight: 700; color: {COLORS['text_primary']};")
-        title_section.addWidget(title)
-        
-        subtitle = QLabel("Customize your EmoSign experience")
-        subtitle.setStyleSheet(f"font-size: 14px; color: {COLORS['text_secondary']};")
-        title_section.addWidget(subtitle)
-        
-        header.addLayout(title_section)
-        header.addStretch()
-        
+        header, _ = make_page_header("⚙️ Settings", back_signal=self.back_requested)
         layout.addLayout(header)
         
         # ========== SCROLLABLE CONTENT ==========

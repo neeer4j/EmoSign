@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPropertyAnimation, QEasing
 from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS, ICONS
+from ui.page_header import make_page_header
 from ui.camera_widget import CameraWidget
 from ui.video_player_widget import VideoPlayerWidget
 from ml.classifier import Classifier
@@ -447,18 +448,11 @@ class LivePage(QWidget):
     def _setup_ui(self):
         """Setup live translation UI."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(32, 24, 32, 24)
+        main_layout.setContentsMargins(24, 16, 24, 16)
         main_layout.setSpacing(20)
         
         # === HEADER ===
-        header = QHBoxLayout()
-        
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("ghost")
-        back_btn.clicked.connect(self.back_requested.emit)
-        
-        title = QLabel("🔴 Live Translation")
-        title.setObjectName("pageTitle")
+        header, _ = make_page_header("🔴 Live Translation", back_signal=self.back_requested)
         
         # Status pills
         self.fps_pill = QLabel("FPS: --")
@@ -470,9 +464,6 @@ class LivePage(QWidget):
         else:
             self.model_pill.setObjectName("statusPillDanger")
         
-        header.addWidget(back_btn)
-        header.addWidget(title)
-        header.addStretch()
         header.addWidget(self.fps_pill)
         header.addWidget(self.model_pill)
         

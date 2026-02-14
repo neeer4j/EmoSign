@@ -13,6 +13,7 @@ from PySide6.QtCore import Qt, Signal, QTimer, QDateTime
 from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS
+from ui.page_header import make_page_header
 from ui.pages.tutorial_page import SIGN_GUIDE, SignCard
 
 
@@ -479,60 +480,30 @@ class ConversationPage(QWidget):
         layout.setSpacing(0)
 
         # Compact header
-        header = QFrame()
-        header.setStyleSheet(f"""
+        header_frame = QFrame()
+        header_frame.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_panel']};
                 border-bottom: 1px solid {COLORS['border']};
             }}
         """)
-        h_layout = QHBoxLayout(header)
-        h_layout.setContentsMargins(16, 8, 16, 8)
+        h_layout = QHBoxLayout(header_frame)
+        h_layout.setContentsMargins(24, 10, 24, 10)
 
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("secondaryButton")
-        back_btn.setCursor(Qt.PointingHandCursor)
-        back_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {COLORS['text_secondary']};
-                border: none; font-size: 13px;
-                padding: 4px 8px;
-            }}
-            QPushButton:hover {{ color: {COLORS['primary']}; }}
-        """)
-        back_btn.clicked.connect(self.back_requested.emit)
-        h_layout.addWidget(back_btn)
-
-        title = QLabel("💬 Conversation Mode")
-        title.setStyleSheet(f"""
-            font-size: 18px; font-weight: 700;
-            color: {COLORS['text_primary']};
-            background: transparent;
-        """)
-        h_layout.addWidget(title)
+        header, _ = make_page_header("💬 Conversation Mode", back_signal=self.back_requested)
 
         hint = QLabel("Type a message → see it in sign language")
         hint.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; background: transparent;")
-        h_layout.addWidget(hint)
-
-        h_layout.addStretch()
+        header.addWidget(hint)
 
         clear_btn = QPushButton("🗑 Clear")
         clear_btn.setCursor(Qt.PointingHandCursor)
-        clear_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {COLORS['text_muted']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 6px; padding: 4px 10px; font-size: 12px;
-            }}
-            QPushButton:hover {{ color: {COLORS['danger']}; border-color: {COLORS['danger']}; }}
-        """)
+        clear_btn.setObjectName("ghost")
         clear_btn.clicked.connect(self._clear)
-        h_layout.addWidget(clear_btn)
+        header.addWidget(clear_btn)
 
-        layout.addWidget(header)
+        h_layout.addLayout(header)
+        layout.addWidget(header_frame)
 
         # Main content: chat + sign panel side by side
         content = QHBoxLayout()

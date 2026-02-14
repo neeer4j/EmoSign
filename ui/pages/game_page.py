@@ -25,6 +25,7 @@ from PySide6.QtGui import (
 )
 
 from ui.styles import COLORS, ICONS
+from ui.page_header import make_page_header
 from ui.camera_widget import CameraWidget
 from ml.classifier import Classifier
 
@@ -721,14 +722,7 @@ class GamePage(QWidget):
         main_layout.setSpacing(12)
 
         # Header
-        header = QHBoxLayout()
-
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("ghost")
-        back_btn.clicked.connect(self._on_back)
-
-        title = QLabel("🎮 Sign Language Game")
-        title.setObjectName("pageTitle")
+        header, _ = make_page_header("🎮 Sign Language Game", back_callback=self._on_back)
 
         self._prediction_pill = QLabel("Sign: --")
         self._prediction_pill.setObjectName("statusPill")
@@ -763,9 +757,6 @@ class GamePage(QWidget):
             padding: 4px 10px;
         """)
 
-        header.addWidget(back_btn)
-        header.addWidget(title)
-        header.addStretch()
         header.addWidget(self._diff_badge)
         header.addWidget(self._hint_btn)
         header.addWidget(self._prediction_pill)

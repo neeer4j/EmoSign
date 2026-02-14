@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
 
 from ui.styles import COLORS
+from ui.page_header import make_page_header
 
 # Try to import analytics
 try:
@@ -183,25 +184,15 @@ class AnalyticsPage(QWidget):
     
     def _setup_ui(self):
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(24, 24, 24, 24)
+        self.main_layout.setContentsMargins(24, 16, 24, 16)
         self.main_layout.setSpacing(16)
         
         # Header
-        header = QHBoxLayout()
-        
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("secondaryButton")
-        back_btn.clicked.connect(self.back_requested.emit)
-        header.addWidget(back_btn)
-        
-        title = QLabel("📊 Analytics & Progress")
-        title.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {COLORS['text_primary']};")
-        header.addWidget(title)
-        header.addStretch()
+        header, _ = make_page_header("📊 Analytics & Progress", back_signal=self.back_requested)
         
         # Refresh button
         refresh_btn = QPushButton("🔄 Refresh")
-        refresh_btn.setObjectName("secondaryButton")
+        refresh_btn.setObjectName("ghost")
         refresh_btn.clicked.connect(self.refresh)
         header.addWidget(refresh_btn)
         
