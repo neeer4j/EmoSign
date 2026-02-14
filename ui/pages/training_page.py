@@ -179,87 +179,129 @@ class TrainingControls(QFrame):
         self.instructions.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
         layout.addWidget(self.instructions)
         
-        # Sample count settings
-        settings_row = QHBoxLayout()
+        # Stats Row (Samples config + count)
+        stats_row = QHBoxLayout()
+        
+        # Config side
+        config_container = QHBoxLayout()
+        config_container.setSpacing(8)
         samples_label = QLabel("Samples per capture:")
         samples_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        
         self.samples_spin = QSpinBox()
         self.samples_spin.setRange(10, 100)
         self.samples_spin.setValue(30)
+        self.samples_spin.setFixedSize(70, 36)
         self.samples_spin.setStyleSheet(f"""
             QSpinBox {{
                 background-color: {COLORS['bg_input']};
                 color: {COLORS['text_primary']};
                 border: 1px solid {COLORS['border']};
                 border-radius: 6px;
-                padding: 8px;
-                min-width: 80px;
+                padding: 4px;
             }}
         """)
+        config_container.addWidget(samples_label)
+        config_container.addWidget(self.samples_spin)
         
-        settings_row.addWidget(samples_label)
-        settings_row.addWidget(self.samples_spin)
-        settings_row.addStretch()
-        layout.addLayout(settings_row)
+        # Count side
+        self.sample_count_label = QLabel("Collected: 0")
+        self.sample_count_label.setStyleSheet(f"""
+            color: {COLORS['primary']}; 
+            font-weight: bold; 
+            font-size: 14px;
+            background: {COLORS['bg_input']};
+            padding: 6px 12px;
+            border-radius: 6px;
+        """)
         
-        # Sample count display
-        self.sample_count_label = QLabel("Samples collected: 0")
-        self.sample_count_label.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 14px;")
-        layout.addWidget(self.sample_count_label)
+        stats_row.addLayout(config_container)
+        stats_row.addStretch()
+        stats_row.addWidget(self.sample_count_label)
+        layout.addLayout(stats_row)
         
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(8)
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {COLORS['bg_input']};
-                border-radius: 6px;
-                height: 20px;
-                text-align: center;
+                border-radius: 4px;
             }}
             QProgressBar::chunk {{
                 background-color: {COLORS['primary']};
-                border-radius: 6px;
+                border-radius: 4px;
             }}
         """)
         layout.addWidget(self.progress_bar)
         
-        # Buttons
+        layout.addSpacing(10)
+        
+        # Action Buttons (Capture & Clear)
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
         
         self.capture_btn = QPushButton("📸 Capture Samples")
+        self.capture_btn.setCursor(Qt.PointingHandCursor)
+        self.capture_btn.setFixedHeight(44)
         self.capture_btn.setStyleSheet(self._button_style(primary=True))
         self.capture_btn.clicked.connect(self.capture_requested.emit)
         self.capture_btn.setEnabled(False)
         
-        self.clear_btn = QPushButton("🗑️ Clear")
-        self.clear_btn.setStyleSheet(self._button_style())
+        self.clear_btn = QPushButton("Clear")
+        self.clear_btn.setCursor(Qt.PointingHandCursor)
+        self.clear_btn.setFixedSize(80, 44)
+        self.clear_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['bg_input']};
+                color: {COLORS['text_muted']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['destroy']};
+                color: white;
+                border: none;
+            }}
+        """)
         self.clear_btn.clicked.connect(self.clear_requested.emit)
         
-        btn_layout.addWidget(self.capture_btn)
+        btn_layout.addWidget(self.capture_btn, 1) # Expand
         btn_layout.addWidget(self.clear_btn)
         layout.addLayout(btn_layout)
         
+        layout.addSpacing(20)
+        
+        # Divider
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet(f"background-color: {COLORS['border']}; max-height: 1px;")
+        layout.addWidget(line)
+        
+        layout.addSpacing(20)
+        
         # Train button (prominent)
         self.train_btn = QPushButton("🧠 Train Model")
+        self.train_btn.setCursor(Qt.PointingHandCursor)
+        self.train_btn.setFixedHeight(50)
         self.train_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {COLORS['success']};
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 16px 32px;
+                border-radius: 10px;
                 font-size: 16px;
                 font-weight: bold;
+                letter-spacing: 0.5px;
             }}
             QPushButton:hover {{
                 background-color: #0ea566;
             }}
             QPushButton:disabled {{
-                background-color: {COLORS['bg_panel']};
+                background-color: {COLORS['bg_input']};
                 color: {COLORS['text_muted']};
             }}
         """)

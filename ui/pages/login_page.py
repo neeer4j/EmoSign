@@ -89,16 +89,13 @@ class NeuralNetworkBackground(QWidget):
 
     def _load_images(self):
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        assets_dir = os.path.join(base_dir, "assets")
+        slide_dir = os.path.join(base_dir, "assets", "slidepic")
         
         valid_exts = {".jpg", ".jpeg", ".png", ".webp"}
-        excluded_files = {"icon.png", "emosign.png"}
-        if os.path.exists(assets_dir):
-            for f in sorted(os.listdir(assets_dir)):
-                if f.lower() in excluded_files:
-                    continue
+        if os.path.exists(slide_dir):
+            for f in sorted(os.listdir(slide_dir)):
                 if os.path.splitext(f)[1].lower() in valid_exts:
-                    pm = QPixmap(os.path.join(assets_dir, f))
+                    pm = QPixmap(os.path.join(slide_dir, f))
                     if not pm.isNull():
                         self.pixmaps.append(pm)
                         
@@ -214,7 +211,7 @@ class PremiumInput(QLineEdit):
         self.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {bg_color};
-                border: 1.5px solid {border_color};
+                border: 1.5px solid transparent;
                 border-radius: 12px;
                 padding: 16px 20px;
                 padding-left: {48 if icon else 20}px;
@@ -327,21 +324,45 @@ class LoginPage(QWidget):
         logo_container = QHBoxLayout()
         logo_container.setSpacing(14)
         
-        # Dot accent
-        dot = QLabel("●")
-        dot.setStyleSheet(f"font-size: 10px; color: {accent_color}; background: transparent;")
+        logo_label = QLabel()
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        logo_path = os.path.join(base_dir, "assets", "newlogo.png")
         
-        app_label = QLabel("EMOSIGN")
-        app_label.setStyleSheet(f"""
-            font-size: 14px;
-            font-weight: 700;
-            color: {accent_color};
-            letter-spacing: 4px;
-            background: transparent;
-        """)
+        # Load and scale logo
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            if not pixmap.isNull():
+                # Colorize logic for visibility
+                target_color = QColor('white') if is_dark else QColor('#0f172a')
+                
+                # Create a colorized version
+                img = pixmap.toImage()
+                result = QPixmap(pixmap.size())
+                result.fill(Qt.transparent)
+                painter = QPainter(result)
+                painter.setCompositionMode(QPainter.CompositionMode_Source)
+                painter.drawPixmap(0, 0, pixmap)
+                painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+                painter.fillRect(result.rect(), target_color)
+                painter.end()
+                
+                scaled = result.scaledToHeight(64, Qt.SmoothTransformation)
+                logo_label.setPixmap(scaled)
+                logo_label.setStyleSheet("background: transparent; border: none;")
         
-        logo_container.addWidget(dot)
-        logo_container.addWidget(app_label)
+        # Fallback text if no logo
+        if logo_label.pixmap().isNull():
+             logo_label.setText("EMOSIGN")
+             logo_label.setStyleSheet(f"""
+                font-size: 24px;
+                font-weight: 800;
+                color: {accent_color};
+                letter-spacing: 4px;
+                background: transparent;
+                border: none;
+            """)
+
+        logo_container.addWidget(logo_label)
         logo_container.addStretch()
         
         # Big headline
@@ -405,13 +426,14 @@ class LoginPage(QWidget):
         
         # The glass card
         card = QFrame()
+        card.setObjectName("loginCard")
         card.setFixedWidth(420)
         
         card_bg = 'rgba(15, 15, 25, 0.65)' if is_dark else 'rgba(255, 255, 255, 0.8)'
         card_border = 'rgba(255, 255, 255, 0.06)' if is_dark else 'rgba(0, 0, 0, 0.06)'
         
         card.setStyleSheet(f"""
-            QFrame {{
+            #loginCard {{
                 background: {card_bg};
                 border: 1px solid {card_border};
                 border-radius: 24px;
@@ -436,6 +458,7 @@ class LoginPage(QWidget):
             font-weight: 700;
             color: {text_color};
             background: transparent;
+            border: none;
         """)
         
         self.header_subtitle = QLabel("Sign in to continue")
@@ -444,6 +467,7 @@ class LoginPage(QWidget):
             color: {subtext_color};
             background: transparent;
             margin-top: 6px;
+            border: none;
         """)
         
         card_layout.addWidget(self.header_title)
@@ -470,6 +494,7 @@ class LoginPage(QWidget):
         self.error_label.setStyleSheet("""
             color: #f87171; background: rgba(248, 113, 113, 0.08);
             font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-top: 8px;
+            border: none;
         """)
         self.error_label.hide()
         
@@ -477,6 +502,7 @@ class LoginPage(QWidget):
         self.success_label.setStyleSheet("""
             color: #34d399; background: rgba(52, 211, 153, 0.08);
             font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-top: 8px;
+            border: none;
         """)
         self.success_label.hide()
         
@@ -503,6 +529,7 @@ class LoginPage(QWidget):
         or_label.setStyleSheet(f"""
             color: {or_color}; font-size: 11px; padding: 0 12px;
             font-weight: 700; letter-spacing: 1px; background: transparent;
+            border: none;
         """)
         
         line2 = QFrame()
@@ -532,7 +559,7 @@ class LoginPage(QWidget):
                 font-size: 13px;
                 font-weight: 600;
                 font-family: 'Nunito', 'Segoe UI', sans-serif;
-                border: 1px solid {guest_border};
+                border: 1px solid transparent;
                 border-radius: 12px;
             }}
             QPushButton:hover {{
@@ -547,7 +574,7 @@ class LoginPage(QWidget):
         toggle_container = QHBoxLayout()
         toggle_text_color = 'rgba(255,255,255,0.4)' if is_dark else 'rgba(0,0,0,0.4)'
         toggle_text = QLabel("Don't have an account?")
-        toggle_text.setStyleSheet(f"color: {toggle_text_color}; font-size: 13px; background: transparent;")
+        toggle_text.setStyleSheet(f"color: {toggle_text_color}; font-size: 13px; background: transparent; border: none;")
         
         self.toggle_btn = QPushButton("Create Account")
         self.toggle_btn.setCursor(Qt.PointingHandCursor)
