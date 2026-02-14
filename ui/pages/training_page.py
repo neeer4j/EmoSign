@@ -261,7 +261,7 @@ class TrainingControls(QFrame):
                 border-radius: 8px;
             }}
             QPushButton:hover {{
-                background-color: {COLORS['destroy']};
+                background-color: {COLORS['danger']};
                 color: white;
                 border: none;
             }}

@@ -138,18 +138,11 @@ class NeuralNetworkBackground(QWidget):
         else:
             painter.fillRect(self.rect(), QColor("#0a0a0f" if is_dark else "#e2e8f0"))
             
-        # 2. Dark/Light Overlay with gradient
+        # 2. Dark/Light Overlay (Slight shade for text visibility)
         painter.setOpacity(1.0)
-        overlay = QLinearGradient(0, 0, w, h)
-        if is_dark:
-            overlay.setColorAt(0.0, QColor(8, 8, 16, 225))
-            overlay.setColorAt(0.5, QColor(10, 10, 20, 210))
-            overlay.setColorAt(1.0, QColor(15, 12, 30, 230))
-        else:
-            overlay.setColorAt(0.0, QColor(240, 244, 248, 235))
-            overlay.setColorAt(0.5, QColor(248, 250, 252, 230))
-            overlay.setColorAt(1.0, QColor(240, 244, 248, 240))
-        painter.fillRect(self.rect(), overlay)
+        # Use a flat dark overlay to ensure text pops, but keep image visible
+        overlay_color = QColor(0, 0, 0, 100) if is_dark else QColor(255, 255, 255, 160)
+        painter.fillRect(self.rect(), overlay_color)
         
         # 3. Subtle radial glow at center
         painter.setOpacity(0.08 if is_dark else 0.04)
