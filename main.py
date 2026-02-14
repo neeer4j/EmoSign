@@ -427,7 +427,7 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
     # Create and show main window
     window = MainWindow()
     window.setWindowTitle(f"EmoSign v{__version__}")
-    window.show()
+    window.showFullScreen()
     
     logger.info("Application started successfully")
     print("\n[OK] Application is running. Close the window to exit.\n")

@@ -1340,6 +1340,12 @@ class ThemeManager:
     def set_theme(cls, theme: str):
         """Set the current theme."""
         cls._current_theme = theme if theme in ["dark", "light"] else "dark"
+        # Update global COLORS dict in-place so all pages use correct colors
+        global COLORS
+        if cls._current_theme == "light":
+            COLORS.update(_build_light_colors(cls._current_accent))
+        else:
+            COLORS.update(_build_colors(cls._current_accent))
     
     @classmethod
     def set_accent(cls, accent: str):
@@ -1365,6 +1371,12 @@ class ThemeManager:
     def toggle_theme(cls) -> str:
         """Toggle between dark and light theme."""
         cls._current_theme = "light" if cls._current_theme == "dark" else "dark"
+        # Update global COLORS dict in-place
+        global COLORS
+        if cls._current_theme == "light":
+            COLORS.update(_build_light_colors(cls._current_accent))
+        else:
+            COLORS.update(_build_colors(cls._current_accent))
         return cls._current_theme
     
     @classmethod

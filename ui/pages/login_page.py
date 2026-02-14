@@ -13,7 +13,7 @@ import math
 import random
 import os
 
-from ui.styles import COLORS
+from ui.styles import COLORS, ThemeManager
 
 
 class NeuralNetworkBackground(QWidget):
@@ -136,11 +136,11 @@ class NeuralNetworkBackground(QWidget):
             if self._fade > 0:
                 draw_bg(self.pixmaps[self.next_idx], self._fade)
         else:
-            painter.fillRect(self.rect(), QColor("#0a0a0f"))
+            painter.fillRect(self.rect(), QColor("#0a0a0f" if ThemeManager.is_dark() else "#e2e8f0"))
             
-        # 2. Dark Overlay
-        painter.setOpacity(0.85)
-        painter.fillRect(self.rect(), QColor("#080810"))
+        # 2. Dark/Light Overlay
+        painter.setOpacity(0.85 if ThemeManager.is_dark() else 0.92)
+        painter.fillRect(self.rect(), QColor('#080810' if ThemeManager.is_dark() else '#f0f4f8'))
         
         # 3. Draw Neural Network Overlay
         painter.setOpacity(1.0)
@@ -175,24 +175,32 @@ class PremiumInput(QLineEdit):
         if is_password:
             self.setEchoMode(QLineEdit.Password)
         
+        is_dark = ThemeManager.is_dark()
+        bg_color = 'rgba(255, 255, 255, 0.03)' if is_dark else 'rgba(0, 0, 0, 0.04)'
+        border_color = 'rgba(255, 255, 255, 0.1)' if is_dark else 'rgba(0, 0, 0, 0.15)'
+        text_color = '#ffffff' if is_dark else '#0f172a'
+        focus_border = 'rgba(139, 92, 246, 0.6)'
+        focus_bg = 'rgba(255, 255, 255, 0.05)' if is_dark else 'rgba(0, 0, 0, 0.02)'
+        placeholder_color = 'rgba(255, 255, 255, 0.35)' if is_dark else 'rgba(0, 0, 0, 0.4)'
+        
         self.setStyleSheet(f"""
             QLineEdit {{
-                background-color: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background-color: {bg_color};
+                border: 1px solid {border_color};
                 border-radius: 14px;
                 padding: 18px 20px;
                 padding-left: {50 if icon else 20}px;
-                color: #ffffff;
+                color: {text_color};
                 font-size: 15px;
                 font-family: 'Segoe UI', 'SF Pro Display', sans-serif;
                 font-weight: 400;
             }}
             QLineEdit:focus {{
-                border: 1px solid rgba(139, 92, 246, 0.6);
-                background-color: rgba(255, 255, 255, 0.05);
+                border: 1px solid {focus_border};
+                background-color: {focus_bg};
             }}
             QLineEdit::placeholder {{
-                color: rgba(255, 255, 255, 0.35);
+                color: {placeholder_color};
             }}
         """)
         self.setMinimumHeight(58)
@@ -202,7 +210,8 @@ class PremiumInput(QLineEdit):
         if self.icon:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.TextAntialiasing)
-            painter.setPen(QColor(255, 255, 255, 100))
+            icon_color = QColor(255, 255, 255, 100) if ThemeManager.is_dark() else QColor(0, 0, 0, 100)
+            painter.setPen(icon_color)
             painter.setFont(QFont("Segoe UI Emoji", 14))
             painter.drawText(18, 38, self.icon)
 
@@ -280,20 +289,24 @@ class LoginPage(QWidget):
         left_layout.setContentsMargins(60, 60, 60, 60)
         left_layout.setAlignment(Qt.AlignCenter)
         
+        is_dark = ThemeManager.is_dark()
+        text_color = 'white' if is_dark else '#0f172a'
+        subtext_color = 'rgba(255, 255, 255, 0.7)' if is_dark else 'rgba(0, 0, 0, 0.6)'
+        
         # App name (EmoSign)
         app_name = QLabel("EmoSign")
-        app_name.setStyleSheet("""
+        app_name.setStyleSheet(f"""
             font-size: 56px;
             font-weight: 800;
-            color: white;
+            color: {text_color};
             letter-spacing: -2px;
             background: transparent;
         """)
         
         tagline = QLabel("Emotion & Sign Language Translator")
-        tagline.setStyleSheet("""
+        tagline.setStyleSheet(f"""
             font-size: 18px;
-            color: rgba(255, 255, 255, 0.7);
+            color: {subtext_color};
             background: transparent;
         """)
         
@@ -316,12 +329,14 @@ class LoginPage(QWidget):
             feature_row.setSpacing(16)
             
             icon_label = QLabel(icon)
-            icon_label.setStyleSheet("""
+            icon_bg = 'rgba(139, 92, 246, 0.15)' if is_dark else 'rgba(139, 92, 246, 0.1)'
+            icon_border = 'rgba(139, 92, 246, 0.2)' if is_dark else 'rgba(139, 92, 246, 0.15)'
+            icon_label.setStyleSheet(f"""
                 font-size: 24px;
-                background: rgba(139, 92, 246, 0.15);
+                background: {icon_bg};
                 border-radius: 12px;
                 padding: 10px;
-                border: 1px solid rgba(139, 92, 246, 0.2);
+                border: 1px solid {icon_border};
             """)
             icon_label.setFixedSize(54, 54)
             icon_label.setAlignment(Qt.AlignCenter)
@@ -330,10 +345,10 @@ class LoginPage(QWidget):
             text_container.setSpacing(2)
             
             title_label = QLabel(title)
-            title_label.setStyleSheet("font-size: 15px; font-weight: 600; color: white; background: transparent;")
+            title_label.setStyleSheet(f"font-size: 15px; font-weight: 600; color: {text_color}; background: transparent;")
             
             desc_label = QLabel(desc)
-            desc_label.setStyleSheet("font-size: 13px; color: rgba(255,255,255,0.5); background: transparent;")
+            desc_label.setStyleSheet(f"font-size: 13px; color: {subtext_color}; background: transparent;")
             
             text_container.addWidget(title_label)
             text_container.addWidget(desc_label)
@@ -352,9 +367,11 @@ class LoginPage(QWidget):
         
         # === RIGHT PANEL - Login Form ===
         right_panel = QFrame()
-        right_panel.setStyleSheet("""
-            background: rgba(10, 10, 15, 0.7);
-            border-left: 1px solid rgba(255, 255, 255, 0.08);
+        panel_bg = 'rgba(10, 10, 15, 0.7)' if is_dark else 'rgba(255, 255, 255, 0.85)'
+        panel_border = 'rgba(255, 255, 255, 0.08)' if is_dark else 'rgba(0, 0, 0, 0.1)'
+        right_panel.setStyleSheet(f"""
+            background: {panel_bg};
+            border-left: 1px solid {panel_border};
         """)
         # Blur effect for glassmorphism
         blur = QGraphicsDropShadowEffect(right_panel)
@@ -371,17 +388,17 @@ class LoginPage(QWidget):
         
         # Form header
         self.header_title = QLabel("Welcome back")
-        self.header_title.setStyleSheet("""
+        self.header_title.setStyleSheet(f"""
             font-size: 32px;
             font-weight: 700;
-            color: white;
+            color: {text_color};
             background: transparent;
         """)
         
         self.header_subtitle = QLabel("Sign in to continue")
-        self.header_subtitle.setStyleSheet("""
+        self.header_subtitle.setStyleSheet(f"""
             font-size: 16px;
-            color: rgba(255, 255, 255, 0.5);
+            color: {subtext_color};
             background: transparent;
             margin-top: 8px;
         """)
@@ -430,12 +447,14 @@ class LoginPage(QWidget):
         divider_layout = QHBoxLayout()
         line1 = QFrame()
         line1.setFixedHeight(1)
-        line1.setStyleSheet("background: rgba(255,255,255,0.1);")
+        line_color = 'rgba(255,255,255,0.1)' if is_dark else 'rgba(0,0,0,0.1)'
+        line1.setStyleSheet(f"background: {line_color};")
+        or_color = 'rgba(255,255,255,0.3)' if is_dark else 'rgba(0,0,0,0.3)'
         or_label = QLabel("OR")
-        or_label.setStyleSheet("color: rgba(255,255,255,0.3); font-size: 12px; padding: 0 10px; font-weight: 600;")
+        or_label.setStyleSheet(f"color: {or_color}; font-size: 12px; padding: 0 10px; font-weight: 600;")
         line2 = QFrame()
         line2.setFixedHeight(1)
-        line2.setStyleSheet("background: rgba(255,255,255,0.1);")
+        line2.setStyleSheet(f"background: {line_color};")
         divider_layout.addWidget(line1)
         divider_layout.addWidget(or_label)
         divider_layout.addWidget(line2)
@@ -447,28 +466,35 @@ class LoginPage(QWidget):
         self.skip_btn = QPushButton("Continue as Guest")
         self.skip_btn.setCursor(Qt.PointingHandCursor)
         self.skip_btn.setMinimumHeight(54)
-        self.skip_btn.setStyleSheet("""
-            QPushButton {
-                background: rgba(255, 255, 255, 0.03);
-                color: rgba(255, 255, 255, 0.7);
+        guest_bg = 'rgba(255, 255, 255, 0.03)' if is_dark else 'rgba(0, 0, 0, 0.04)'
+        guest_color = 'rgba(255, 255, 255, 0.7)' if is_dark else 'rgba(0, 0, 0, 0.6)'
+        guest_border = 'rgba(255, 255, 255, 0.1)' if is_dark else 'rgba(0, 0, 0, 0.1)'
+        guest_hover_bg = 'rgba(255, 255, 255, 0.08)' if is_dark else 'rgba(0, 0, 0, 0.06)'
+        guest_hover_color = 'white' if is_dark else '#0f172a'
+        guest_hover_border = 'rgba(255, 255, 255, 0.2)' if is_dark else 'rgba(0, 0, 0, 0.2)'
+        self.skip_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {guest_bg};
+                color: {guest_color};
                 font-size: 14px;
                 font-weight: 500;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                border: 1px solid {guest_border};
                 border-radius: 14px;
-            }
-            QPushButton:hover {
-                background: rgba(255, 255, 255, 0.08);
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }
+            }}
+            QPushButton:hover {{
+                background: {guest_hover_bg};
+                color: {guest_hover_color};
+                border: 1px solid {guest_hover_border};
+            }}
         """)
         right_layout.addWidget(self.skip_btn)
         
         # Toggle mode
         right_layout.addStretch()
         toggle_container = QHBoxLayout()
+        toggle_text_color = 'rgba(255,255,255,0.5)' if is_dark else 'rgba(0,0,0,0.5)'
         toggle_text = QLabel("Don't have an account?")
-        toggle_text.setStyleSheet("color: rgba(255,255,255,0.5); font-size: 14px;")
+        toggle_text.setStyleSheet(f"color: {toggle_text_color}; font-size: 14px;")
         
         self.toggle_btn = QPushButton("Create Account")
         self.toggle_btn.setCursor(Qt.PointingHandCursor)

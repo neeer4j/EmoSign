@@ -422,11 +422,84 @@ class MainWindow(QMainWindow):
         """Apply theme to the application."""
         ThemeManager.set_theme(theme)
         self.setStyleSheet(ThemeManager.get_theme())
+        # Recreate pages so inline styles pick up new COLORS
+        self._rebuild_pages()
     
     def _apply_accent(self, accent: str):
         """Apply accent color to the application."""
         ThemeManager.set_accent(accent)
         self.setStyleSheet(ThemeManager.get_theme())
+        self._rebuild_pages()
+
+    def _rebuild_pages(self):
+        """Destroy and recreate all pages so inline styles use current COLORS."""
+        # Remember current state
+        saved_user = self.user
+        current_page = self.page_stack.currentWidget()
+        current_page_name = None
+        # Map widget to page name
+        page_map = {
+            'dashboard_page': 'dashboard', 'live_page': 'live',
+            'conversation_page': 'conversation', 'history_page': 'history',
+            'tutorial_page': 'tutorial', 'training_page': 'training',
+            'game_page': 'game', 'analytics_page': 'analytics',
+            'profile_page': 'profile', 'settings_page': 'settings',
+            'admin_page': 'admin', 'login_page': 'login',
+        }
+        for attr, name in page_map.items():
+            if hasattr(self, attr) and getattr(self, attr) is current_page:
+                current_page_name = name
+                break
+
+        # Cleanup active cameras/resources
+        try:
+            self.live_page.cleanup()
+        except Exception:
+            pass
+        try:
+            self.game_page.cleanup()
+        except Exception:
+            pass
+
+        # Remove all pages from stack
+        while self.page_stack.count() > 0:
+            w = self.page_stack.widget(0)
+            self.page_stack.removeWidget(w)
+            w.deleteLater()
+
+        # Rebuild sidebar
+        old_sidebar = self.sidebar
+        self.sidebar = Sidebar()
+        self.main_layout.replaceWidget(old_sidebar, self.sidebar)
+        old_sidebar.deleteLater()
+        self.sidebar.navigate.connect(self._navigate_to)
+        self.sidebar.theme_changed.connect(self._apply_theme)
+        # Update theme button text
+        if not ThemeManager.is_dark():
+            self.sidebar.theme_btn.setText("☀️ Light")
+
+        # Recreate pages
+        self._create_pages()
+        self.settings_page.load_saved_settings()
+        self._connect_signals()
+
+        # Restore user
+        if saved_user:
+            self.user = saved_user
+            self.dashboard_page.update_user(saved_user)
+            self.live_page.user = saved_user
+            self.history_page.update_user(saved_user)
+            self.profile_page.update_user(saved_user)
+            self.analytics_page.update_user(saved_user.get('id', 'guest'))
+            is_admin = saved_user.get("email") == "admin"
+            self.sidebar.show_admin_link(is_admin)
+            self.sidebar.show()
+
+            # Navigate back to same page
+            if current_page_name and current_page_name != 'login':
+                self._navigate_to(current_page_name)
+        else:
+            self._show_login()
     
     def _apply_voice_settings(self, settings: dict):
         """Apply voice output settings."""

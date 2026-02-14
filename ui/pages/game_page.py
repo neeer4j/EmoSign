@@ -875,31 +875,10 @@ class GamePage(QWidget):
         """)
         hint_outer.addWidget(self._hint_imagine)
 
-        # Scrollable steps area
-        hint_scroll = QScrollArea()
-        hint_scroll.setWidgetResizable(True)
-        hint_scroll.setMaximumHeight(180)
-        hint_scroll.setStyleSheet(f"""
-            QScrollArea {{
-                background: transparent; border: none;
-            }}
-            QScrollBar:vertical {{
-                background: {COLORS['bg_input']};
-                width: 6px; border-radius: 3px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: rgba(245, 158, 11, 0.4);
-                border-radius: 3px; min-height: 20px;
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-        """)
-        hint_scroll_widget = QWidget()
-        hint_scroll_widget.setStyleSheet("background: transparent;")
-        self._hint_steps_layout = QVBoxLayout(hint_scroll_widget)
+        # Steps area — flat layout, no scroll
+        self._hint_steps_layout = QVBoxLayout()
         self._hint_steps_layout.setContentsMargins(0, 0, 0, 0)
-        self._hint_steps_layout.setSpacing(4)
+        self._hint_steps_layout.setSpacing(3)
 
         # Pre-create 3 step labels
         self._hint_step_labels = []
@@ -907,11 +886,11 @@ class GamePage(QWidget):
             step_lbl = QLabel("")
             step_lbl.setWordWrap(True)
             step_lbl.setStyleSheet(f"""
-                font-size: 12px;
+                font-size: 11px;
                 color: {COLORS['text_primary']};
                 background: {COLORS['bg_input']};
-                padding: 6px 10px;
-                border-radius: 8px;
+                padding: 4px 8px;
+                border-radius: 6px;
                 border-left: 3px solid #f59e0b;
             """)
             self._hint_steps_layout.addWidget(step_lbl)
@@ -922,18 +901,16 @@ class GamePage(QWidget):
         self._hint_motion.setWordWrap(True)
         self._hint_motion.setAlignment(Qt.AlignCenter)
         self._hint_motion.setStyleSheet(f"""
-            font-size: 12px; font-weight: 700;
+            font-size: 11px; font-weight: 700;
             color: white;
             background: {COLORS['primary']};
-            padding: 6px 10px;
-            border-radius: 8px;
+            padding: 4px 8px;
+            border-radius: 6px;
         """)
         self._hint_motion.hide()
         self._hint_steps_layout.addWidget(self._hint_motion)
 
-        self._hint_steps_layout.addStretch()
-        hint_scroll.setWidget(hint_scroll_widget)
-        hint_outer.addWidget(hint_scroll)
+        hint_outer.addLayout(self._hint_steps_layout)
 
         self._hint_current_letter = None  # Track last displayed letter
         self._hint_container.hide()
