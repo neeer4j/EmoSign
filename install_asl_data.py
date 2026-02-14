@@ -158,7 +158,7 @@ def create_real_asl_data():
             
             features = normalized.flatten()
             
-            # Add finger distances
+            # Add finger tip to MCP distances (5 features)
             finger_tips = [4, 8, 12, 16, 20]
             finger_mcps = [2, 5, 9, 13, 17]
             distances = []
@@ -166,7 +166,31 @@ def create_real_asl_data():
                 dist = np.linalg.norm(landmarks[tip] - landmarks[mcp])
                 distances.append(dist / scale if scale > 0 else 0)
             
-            features = np.concatenate([features, np.array(distances)])
+            # Thumb to fingertip distances (4 features)
+            thumb_tip = landmarks[4]
+            thumb_to_finger = []
+            for tip_idx in [8, 12, 16, 20]:
+                dist = np.linalg.norm(thumb_tip - landmarks[tip_idx])
+                thumb_to_finger.append(dist / scale if scale > 0 else 0)
+            
+            # Z-depth differences (4 features)
+            z_diffs = []
+            for tip_idx in [8, 12, 16, 20]:
+                z_diff = landmarks[4][2] - landmarks[tip_idx][2]
+                z_diffs.append(z_diff / scale if scale > 0 else 0)
+            
+            # Palm distances (5 features)
+            palm_center = landmarks[9]
+            palm_dists = []
+            for tip_idx in finger_tips:
+                dist = np.linalg.norm(landmarks[tip_idx] - palm_center)
+                palm_dists.append(dist / scale if scale > 0 else 0)
+            
+            features = np.concatenate([
+                features, np.array(distances),
+                np.array(thumb_to_finger), np.array(z_diffs),
+                np.array(palm_dists)
+            ])
             
             samples.append(features.astype(np.float32))
             labels.append(letter)
@@ -176,7 +200,7 @@ def create_real_asl_data():
     
     with open(output_path, 'w', newline='') as f:
         writer = csv.writer(f)
-        header = ['label'] + [f'f{i}' for i in range(68)]
+        header = ['label'] + [f'f{i}' for i in range(len(samples[0]))]
         writer.writerow(header)
         
         for features, label in zip(samples, labels):

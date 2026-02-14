@@ -677,15 +677,16 @@ class TrainingPage(QWidget):
                             continue
                         
                         features = []
-                        for i in range(68):  # Assuming 68 features
-                            key = f'f{i}'
-                            if key in row:
-                                try:
-                                    features.append(float(row[key]))
-                                except ValueError:
-                                    break
+                        # Dynamically detect feature count from columns
+                        i = 0
+                        while f'f{i}' in row:
+                            try:
+                                features.append(float(row[f'f{i}']))
+                            except ValueError:
+                                break
+                            i += 1
                         
-                        if len(features) == 68:
+                        if len(features) > 0:
                             all_features.append(features)
                             all_labels.append(label)
             except Exception as e:

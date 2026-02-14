@@ -42,7 +42,7 @@ def create_hand_landmarker():
 
 
 def extract_features(landmarks):
-    """Extract features from landmarks (matches features.py logic)."""
+    """Extract features from landmarks (matches features.py logic - 81 features)."""
     if landmarks is None or len(landmarks) != 21:
         return None
     
@@ -57,18 +57,46 @@ def extract_features(landmarks):
     if scale > 0:
         normalized = normalized / scale
     
+    # 1. Normalized coordinates (63 features)
     features = normalized.flatten()
     
-    # Add finger distances
+    # 2. Finger tip to MCP distances (5 features)
     finger_tips = [4, 8, 12, 16, 20]
     finger_mcps = [2, 5, 9, 13, 17]
     
-    distances = []
+    tip_mcp_distances = []
     for tip, mcp in zip(finger_tips, finger_mcps):
         dist = np.linalg.norm(landmarks_arr[tip] - landmarks_arr[mcp])
-        distances.append(dist / scale if scale > 0 else 0)
+        tip_mcp_distances.append(dist / scale if scale > 0 else 0)
     
-    features = np.concatenate([features, np.array(distances)])
+    # 3. Thumb tip to each non-thumb fingertip distance (4 features)
+    thumb_tip = landmarks_arr[4]
+    thumb_to_finger_dists = []
+    for tip_idx in [8, 12, 16, 20]:
+        dist = np.linalg.norm(thumb_tip - landmarks_arr[tip_idx])
+        thumb_to_finger_dists.append(dist / scale if scale > 0 else 0)
+    
+    # 4. Z-depth differences: thumb Z minus fingertip Z (4 features)
+    z_depth_diffs = []
+    for tip_idx in [8, 12, 16, 20]:
+        z_diff = landmarks_arr[4][2] - landmarks_arr[tip_idx][2]
+        z_depth_diffs.append(z_diff / scale if scale > 0 else 0)
+    
+    # 5. Fingertip to palm center distances (5 features)
+    palm_center = landmarks_arr[9]
+    palm_distances = []
+    for tip_idx in finger_tips:
+        dist = np.linalg.norm(landmarks_arr[tip_idx] - palm_center)
+        palm_distances.append(dist / scale if scale > 0 else 0)
+    
+    # Total: 63 + 5 + 4 + 4 + 5 = 81
+    features = np.concatenate([
+        features,
+        np.array(tip_mcp_distances),
+        np.array(thumb_to_finger_dists),
+        np.array(z_depth_diffs),
+        np.array(palm_distances),
+    ])
     return features.astype(np.float32)
 
 
@@ -94,15 +122,15 @@ def generate_sample_data():
     for label in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
         # Generate 50 samples per letter with random variations
         for _ in range(50):
-            # Base features (68 total: 63 landmarks + 5 distances)
-            base = np.random.randn(68) * 0.1
+            # Base features (81 total: 63 coords + 5 tip-MCP + 4 thumb-finger + 4 z-depth + 5 palm)
+            base = np.random.randn(81) * 0.1
             
             # Add letter-specific offset (simple encoding)
             letter_offset = (ord(label) - ord('A')) / 25.0
             base[0] += letter_offset
             
             # Add some noise for variation
-            noise = np.random.randn(68) * 0.05
+            noise = np.random.randn(81) * 0.05
             features = base + noise
             
             samples.append(features)
@@ -115,7 +143,7 @@ def generate_sample_data():
         writer = csv.writer(f)
         
         # Header
-        header = ['label'] + [f'f{i}' for i in range(68)]
+        header = ['label'] + [f'f{i}' for i in range(81)]
         writer.writerow(header)
         
         # Data
@@ -184,7 +212,7 @@ def process_images_folder(images_dir: str, output_csv: str):
     # Save to CSV
     with open(output_csv, 'w', newline='') as f:
         writer = csv.writer(f)
-        header = ['label'] + [f'f{i}' for i in range(68)]
+        header = ['label'] + [f'f{i}' for i in range(len(samples[0]))]
         writer.writerow(header)
         
         for features, label in zip(samples, labels):

@@ -29,7 +29,7 @@ from ui.camera_widget import CameraWidget
 from ml.classifier import Classifier
 
 # Reuse tutorial data for hint feature
-from ui.pages.tutorial_page import SIGN_GUIDE, SignCard
+from ui.pages.tutorial_page import SIGN_GUIDE
 
 
 # ---------------------------------------------------------------------------
@@ -824,7 +824,7 @@ class GamePage(QWidget):
         pred_layout.addWidget(pred_title)
         right_panel.addWidget(pred_card)
 
-        # Hint panel
+        # Hint panel — compact inline design (no full SignCard)
         self._hint_container = QFrame()
         self._hint_container.setObjectName("hintCard")
         self._hint_container.setStyleSheet(f"""
@@ -834,19 +834,108 @@ class GamePage(QWidget):
                 border-radius: 14px;
             }}
         """)
-        hint_layout = QVBoxLayout(self._hint_container)
-        hint_layout.setContentsMargins(8, 8, 8, 8)
-        hint_layout.setSpacing(4)
+        hint_outer = QVBoxLayout(self._hint_container)
+        hint_outer.setContentsMargins(12, 10, 12, 10)
+        hint_outer.setSpacing(8)
 
-        hint_header = QLabel("💡 HINT")
-        hint_header.setAlignment(Qt.AlignCenter)
-        hint_header.setStyleSheet("color: #f59e0b; font-size: 11px; font-weight: 700; letter-spacing: 1px; background: transparent;")
-        hint_layout.addWidget(hint_header)
+        # Hint title row
+        hint_title_row = QHBoxLayout()
+        hint_icon = QLabel("💡")
+        hint_icon.setStyleSheet("font-size: 18px; background: transparent;")
+        self._hint_title_label = QLabel("HINT")
+        self._hint_title_label.setStyleSheet(f"""
+            font-size: 13px; font-weight: 800; letter-spacing: 1px;
+            color: #f59e0b; background: transparent;
+        """)
+        hint_title_row.addWidget(hint_icon)
+        hint_title_row.addWidget(self._hint_title_label)
+        hint_title_row.addStretch()
+        # Target letter badge
+        self._hint_letter_badge = QLabel("?")
+        self._hint_letter_badge.setAlignment(Qt.AlignCenter)
+        self._hint_letter_badge.setFixedSize(40, 40)
+        self._hint_letter_badge.setStyleSheet(f"""
+            font-size: 22px; font-weight: 900;
+            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.15);
+            border: 2px solid rgba(245, 158, 11, 0.4);
+            border-radius: 10px;
+        """)
+        hint_title_row.addWidget(self._hint_letter_badge)
+        hint_outer.addLayout(hint_title_row)
 
-        self._hint_sign_card = None
-        self._hint_card_placeholder = QVBoxLayout()
-        hint_layout.addLayout(self._hint_card_placeholder)
+        # "Imagine..." analogy
+        self._hint_imagine = QLabel("")
+        self._hint_imagine.setWordWrap(True)
+        self._hint_imagine.setStyleSheet(f"""
+            font-size: 12px; font-weight: 600;
+            color: {COLORS['text_primary']};
+            background: rgba(245, 158, 11, 0.08);
+            padding: 8px 12px; border-radius: 8px;
+        """)
+        hint_outer.addWidget(self._hint_imagine)
 
+        # Scrollable steps area
+        hint_scroll = QScrollArea()
+        hint_scroll.setWidgetResizable(True)
+        hint_scroll.setMaximumHeight(180)
+        hint_scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background: transparent; border: none;
+            }}
+            QScrollBar:vertical {{
+                background: {COLORS['bg_input']};
+                width: 6px; border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: rgba(245, 158, 11, 0.4);
+                border-radius: 3px; min-height: 20px;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
+        hint_scroll_widget = QWidget()
+        hint_scroll_widget.setStyleSheet("background: transparent;")
+        self._hint_steps_layout = QVBoxLayout(hint_scroll_widget)
+        self._hint_steps_layout.setContentsMargins(0, 0, 0, 0)
+        self._hint_steps_layout.setSpacing(4)
+
+        # Pre-create 3 step labels
+        self._hint_step_labels = []
+        for _ in range(3):
+            step_lbl = QLabel("")
+            step_lbl.setWordWrap(True)
+            step_lbl.setStyleSheet(f"""
+                font-size: 12px;
+                color: {COLORS['text_primary']};
+                background: {COLORS['bg_input']};
+                padding: 6px 10px;
+                border-radius: 8px;
+                border-left: 3px solid #f59e0b;
+            """)
+            self._hint_steps_layout.addWidget(step_lbl)
+            self._hint_step_labels.append(step_lbl)
+
+        # Motion label (for J, Z)
+        self._hint_motion = QLabel("")
+        self._hint_motion.setWordWrap(True)
+        self._hint_motion.setAlignment(Qt.AlignCenter)
+        self._hint_motion.setStyleSheet(f"""
+            font-size: 12px; font-weight: 700;
+            color: white;
+            background: {COLORS['primary']};
+            padding: 6px 10px;
+            border-radius: 8px;
+        """)
+        self._hint_motion.hide()
+        self._hint_steps_layout.addWidget(self._hint_motion)
+
+        self._hint_steps_layout.addStretch()
+        hint_scroll.setWidget(hint_scroll_widget)
+        hint_outer.addWidget(hint_scroll)
+
+        self._hint_current_letter = None  # Track last displayed letter
         self._hint_container.hide()
         right_panel.addWidget(self._hint_container)
 
@@ -1088,34 +1177,50 @@ class GamePage(QWidget):
         target_char = lowest.current_letter if lowest else None
 
         # Skip rebuild if same character
-        if self._hint_sign_card is not None:
-            if target_char and getattr(self._hint_sign_card, 'letter', None) == target_char:
-                return
+        if target_char == self._hint_current_letter:
+            return
+        self._hint_current_letter = target_char
 
-        # Remove old card
-        if self._hint_sign_card is not None:
-            self._hint_card_placeholder.removeWidget(self._hint_sign_card)
-            self._hint_sign_card.deleteLater()
-            self._hint_sign_card = None
+        if not target_char:
+            self._hint_letter_badge.setText("?")
+            self._hint_imagine.setText("Waiting for next letter...")
+            for lbl in self._hint_step_labels:
+                lbl.hide()
+            self._hint_motion.hide()
+            return
 
-        if target_char and target_char in SIGN_GUIDE:
-            self._hint_sign_card = SignCard(target_char)
-            self._hint_sign_card.setMaximumHeight(350)
-            self._hint_card_placeholder.addWidget(self._hint_sign_card)
-        elif target_char:
-            fallback = QLabel(f"Sign the character:\n{target_char}")
-            fallback.setAlignment(Qt.AlignCenter)
-            fallback.setStyleSheet(f"""
-                font-size: 24px; font-weight: 700;
-                color: {COLORS['text_primary']};
-                background: transparent; padding: 20px;
-            """)
-            wrapper = QFrame()
-            wrapper.letter = target_char
-            wl = QVBoxLayout(wrapper)
-            wl.addWidget(fallback)
-            self._hint_sign_card = wrapper
-            self._hint_card_placeholder.addWidget(self._hint_sign_card)
+        info = SIGN_GUIDE.get(target_char)
+        self._hint_letter_badge.setText(target_char)
+
+        if info:
+            # Populate imagine analogy
+            emoji = info.get('emoji', '🤚')
+            imagine = info.get('imagine', '')
+            self._hint_imagine.setText(f"{emoji} {imagine}")
+            self._hint_imagine.show()
+
+            # Populate steps
+            steps = info.get('do_this', [])
+            for j, lbl in enumerate(self._hint_step_labels):
+                if j < len(steps):
+                    lbl.setText(steps[j])
+                    lbl.show()
+                else:
+                    lbl.hide()
+
+            # Motion (J, Z)
+            motion = info.get('motion')
+            if motion:
+                self._hint_motion.setText(f"🔄 {motion}")
+                self._hint_motion.show()
+            else:
+                self._hint_motion.hide()
+        else:
+            # Fallback for letters not in SIGN_GUIDE
+            self._hint_imagine.setText(f"Sign the letter: {target_char}")
+            for lbl in self._hint_step_labels:
+                lbl.hide()
+            self._hint_motion.hide()
 
     # ── Cleanup ─────────────────────────────────────────────────────────────
 
