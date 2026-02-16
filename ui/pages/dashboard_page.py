@@ -32,23 +32,23 @@ class StatCard(QFrame):
     
     def _setup_ui(self, icon, value, label):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(8)
         
         # Icon container
         icon_container = QFrame()
-        icon_container.setFixedSize(56, 56)
+        icon_container.setFixedSize(44, 44)
         icon_container.setStyleSheet(f"""
             QFrame {{
-                background-color: {self.color}20;
-                border-radius: 14px;
-                border: 1px solid {self.color}40;
+                background-color: {self.color}15;
+                border-radius: 12px;
+                border: 1px solid {self.color}30;
             }}
         """)
         icon_layout = QVBoxLayout(icon_container)
         icon_layout.setContentsMargins(0, 0, 0, 0)
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 24px; background: transparent; border: none;")
+        icon_label.setStyleSheet("font-size: 20px; background: transparent; border: none;")
         icon_label.setAlignment(Qt.AlignCenter)
         icon_layout.addWidget(icon_label)
         
@@ -107,23 +107,23 @@ class QuickActionCard(QFrame):
     
     def _setup_ui(self, icon, title, description):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(14)
         
         # Icon (left side)
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 32px; background: transparent; border: none;")
-        icon_label.setFixedSize(48, 48)
+        icon_label.setStyleSheet("font-size: 28px; background: transparent; border: none;")
+        icon_label.setFixedSize(40, 40)
         icon_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(icon_label)
         
         # Content (middle)
         content = QVBoxLayout()
-        content.setSpacing(4)
+        content.setSpacing(2)
         
         title_label = QLabel(title)
         title_label.setStyleSheet(f"""
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             color: {COLORS['text_primary']};
             background: transparent;
@@ -132,7 +132,7 @@ class QuickActionCard(QFrame):
         
         desc_label = QLabel(description)
         desc_label.setStyleSheet(f"""
-            font-size: 13px;
+            font-size: 12px;
             color: {COLORS['text_muted']};
             background: transparent;
             border: none;
@@ -146,7 +146,7 @@ class QuickActionCard(QFrame):
         
         # Arrow (right side)
         arrow = QLabel("→")
-        arrow.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 18px; background: transparent; border: none;")
+        arrow.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 16px; background: transparent; border: none;")
         layout.addWidget(arrow)
     
     def _apply_style(self):
@@ -154,12 +154,12 @@ class QuickActionCard(QFrame):
             QFrame {{
                 background-color: {COLORS['bg_card']};
                 border: 1px solid {COLORS['border']};
-                border-left: 4px solid {self.color};
-                border-radius: 12px;
+                border-left: 3px solid {self.color};
+                border-radius: 10px;
             }}
             QFrame:hover {{
                 background-color: {COLORS['bg_card_hover']};
-                border-color: {self.color};
+                border-color: {self.color}60;
             }}
         """)
     
@@ -187,15 +187,15 @@ class DashboardPage(QWidget):
     def _setup_ui(self):
         """Setup dashboard UI."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(40, 40, 40, 40)
-        main_layout.setSpacing(32)
+        main_layout.setContentsMargins(32, 28, 32, 28)
+        main_layout.setSpacing(24)
         
         # === HEADER ===
         header = QHBoxLayout()
         
         # Welcome section
         welcome_box = QVBoxLayout()
-        welcome_box.setSpacing(4)
+        welcome_box.setSpacing(2)
         
         # Get user name from email
         email = self.user.get("email", "User")
@@ -206,7 +206,7 @@ class DashboardPage(QWidget):
         welcome_label.setObjectName("welcomeText")
         
         subtitle = QLabel("Ready to practice sign language today?")
-        subtitle.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 16px;")
+        subtitle.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
         
         welcome_box.addWidget(welcome_label)
         welcome_box.addWidget(subtitle)
@@ -229,7 +229,7 @@ class DashboardPage(QWidget):
         main_layout.addWidget(stats_label)
         
         stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(20)
+        stats_layout.setSpacing(16)
         
         self.total_card = StatCard("📝", "0", "Total Translations", COLORS['primary'])
         self.today_card = StatCard("📅", "0", "Today's Sessions", COLORS['accent'])
@@ -249,7 +249,7 @@ class DashboardPage(QWidget):
         main_layout.addWidget(actions_label)
         
         actions_layout = QGridLayout()
-        actions_layout.setSpacing(20)
+        actions_layout.setSpacing(16)
         
         # Live Translation Card
         live_card = QuickActionCard(
@@ -299,19 +299,19 @@ class DashboardPage(QWidget):
         tips_frame.setStyleSheet(f"""
             QFrame {{
                 background-color: {COLORS['warning_bg']};
-                border: 1px solid {COLORS['warning']}40;
-                border-radius: 12px;
+                border: 1px solid {COLORS['warning']}30;
+                border-radius: 10px;
             }}
         """)
         tips_layout = QHBoxLayout(tips_frame)
-        tips_layout.setContentsMargins(16, 12, 16, 12)
-        tips_layout.setSpacing(12)
+        tips_layout.setContentsMargins(14, 10, 14, 10)
+        tips_layout.setSpacing(10)
         
         tip_icon = QLabel("💡")
-        tip_icon.setStyleSheet("font-size: 18px; background: transparent; border: none;")
+        tip_icon.setStyleSheet("font-size: 16px; background: transparent; border: none;")
         
         tip_text = QLabel("Tip: Ensure good lighting for better hand recognition accuracy.")
-        tip_text.setStyleSheet(f"color: {COLORS['warning']}; font-size: 13px; font-weight: 500; background: transparent; border: none;")
+        tip_text.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px; font-weight: 500; background: transparent; border: none;")
         
         tips_layout.addWidget(tip_icon)
         tips_layout.addWidget(tip_text)

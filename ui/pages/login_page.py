@@ -136,7 +136,7 @@ class NeuralNetworkBackground(QWidget):
             if self._fade > 0:
                 draw_bg(self.pixmaps[self.next_idx], self._fade)
         else:
-            painter.fillRect(self.rect(), QColor("#0a0a0f" if is_dark else "#e2e8f0"))
+            painter.fillRect(self.rect(), QColor("#12121a" if is_dark else "#e2e8f0"))
             
         # 2. Dark/Light Overlay (Slight shade for text visibility)
         painter.setOpacity(1.0)
@@ -422,7 +422,7 @@ class LoginPage(QWidget):
         card.setObjectName("loginCard")
         card.setFixedWidth(420)
         
-        card_bg = 'rgba(15, 15, 25, 0.65)' if is_dark else 'rgba(255, 255, 255, 0.8)'
+        card_bg = 'rgba(18, 18, 26, 0.75)' if is_dark else 'rgba(255, 255, 255, 0.8)'
         card_border = 'rgba(255, 255, 255, 0.06)' if is_dark else 'rgba(0, 0, 0, 0.06)'
         
         card.setStyleSheet(f"""

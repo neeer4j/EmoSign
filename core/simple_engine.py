@@ -13,10 +13,17 @@ PREDEFINED VOCABULARY:
 - Sentence mappings: Common phrases recognized from gesture sequences
 """
 import time
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple, Callable
 from enum import Enum
 from collections import deque
+
+from config import DATA_DIR
+
+# Path for custom gesture definitions
+CUSTOM_GESTURES_PATH = os.path.join(DATA_DIR, "custom_gestures.json")
 
 
 class OutputType(Enum):
@@ -498,6 +505,98 @@ def get_all_predefined_gestures() -> Dict[str, str]:
     return gestures
 
 
+def load_custom_gestures() -> Dict[str, str]:
+    """Load custom gestures from JSON file.
+    
+    Returns:
+        Dict mapping gesture_id -> display_name
+    """
+    if not os.path.exists(CUSTOM_GESTURES_PATH):
+        return {}
+    try:
+        with open(CUSTOM_GESTURES_PATH, 'r') as f:
+            data = json.load(f)
+        return data.get('gestures', {})
+    except Exception:
+        return {}
+
+
+def save_custom_gestures(gestures: Dict[str, str]):
+    """Save custom gestures to JSON file.
+    
+    Args:
+        gestures: Dict mapping gesture_id -> display_name
+    """
+    os.makedirs(os.path.dirname(CUSTOM_GESTURES_PATH), exist_ok=True)
+    with open(CUSTOM_GESTURES_PATH, 'w') as f:
+        json.dump({'gestures': gestures}, f, indent=2)
+
+
+def add_custom_gesture(gesture_name: str) -> Tuple[str, str]:
+    """Add a new custom gesture.
+    
+    Args:
+        gesture_name: Human-readable name for the gesture
+        
+    Returns:
+        Tuple of (gesture_id, display_name)
+        
+    Raises:
+        ValueError: If name conflicts with an existing gesture
+    """
+    gesture_id = gesture_name.upper().strip().replace(' ', '_')
+    display_name = gesture_name.strip()
+    
+    if not gesture_id:
+        raise ValueError("Gesture name cannot be empty.")
+    
+    # Check for conflicts with built-in gestures
+    if gesture_id in LETTERS or gesture_id in NUMBERS:
+        raise ValueError(f"'{gesture_name}' conflicts with a built-in letter/number.")
+    if gesture_id in WORD_GESTURES:
+        raise ValueError(f"'{gesture_name}' conflicts with a built-in word gesture.")
+    
+    # Load existing custom gestures
+    custom = load_custom_gestures()
+    if gesture_id in custom:
+        raise ValueError(f"Custom gesture '{gesture_name}' already exists.")
+    
+    # Save
+    custom[gesture_id] = display_name
+    save_custom_gestures(custom)
+    
+    # Also register in WORD_GESTURES so the engine recognizes it
+    WORD_GESTURES[gesture_id] = display_name
+    
+    return gesture_id, display_name
+
+
+def remove_custom_gesture(gesture_id: str):
+    """Remove a custom gesture.
+    
+    Args:
+        gesture_id: ID of the gesture to remove
+    """
+    custom = load_custom_gestures()
+    if gesture_id in custom:
+        del custom[gesture_id]
+        save_custom_gestures(custom)
+        # Also remove from WORD_GESTURES if present
+        WORD_GESTURES.pop(gesture_id, None)
+
+
+def _register_custom_gestures():
+    """Load and register all custom gestures into WORD_GESTURES at startup."""
+    custom = load_custom_gestures()
+    for gesture_id, display_name in custom.items():
+        if gesture_id not in WORD_GESTURES:
+            WORD_GESTURES[gesture_id] = display_name
+
+
+# Register custom gestures when module loads
+_register_custom_gestures()
+
+
 def get_trainable_gestures() -> List[Tuple[str, str, str]]:
     """Get list of gestures that can be trained.
     
@@ -519,5 +618,10 @@ def get_trainable_gestures() -> List[Tuple[str, str, str]]:
     for gesture in priority_words:
         if gesture in WORD_GESTURES:
             trainable.append((gesture, WORD_GESTURES[gesture], "word"))
+    
+    # Custom gestures
+    custom = load_custom_gestures()
+    for gesture_id, display_name in sorted(custom.items()):
+        trainable.append((gesture_id, display_name, "custom"))
     
     return trainable

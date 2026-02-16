@@ -69,8 +69,8 @@ class TranslationDisplay(QFrame):
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
         
         # Header
         header = QHBoxLayout()
@@ -81,7 +81,7 @@ class TranslationDisplay(QFrame):
         
         # Status indicator
         self.status_label = QLabel("⏸️ Ready")
-        self.status_label.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        self.status_label.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px;")
         header.addWidget(self.status_label)
         
         layout.addLayout(header)
@@ -89,13 +89,13 @@ class TranslationDisplay(QFrame):
         # Main translation text
         self.translation_text = QLabel("Start signing to translate...")
         self.translation_text.setStyleSheet(f"""
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 600;
             color: {COLORS['text_primary']};
-            padding: 20px;
+            padding: 16px;
             background-color: {COLORS['bg_input']};
-            border-radius: 12px;
-            min-height: 80px;
+            border-radius: 10px;
+            min-height: 60px;
         """)
         self.translation_text.setWordWrap(True)
         self.translation_text.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -180,14 +180,14 @@ class CurrentGestureDisplay(QFrame):
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(16, 12, 16, 12)
         layout.setAlignment(Qt.AlignCenter)
         
         # Current gesture
         self.gesture_label = QLabel("?")
         self.gesture_label.setAlignment(Qt.AlignCenter)
         self.gesture_label.setStyleSheet(f"""
-            font-size: 64px;
+            font-size: 52px;
             font-weight: bold;
             color: {COLORS['primary']};
             background: transparent;
@@ -233,7 +233,7 @@ class CurrentGestureDisplay(QFrame):
             color = COLORS['warning']
         
         self.gesture_label.setStyleSheet(f"""
-            font-size: 64px;
+            font-size: 52px;
             font-weight: bold;
             color: {color};
             background: transparent;
@@ -245,7 +245,7 @@ class CurrentGestureDisplay(QFrame):
         self.confidence_bar.setValue(0)
         self.type_label.setText("Show your hand")
         self.gesture_label.setStyleSheet(f"""
-            font-size: 64px;
+            font-size: 52px;
             font-weight: bold;
             color: {COLORS['text_muted']};
             background: transparent;
@@ -392,8 +392,8 @@ class LiveTranslationPage(QWidget):
     def _setup_ui(self):
         """Setup the UI layout."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 16, 24, 16)
-        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(20, 12, 20, 12)
+        main_layout.setSpacing(12)
         
         # === HEADER ===
         header, _ = make_page_header("🔴 Live Translation")

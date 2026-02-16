@@ -37,7 +37,7 @@ class ChangePasswordDialog(QDialog):
         self.setFixedSize(400, 300)
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: {COLORS['bg_primary']};
+                background-color: {COLORS['bg_app']};
             }}
             QLabel {{
                 color: {COLORS['text_primary']};
@@ -160,7 +160,7 @@ class NotificationSettingsDialog(QDialog):
         self.setFixedSize(400, 350)
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: {COLORS['bg_primary']};
+                background-color: {COLORS['bg_app']};
             }}
             QLabel {{
                 color: {COLORS['text_primary']};
@@ -264,7 +264,7 @@ class HelpSupportDialog(QDialog):
         self.setFixedSize(500, 500)
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: {COLORS['bg_primary']};
+                background-color: {COLORS['bg_app']};
             }}
             QLabel {{
                 color: {COLORS['text_primary']};

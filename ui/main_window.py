@@ -91,7 +91,7 @@ class NavButton(QPushButton):
         self.setObjectName("navButton")
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(48)
+        self.setMinimumHeight(40)
 
 
 class Sidebar(QFrame):
@@ -102,18 +102,19 @@ class Sidebar(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("sidebar")
-        self.setFixedWidth(240)
+        self.setFixedWidth(220)
         self._current_button = None
         self._setup_ui()
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 24, 16, 24)
-        layout.setSpacing(8)
+        layout.setContentsMargins(12, 20, 12, 20)
+        layout.setSpacing(4)
         
         # Logo/Brand
         brand_layout = QHBoxLayout()
-        brand_layout.setSpacing(12)
+        brand_layout.setSpacing(10)
+        brand_layout.setContentsMargins(8, 0, 8, 0)
         
         import os, sys
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -123,16 +124,16 @@ class Sidebar(QFrame):
         from PySide6.QtGui import QPixmap
         pm = QPixmap(logo_path)
         if not pm.isNull():
-            logo.setPixmap(pm.scaledToHeight(40, Qt.SmoothTransformation))
+            logo.setPixmap(pm.scaledToHeight(36, Qt.SmoothTransformation))
         else:
             logo.setText("EmoSign")
-            logo.setStyleSheet(f"font-size: 20px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
+            logo.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
         
         brand_layout.addWidget(logo)
         brand_layout.addStretch()
         
         layout.addLayout(brand_layout)
-        layout.addSpacing(32)
+        layout.addSpacing(24)
         
         # Navigation buttons
         self.nav_buttons = {}
@@ -151,15 +152,15 @@ class Sidebar(QFrame):
             layout.addWidget(btn)
         
         # Divider
+        layout.addSpacing(8)
         divider1 = QLabel("LEARN")
         divider1.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 10px;
             font-weight: 700;
-            letter-spacing: 1px;
+            letter-spacing: 1.2px;
             background: transparent;
-            padding-top: 16px;
-            padding-bottom: 4px;
+            padding: 8px 8px 4px 8px;
         """)
         layout.addWidget(divider1)
         
@@ -176,15 +177,15 @@ class Sidebar(QFrame):
             layout.addWidget(btn)
         
         # Divider
+        layout.addSpacing(8)
         divider2 = QLabel("ACCOUNT")
         divider2.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 10px;
             font-weight: 700;
-            letter-spacing: 1px;
+            letter-spacing: 1.2px;
             background: transparent;
-            padding-top: 16px;
-            padding-bottom: 4px;
+            padding: 8px 8px 4px 8px;
         """)
         layout.addWidget(divider2)
         
@@ -227,13 +228,13 @@ class Sidebar(QFrame):
         self.theme_btn.clicked.connect(self._toggle_theme)
         layout.addWidget(self.theme_btn)
         
-        layout.addSpacing(8)
+        layout.addSpacing(6)
         
         # Version info
         version_label = QLabel("v3.0.0")
         version_label.setStyleSheet(f"""
             color: {COLORS['text_muted']};
-            font-size: 12px;
+            font-size: 11px;
             background: transparent;
         """)
         version_label.setAlignment(Qt.AlignCenter)

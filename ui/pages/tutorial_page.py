@@ -904,24 +904,24 @@ class LessonCard(QFrame):
         self.lesson_id = lesson_id
         self.setObjectName("card")
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(160)
+        self.setFixedHeight(150)
         self._setup_ui(title, description, icon, progress)
 
     def _setup_ui(self, title, description, icon, progress):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(6)
 
         # Icon and title row
         header = QHBoxLayout()
 
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 32px; background: transparent;")
+        icon_label.setStyleSheet("font-size: 26px; background: transparent;")
         header.addWidget(icon_label)
 
         title_label = QLabel(title)
         title_label.setStyleSheet(f"""
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 600;
             color: {COLORS['text_primary']};
             background: transparent;
@@ -933,7 +933,7 @@ class LessonCard(QFrame):
 
         # Description
         desc_label = QLabel(description)
-        desc_label.setStyleSheet(f"color: {COLORS['text_secondary']}; background: transparent;")
+        desc_label.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 10px; background: transparent;")
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
 
@@ -942,23 +942,23 @@ class LessonCard(QFrame):
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(progress)
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setFixedHeight(3)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {COLORS['bg_input']};
-                border-radius: 3px;
+                border-radius: 2px;
             }}
             QProgressBar::chunk {{
                 background-color: {COLORS['primary']};
-                border-radius: 3px;
+                border-radius: 2px;
             }}
         """)
         layout.addWidget(self.progress_bar)
 
         # Progress text
         self.progress_text = QLabel(f"{progress}% Complete")
-        self.progress_text.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; background: transparent;")
+        self.progress_text.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 9px; background: transparent;")
         layout.addWidget(self.progress_text)
 
     def update_progress(self, progress: int):
@@ -1495,129 +1495,130 @@ class _PhraseLesson(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 10, 12, 8)
+        layout.setSpacing(6)
 
         # Header
         header = QHBoxLayout()
-        back_btn = QPushButton("← Back to Lessons")
+        back_btn = QPushButton("← Back")
         back_btn.setObjectName("secondaryButton")
         back_btn.clicked.connect(self.back_requested.emit)
         header.addWidget(back_btn)
 
         title = QLabel(f"{self.ICON} {self.TITLE}")
-        title.setStyleSheet(f"font-size: 20px; font-weight: 700; color: {COLORS['text_primary']};")
+        title.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {COLORS['text_primary']};")
         header.addWidget(title)
         header.addStretch()
 
         self._indicator = QLabel()
         self._indicator.setStyleSheet(f"""
-            font-size: 14px; font-weight: 600;
+            font-size: 12px; font-weight: 600;
             color: {COLORS['primary']};
             background: {COLORS['primary']}20;
-            padding: 4px 12px; border-radius: 8px;
+            padding: 3px 10px; border-radius: 6px;
         """)
         header.addWidget(self._indicator)
         layout.addLayout(header)
 
-        # Progress
+        # Progress (compact)
         prog_row = QHBoxLayout()
         self._prog_bar = QProgressBar()
         self._prog_bar.setMaximum(max(len(self.DATA), 1))
-        self._prog_bar.setFixedHeight(6)
+        self._prog_bar.setFixedHeight(5)
         self._prog_bar.setTextVisible(False)
         self._prog_bar.setStyleSheet(f"""
-            QProgressBar {{ background: {COLORS['bg_input']}; border-radius: 3px; }}
-            QProgressBar::chunk {{ background: {COLORS['primary']}; border-radius: 3px; }}
+            QProgressBar {{ background: {COLORS['bg_input']}; border-radius: 2px; }}
+            QProgressBar::chunk {{ background: {COLORS['primary']}; border-radius: 2px; }}
         """)
         prog_row.addWidget(self._prog_bar)
         self._prog_lbl = QLabel()
-        self._prog_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        self._prog_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px;")
         prog_row.addWidget(self._prog_lbl)
         layout.addLayout(prog_row)
 
-        # Scroll area with content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
+        # Two-column layout (no scroll)
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(10)
 
-        content = QWidget()
-        cl = QVBoxLayout(content)
-        cl.setSpacing(14)
+        # LEFT: Info + Steps
+        left_panel = QFrame()
+        left_panel.setObjectName("card")
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(12, 10, 12, 10)
+        left_layout.setSpacing(4)
 
-        # Emoji + name row
         top = QHBoxLayout()
         self._emoji = QLabel()
-        self._emoji.setStyleSheet("font-size: 52px; background: transparent;")
+        self._emoji.setStyleSheet("font-size: 32px; background: transparent;")
         top.addWidget(self._emoji)
         self._name = QLabel()
-        self._name.setStyleSheet(f"font-size: 28px; font-weight: 800; color: {COLORS['text_primary']}; background: transparent;")
+        self._name.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {COLORS['text_primary']}; background: transparent;")
         top.addWidget(self._name)
         top.addStretch()
-        cl.addLayout(top)
+        left_layout.addLayout(top)
 
-        # Description
         self._desc = QLabel()
         self._desc.setWordWrap(True)
         self._desc.setStyleSheet(f"""
-            font-size: 15px; color: {COLORS['text_secondary']};
-            background: {COLORS['bg_input']}; padding: 12px 16px; border-radius: 12px;
+            font-size: 12px; color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']}; padding: 6px 10px; border-radius: 8px;
         """)
-        cl.addWidget(self._desc)
+        left_layout.addWidget(self._desc)
 
-        # Steps
         self._step_labels = []
         for _ in range(6):
             s = QLabel()
             s.setWordWrap(True)
             s.setStyleSheet(f"""
-                font-size: 14px; color: {COLORS['text_primary']};
+                font-size: 11px; color: {COLORS['text_primary']};
                 background: {COLORS['bg_card']};
-                padding: 8px 14px; border-radius: 10px;
-                border-left: 4px solid {COLORS['primary']};
+                padding: 4px 8px; border-radius: 6px;
+                border-left: 3px solid {COLORS['primary']};
             """)
-            cl.addWidget(s)
+            left_layout.addWidget(s)
             self._step_labels.append(s)
 
-        # Tip (optional)
         self._tip = QLabel()
         self._tip.setWordWrap(True)
         self._tip.setStyleSheet(f"""
-            font-size: 13px; font-weight: 600; color: {COLORS['primary']};
-            background: {COLORS['primary']}12; padding: 10px 14px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; color: {COLORS['primary']};
+            background: {COLORS['primary']}12; padding: 6px 10px; border-radius: 6px;
         """)
-        cl.addWidget(self._tip)
+        left_layout.addWidget(self._tip)
+        left_layout.addStretch()
+        content_layout.addWidget(left_panel, 1)
 
-        # Spelling helper — "Finger-spell it" section
+        # RIGHT: Spelling + SignCard
+        right_panel = QFrame()
+        right_panel.setObjectName("card")
+        right_panel.setFixedWidth(300)
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        right_layout.setSpacing(6)
+
         spell_title = QLabel("🔤 Finger-Spell It")
-        spell_title.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent; margin-top: 8px;")
-        cl.addWidget(spell_title)
+        spell_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
+        right_layout.addWidget(spell_title)
 
         self._spell_desc = QLabel()
-        self._spell_desc.setStyleSheet(f"font-size: 12px; color: {COLORS['text_muted']}; background: transparent;")
-        cl.addWidget(self._spell_desc)
+        self._spell_desc.setStyleSheet(f"font-size: 10px; color: {COLORS['text_muted']}; background: transparent;")
+        self._spell_desc.setWordWrap(True)
+        right_layout.addWidget(self._spell_desc)
 
-        # Row of letter buttons for the current word
         self._letter_btn_container = QWidget()
         self._letter_btn_layout = QHBoxLayout(self._letter_btn_container)
         self._letter_btn_layout.setContentsMargins(0, 0, 0, 0)
-        self._letter_btn_layout.setSpacing(4)
-        cl.addWidget(self._letter_btn_container)
+        self._letter_btn_layout.setSpacing(3)
+        right_layout.addWidget(self._letter_btn_container)
 
-        # SignCard for showing the selected letter
-        card_frame = QFrame()
-        card_frame.setObjectName("card")
-        cf_layout = QVBoxLayout(card_frame)
-        cf_layout.setContentsMargins(8, 8, 8, 8)
         self._sign_card = SignCard("")
-        cf_layout.addWidget(self._sign_card)
-        cl.addWidget(card_frame)
+        right_layout.addWidget(self._sign_card)
+        right_layout.addStretch()
+        content_layout.addWidget(right_panel)
 
-        cl.addStretch()
-        scroll.setWidget(content)
-        layout.addWidget(scroll, 1)
+        layout.addLayout(content_layout, 1)
 
-        # Navigation
+        # Navigation (compact)
         nav = QHBoxLayout()
         self._prev_btn = QPushButton("← Previous")
         self._prev_btn.setObjectName("secondaryButton")
@@ -1667,18 +1668,18 @@ class _PhraseLesson(QWidget):
 
         spell_word = d['name'].upper()
         letters_only = [c for c in spell_word if c.isalpha()]
-        self._spell_desc.setText(f'Tap a letter to see its sign — spell "{d["name"]}" letter by letter')
+        self._spell_desc.setText(f'Tap a letter to see its sign — spell "{d["name"]}"')
         for ch in spell_word:
             if ch.isalpha():
                 btn = QPushButton(ch)
-                btn.setFixedSize(36, 36)
+                btn.setFixedSize(28, 28)
                 btn.setCursor(Qt.PointingHandCursor)
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {COLORS['bg_input']};
                         color: {COLORS['text_primary']};
                         border: 1px solid {COLORS['border']};
-                        border-radius: 6px; font-size: 14px; font-weight: 700;
+                        border-radius: 5px; font-size: 11px; font-weight: 700;
                     }}
                     QPushButton:hover {{
                         background: {COLORS['primary']}; color: white;
@@ -2225,22 +2226,16 @@ class TutorialPage(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(32, 28, 32, 28)
+        layout.setSpacing(20)
 
         # Header
         header = QHBoxLayout()
-
-        # back_btn = QPushButton("← Back")
-        # back_btn.setObjectName("secondaryButton")
-        # back_btn.clicked.connect(self.back_requested.emit)
-        # header.addWidget(back_btn)
 
         title = QLabel("📚 Learn Sign Language")
         title.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {COLORS['text_primary']};")
         header.addWidget(title)
         header.addStretch()
-
         layout.addLayout(header)
 
         # Stacked widget for lessons
@@ -2293,53 +2288,39 @@ class TutorialPage(QWidget):
         layout.addWidget(self.stack)
 
     def _create_lesson_list(self) -> QWidget:
-        """Create the main lesson list."""
+        """Create the main lesson list — everything fits on one page, no scrolling."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
 
-        # Welcome message
+        # Welcome banner
         welcome = QFrame()
         welcome.setObjectName("card")
-        welcome_layout = QVBoxLayout(welcome)
+        welcome_layout = QHBoxLayout(welcome)
+        welcome_layout.setContentsMargins(20, 12, 20, 12)
 
         welcome_title = QLabel("👋 Welcome to ASL Learning!")
-        welcome_title.setStyleSheet(f"font-size: 20px; font-weight: 600; color: {COLORS['text_primary']};")
+        welcome_title.setStyleSheet(f"font-size: 17px; font-weight: 600; color: {COLORS['text_primary']};")
         welcome_layout.addWidget(welcome_title)
 
-        welcome_text = QLabel(
-            "Learn American Sign Language through interactive lessons with "
-            "easy-to-understand visual guides. Each letter shows you a simple "
-            "bar chart of finger positions, everyday analogies, and 3 dead-simple "
-            "steps — designed so anyone can follow along, even with zero sign "
-            "language experience!"
-        )
-        welcome_text.setStyleSheet(f"color: {COLORS['text_secondary']}; line-height: 1.5;")
-        welcome_text.setWordWrap(True)
-        welcome_layout.addWidget(welcome_text)
+        welcome_text = QLabel("Interactive lessons with visual guides, analogies, and step-by-step instructions.")
+        welcome_text.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
+        welcome_layout.addWidget(welcome_text, 1)
 
         layout.addWidget(welcome)
 
-        # Lesson categories
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(16)
-
-        # Beginner lessons
+        # Beginner section
         beginner_label = QLabel("🌱 Beginner — Start Here")
-        beginner_label.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {COLORS['text_primary']};")
-        scroll_layout.addWidget(beginner_label)
+        beginner_label.setStyleSheet(f"font-size: 15px; font-weight: 600; color: {COLORS['text_primary']};")
+        layout.addWidget(beginner_label)
 
         lessons_grid = QGridLayout()
-        lessons_grid.setSpacing(16)
+        lessons_grid.setSpacing(14)
 
         lessons = [
             ("alphabet", "The ASL Alphabet",
-             "Learn A-Z with bar-chart finger guides, everyday analogies, and 3 simple steps per letter",
+             "Learn A-Z with finger guides, analogies, and simple steps",
              "🔤", 0),
             ("numbers", "Numbers 0-9",
              "Count from zero to nine in ASL", "🔢", 0),
@@ -2353,15 +2334,15 @@ class TutorialPage(QWidget):
         for i, (lid, ttl, desc, icon, progress) in enumerate(lessons):
             card = LessonCard(lid, ttl, desc, icon, progress)
             card.clicked.connect(self._open_lesson)
-            lessons_grid.addWidget(card, i // 2, i % 2)
+            lessons_grid.addWidget(card, 0, i)  # Single row, 4 columns
             self.lesson_cards[lid] = card
 
-        scroll_layout.addLayout(lessons_grid)
+        layout.addLayout(lessons_grid)
 
-        # Intermediate lessons
+        # Intermediate section
         inter_label = QLabel("📈 Intermediate")
-        inter_label.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {COLORS['text_primary']};")
-        scroll_layout.addWidget(inter_label)
+        inter_label.setStyleSheet(f"font-size: 15px; font-weight: 600; color: {COLORS['text_primary']};")
+        layout.addWidget(inter_label)
 
         inter_lessons = [
             ("questions", "Question Words",
@@ -2375,43 +2356,23 @@ class TutorialPage(QWidget):
         ]
 
         inter_grid = QGridLayout()
-        inter_grid.setSpacing(16)
+        inter_grid.setSpacing(14)
 
         for i, (lid, ttl, desc, icon, progress) in enumerate(inter_lessons):
             card = LessonCard(lid, ttl, desc, icon, progress)
             card.clicked.connect(self._open_lesson)
-            inter_grid.addWidget(card, i // 2, i % 2)
+            inter_grid.addWidget(card, 0, i)  # Single row, 4 columns
             self.lesson_cards[lid] = card
 
-        scroll_layout.addLayout(inter_grid)
+        layout.addLayout(inter_grid)
 
-        # Tips section
-        tips_frame = QFrame()
-        tips_frame.setObjectName("card")
-        tips_layout = QVBoxLayout(tips_frame)
+        # Compact tips (single line)
+        tips_lbl = QLabel("💡 Practice signs often · Use Live Translation to check · Pay attention to hand orientation · Learn similar letters together")
+        tips_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; padding: 6px 8px;")
+        tips_lbl.setWordWrap(True)
+        layout.addWidget(tips_lbl)
 
-        tips_title = QLabel("💡 Learning Tips")
-        tips_title.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {COLORS['primary']};")
-        tips_layout.addWidget(tips_title)
-
-        tips = [
-            "• Practice each sign multiple times until it feels natural",
-            "• Use the Live Translation feature to check your signs",
-            "• Pay attention to hand orientation — it matters!",
-            "• Some letters (J, Z) require motion — practice the movement",
-            "• Learn similar letters together (M/N, U/V, A/S/E) to spot differences",
-        ]
-        tips_text = QLabel('\n'.join(tips))
-        tips_text.setStyleSheet(f"color: {COLORS['text_secondary']}; line-height: 1.6;")
-        tips_text.setWordWrap(True)
-        tips_layout.addWidget(tips_text)
-
-        scroll_layout.addWidget(tips_frame)
-        scroll_layout.addStretch()
-
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
-
+        layout.addStretch()
         return widget
 
     def _open_lesson(self, lesson_id: str):

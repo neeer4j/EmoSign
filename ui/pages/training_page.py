@@ -1,20 +1,19 @@
 """
-Training Page - Train the app to recognize predefined gestures
+Training Page - Train the app to recognize gestures
 
 This page allows users to:
 1. Select a predefined gesture from the vocabulary
-2. Show that gesture to the camera
-3. Capture training samples
-4. Train the model with collected data
-
-Only predefined gestures can be trained - this ensures reliability
-and a constrained, working vocabulary.
+2. Create custom gestures with any name
+3. Show that gesture to the camera
+4. Capture training samples
+5. Train the model with collected data
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QFrame, QGridLayout, QScrollArea,
     QProgressBar, QComboBox, QStackedWidget, QMessageBox,
-    QListWidget, QListWidgetItem, QSplitter, QSpinBox
+    QListWidget, QListWidgetItem, QSplitter, QSpinBox,
+    QLineEdit, QInputDialog
 )
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
 from PySide6.QtGui import QFont, QColor
@@ -25,7 +24,10 @@ from ui.camera_widget import CameraWidget
 from ml.data_collector import DataCollector
 from ml.trainer import Trainer
 from ml.classifier import Classifier
-from core.simple_engine import get_trainable_gestures, LETTERS, WORD_GESTURES
+from core.simple_engine import (
+    get_trainable_gestures, LETTERS, WORD_GESTURES,
+    add_custom_gesture, remove_custom_gesture, load_custom_gestures
+)
 
 import os
 import config
@@ -58,7 +60,7 @@ class GestureSelector(QFrame):
         cat_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         
         self.category_combo = QComboBox()
-        self.category_combo.addItems(["All", "Letters", "Numbers", "Words"])
+        self.category_combo.addItems(["All", "Letters", "Numbers", "Words", "Custom"])
         self.category_combo.currentTextChanged.connect(self._filter_gestures)
         self.category_combo.setStyleSheet(f"""
             QComboBox {{
@@ -103,6 +105,91 @@ class GestureSelector(QFrame):
         self.selected_label = QLabel("Selected: None")
         self.selected_label.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
         layout.addWidget(self.selected_label)
+        
+        # ── Custom Gesture Section ──
+        custom_frame = QFrame()
+        custom_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {COLORS['bg_input']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                padding: 4px;
+            }}
+        """)
+        custom_layout = QVBoxLayout(custom_frame)
+        custom_layout.setContentsMargins(12, 10, 12, 10)
+        custom_layout.setSpacing(8)
+        
+        custom_title = QLabel("✨ Custom Gestures")
+        custom_title.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {COLORS['primary']};")
+        custom_layout.addWidget(custom_title)
+        
+        # Input row: text field + add button
+        input_row = QHBoxLayout()
+        input_row.setSpacing(8)
+        
+        self.custom_name_input = QLineEdit()
+        self.custom_name_input.setPlaceholderText("Enter gesture name...")
+        self.custom_name_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {COLORS['bg_panel']};
+                color: {COLORS['text_primary']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 6px;
+                padding: 8px 12px;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {COLORS['primary']};
+            }}
+        """)
+        self.custom_name_input.returnPressed.connect(self._add_custom_gesture)
+        input_row.addWidget(self.custom_name_input, 1)
+        
+        self.add_custom_btn = QPushButton("+ Add")
+        self.add_custom_btn.setCursor(Qt.PointingHandCursor)
+        self.add_custom_btn.setFixedHeight(36)
+        self.add_custom_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['primary_hover']};
+            }}
+        """)
+        self.add_custom_btn.clicked.connect(self._add_custom_gesture)
+        input_row.addWidget(self.add_custom_btn)
+        
+        custom_layout.addLayout(input_row)
+        
+        # Delete button (for selected custom gesture)
+        self.delete_custom_btn = QPushButton("🗑 Delete Selected Custom Gesture")
+        self.delete_custom_btn.setCursor(Qt.PointingHandCursor)
+        self.delete_custom_btn.setFixedHeight(32)
+        self.delete_custom_btn.setVisible(False)
+        self.delete_custom_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {COLORS['text_muted']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 6px;
+                padding: 4px 12px;
+                font-size: 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['danger']};
+                color: white;
+                border: none;
+            }}
+        """)
+        self.delete_custom_btn.clicked.connect(self._delete_custom_gesture)
+        custom_layout.addWidget(self.delete_custom_btn)
+        
+        layout.addWidget(custom_frame)
     
     def _load_gestures(self):
         """Load trainable gestures."""
@@ -117,20 +204,86 @@ class GestureSelector(QFrame):
             "All": None,
             "Letters": "letter",
             "Numbers": "number", 
-            "Words": "word"
+            "Words": "word",
+            "Custom": "custom"
         }
         filter_cat = category_map.get(category)
         
         for gesture_id, display_name, cat in self.all_gestures:
             if filter_cat is None or cat == filter_cat:
-                item = QListWidgetItem(f"{display_name} ({gesture_id})")
+                prefix = "🎨 " if cat == "custom" else ""
+                item = QListWidgetItem(f"{prefix}{display_name} ({gesture_id})")
                 item.setData(Qt.UserRole, (gesture_id, display_name))
+                item.setData(Qt.UserRole + 1, cat)  # Store category
                 self.gesture_list.addItem(item)
     
     def _on_gesture_clicked(self, item: QListWidgetItem):
         gesture_id, display_name = item.data(Qt.UserRole)
+        cat = item.data(Qt.UserRole + 1)
         self.selected_label.setText(f"Selected: {display_name} ({gesture_id})")
         self.gesture_selected.emit(gesture_id, display_name)
+        # Show delete button only for custom gestures
+        self.delete_custom_btn.setVisible(cat == "custom")
+    
+    def _add_custom_gesture(self):
+        """Add a new custom gesture from the input field."""
+        name = self.custom_name_input.text().strip()
+        if not name:
+            return
+        
+        try:
+            gesture_id, display_name = add_custom_gesture(name)
+            self.custom_name_input.clear()
+            
+            # Reload the gesture list
+            self._load_gestures()
+            
+            # Switch to Custom category to show the new gesture
+            self.category_combo.setCurrentText("Custom")
+            
+            # Auto-select the newly added gesture
+            for i in range(self.gesture_list.count()):
+                item = self.gesture_list.item(i)
+                gid, _ = item.data(Qt.UserRole)
+                if gid == gesture_id:
+                    self.gesture_list.setCurrentItem(item)
+                    self._on_gesture_clicked(item)
+                    break
+                    
+        except ValueError as e:
+            QMessageBox.warning(
+                self.window() if self.window() else self,
+                "Cannot Add Gesture",
+                str(e)
+            )
+    
+    def _delete_custom_gesture(self):
+        """Delete the currently selected custom gesture."""
+        item = self.gesture_list.currentItem()
+        if not item:
+            return
+        
+        cat = item.data(Qt.UserRole + 1)
+        if cat != "custom":
+            return
+        
+        gesture_id, display_name = item.data(Qt.UserRole)
+        
+        reply = QMessageBox.question(
+            self.window() if self.window() else self,
+            "Delete Custom Gesture",
+            f"Delete custom gesture '{display_name}'?\n\n"
+            "This removes the gesture definition. Training data for it "
+            "will remain but won't be associated with this name.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            remove_custom_gesture(gesture_id)
+            self._load_gestures()
+            self.selected_label.setText("Selected: None")
+            self.delete_custom_btn.setVisible(False)
     
     def get_selected(self):
         """Get currently selected gesture."""
@@ -158,26 +311,29 @@ class TrainingControls(QFrame):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
         
-        # Current gesture display
+        # Gesture display + instructions in a horizontal row
+        gesture_row = QHBoxLayout()
+        gesture_row.setSpacing(16)
+
         self.gesture_display = QLabel("?")
         self.gesture_display.setAlignment(Qt.AlignCenter)
+        self.gesture_display.setFixedSize(80, 80)
         self.gesture_display.setStyleSheet(f"""
-            font-size: 72px;
+            font-size: 48px;
             font-weight: bold;
             color: {COLORS['primary']};
             background-color: {COLORS['bg_input']};
-            border-radius: 16px;
-            padding: 24px;
-            min-height: 100px;
+            border-radius: 14px;
         """)
-        layout.addWidget(self.gesture_display)
-        
-        # Instructions
+        gesture_row.addWidget(self.gesture_display)
+
         self.instructions = QLabel("Select a gesture, then hold it in front of the camera")
-        self.instructions.setAlignment(Qt.AlignCenter)
+        self.instructions.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         self.instructions.setWordWrap(True)
         self.instructions.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
-        layout.addWidget(self.instructions)
+        gesture_row.addWidget(self.instructions, 1)
+
+        layout.addLayout(gesture_row)
         
         # Stats Row (Samples config + count)
         stats_row = QHBoxLayout()
@@ -452,8 +608,9 @@ class TrainingPage(QWidget):
     
     Allows users to:
     1. Select predefined gestures from the vocabulary
-    2. Capture training samples for each gesture
-    3. Train/retrain the model
+    2. Create and manage custom gestures with any name
+    3. Capture training samples for each gesture
+    4. Train/retrain the model
     """
     
     back_requested = Signal()
@@ -490,7 +647,7 @@ class TrainingPage(QWidget):
         main_layout.addLayout(header)
         
         # Info banner
-        info = QLabel("📌 Train the app to recognize your hand gestures. Select a gesture, hold it steadily, and capture samples.")
+        info = QLabel("📌 Train the app to recognize your hand gestures. Select a gesture or create a custom one, hold it steadily, and capture samples.")
         info.setWordWrap(True)
         info.setStyleSheet(f"""
             background-color: {COLORS['bg_card']};
