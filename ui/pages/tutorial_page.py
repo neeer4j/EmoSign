@@ -940,11 +940,11 @@ class LessonCard(QFrame):
         layout.addStretch()
 
         # Progress bar
-        progress_bar = QProgressBar()
-        progress_bar.setValue(progress)
-        progress_bar.setFixedHeight(6)
-        progress_bar.setTextVisible(False)
-        progress_bar.setStyleSheet(f"""
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(progress)
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {COLORS['bg_input']};
                 border-radius: 3px;
@@ -954,12 +954,17 @@ class LessonCard(QFrame):
                 border-radius: 3px;
             }}
         """)
-        layout.addWidget(progress_bar)
+        layout.addWidget(self.progress_bar)
 
         # Progress text
-        progress_text = QLabel(f"{progress}% Complete")
-        progress_text.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; background: transparent;")
-        layout.addWidget(progress_text)
+        self.progress_text = QLabel(f"{progress}% Complete")
+        self.progress_text.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; background: transparent;")
+        layout.addWidget(self.progress_text)
+
+    def update_progress(self, progress: int):
+        """Update progress display."""
+        self.progress_bar.setValue(progress)
+        self.progress_text.setText(f"{progress}% Complete")
 
     def mousePressEvent(self, event):
         self.clicked.emit(self.lesson_id)
@@ -982,6 +987,12 @@ class AlphabetLesson(QWidget):
         super().__init__(parent)
         self.current_letter_index = 0
         self.letters = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        self.completed_letters = set()
+        self._hold_count = 0
+        self._target_hold_frames = 20  # ~0.7s at 30fps (slightly faster than 1s)
+        self._auto_advance_timer = QTimer(self)
+        self._auto_advance_timer.setSingleShot(True)
+        self._auto_advance_timer.timeout.connect(self._next_letter)
         self._camera_widget = None  # Lazy-loaded
         self._setup_ui()
 
@@ -999,6 +1010,12 @@ class AlphabetLesson(QWidget):
         back_btn.setFixedWidth(80)
         back_btn.clicked.connect(self._on_back)
         header.addWidget(back_btn)
+
+        reset_btn = QPushButton("🔄 Reset")
+        reset_btn.setObjectName("secondaryButton")
+        reset_btn.setFixedWidth(80)
+        reset_btn.clicked.connect(self._reset_tutorial)
+        header.addWidget(reset_btn)
 
         title = QLabel("🔤 ASL Alphabet")
         title.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {COLORS['text_primary']};")
@@ -1173,24 +1190,15 @@ class AlphabetLesson(QWidget):
         nav_layout.addWidget(self.prev_btn)
 
         # Quick jump letters
+        self.nav_buttons = []
         for i, letter in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
             btn = QPushButton(letter)
             btn.setFixedSize(26, 26)
             btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: {COLORS['bg_input']};
-                    color: {COLORS['text_secondary']};
-                    border: none; border-radius: 4px;
-                    font-size: 10px; font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background: {COLORS['primary']};
-                    color: {COLORS['text_primary']};
-                }}
-            """)
+            # Style will be set in _update_display
             btn.clicked.connect(lambda checked, idx=i: self._jump_to_letter(idx))
             nav_layout.addWidget(btn)
+            self.nav_buttons.append(btn)
 
         self.next_btn = QPushButton("▶")
         self.next_btn.setFixedSize(32, 32)
@@ -1199,7 +1207,6 @@ class AlphabetLesson(QWidget):
         nav_layout.addWidget(self.next_btn)
 
         layout.addLayout(nav_layout)
-
         # Initialize display
         self._update_display()
 
@@ -1207,6 +1214,14 @@ class AlphabetLesson(QWidget):
         """Clean up and go back."""
         self._stop_camera()
         self.back_requested.emit()
+
+    def _reset_tutorial(self):
+        """Reset all progress."""
+        self.completed_letters.clear()
+        self.current_letter_index = 0
+        self._hold_count = 0
+        self._auto_advance_timer.stop()
+        self._update_display()
 
     def _start_camera(self):
         """Start the camera for practice."""
@@ -1221,6 +1236,9 @@ class AlphabetLesson(QWidget):
             self._camera_widget.setFixedSize(320, 200)
             self._camera_widget.video_label.setMinimumSize(320, 200)
             self._camera_widget.video_label.setMaximumSize(320, 200)
+            # Lower threshold for tutorial practice (easier to trigger)
+            self._camera_widget.heuristic_threshold = 0.35
+            
             # Connect heuristic gesture signal for feedback
             self._camera_widget.heuristic_gesture_detected.connect(self._on_gesture_detected)
 
@@ -1260,15 +1278,47 @@ class AlphabetLesson(QWidget):
         current_letter = self.letters[self.current_letter_index]
         detected = gesture_name.upper()
 
+        # If already auto-advancing, ignore new gestures
+        if self._auto_advance_timer.isActive():
+            return
+
         if detected == current_letter:
-            self.feedback_label.setText(f"✅ Correct! You signed '{detected}'")
-            self.feedback_label.setStyleSheet(f"""
-                font-size: 14px; font-weight: 700;
-                color: white;
-                background: {COLORS['success']};
-                padding: 10px; border-radius: 8px;
-            """)
+            self._hold_count += 1
+            
+            # Progress bar for holding logic
+            progress = min(1.0, self._hold_count / self._target_hold_frames)
+            
+            if self._hold_count >= self._target_hold_frames:
+                # Confirmed!
+                if current_letter not in self.completed_letters:
+                    self.completed_letters.add(current_letter)
+                    self._update_display()
+                    
+                    self.feedback_label.setText(f"✅ Perfect! '{current_letter}' confirmed.")
+                    self.feedback_label.setStyleSheet(f"""
+                        font-size: 16px; font-weight: 700;
+                        color: white;
+                        background: {COLORS['success']};
+                        padding: 12px; border-radius: 8px;
+                    """)
+                    
+                    # Auto advance
+                    self._auto_advance_timer.start(1500)
+            else:
+                # Holding feedback - visual bar
+                scaling = int(progress * 10)
+                bars = "█" * scaling + "░" * (10 - scaling)
+                self.feedback_label.setText(f"Hold steady... {bars}")
+                self.feedback_label.setStyleSheet(f"""
+                    font-size: 14px; font-weight: 600;
+                    color: {COLORS['primary']};
+                    background: {COLORS['primary']}20;
+                    padding: 10px; border-radius: 8px;
+                    border: 1px solid {COLORS['primary']};
+                """)
         else:
+            self._hold_count = 0
+            # Wrong gesture
             self.feedback_label.setText(f"🔄 Detected '{detected}' — try '{current_letter}'")
             self.feedback_label.setStyleSheet(f"""
                 font-size: 14px; font-weight: 600;
@@ -1334,6 +1384,46 @@ class AlphabetLesson(QWidget):
         # Progress
         self.progress_bar.setValue(self.current_letter_index + 1)
         self.progress_text.setText(f"{self.current_letter_index + 1}/26")
+
+        # Update Quick Jump Buttons
+        if hasattr(self, 'nav_buttons'):
+            for i, btn in enumerate(self.nav_buttons):
+                char = self.letters[i]
+                if i == self.current_letter_index:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background: {COLORS['primary']};
+                            color: white;
+                            border: none; border-radius: 4px;
+                            font-size: 10px; font-weight: bold;
+                        }}
+                    """)
+                elif char in self.completed_letters:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background: {COLORS['success']}40;
+                            color: {COLORS['success']};
+                            border: 1px solid {COLORS['success']};
+                            border-radius: 4px;
+                            font-size: 10px; font-weight: bold;
+                        }}
+                        QPushButton:hover {{
+                            background: {COLORS['success']}60;
+                        }}
+                    """)
+                else:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background: {COLORS['bg_input']};
+                            color: {COLORS['text_secondary']};
+                            border: none; border-radius: 4px;
+                            font-size: 10px; font-weight: bold;
+                        }}
+                        QPushButton:hover {{
+                            background: {COLORS['primary']};
+                            color: {COLORS['text_primary']};
+                        }}
+                    """)
 
         # Nav buttons
         self.prev_btn.setEnabled(self.current_letter_index > 0)
@@ -2141,10 +2231,10 @@ class TutorialPage(QWidget):
         # Header
         header = QHBoxLayout()
 
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("secondaryButton")
-        back_btn.clicked.connect(self.back_requested.emit)
-        header.addWidget(back_btn)
+        # back_btn = QPushButton("← Back")
+        # back_btn.setObjectName("secondaryButton")
+        # back_btn.clicked.connect(self.back_requested.emit)
+        # header.addWidget(back_btn)
 
         title = QLabel("📚 Learn Sign Language")
         title.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {COLORS['text_primary']};")
@@ -2259,10 +2349,12 @@ class TutorialPage(QWidget):
              "Yes, no, please, thank you, sorry", "💬", 0),
         ]
 
+        self.lesson_cards = {}
         for i, (lid, ttl, desc, icon, progress) in enumerate(lessons):
             card = LessonCard(lid, ttl, desc, icon, progress)
             card.clicked.connect(self._open_lesson)
             lessons_grid.addWidget(card, i // 2, i % 2)
+            self.lesson_cards[lid] = card
 
         scroll_layout.addLayout(lessons_grid)
 
@@ -2289,6 +2381,7 @@ class TutorialPage(QWidget):
             card = LessonCard(lid, ttl, desc, icon, progress)
             card.clicked.connect(self._open_lesson)
             inter_grid.addWidget(card, i // 2, i % 2)
+            self.lesson_cards[lid] = card
 
         scroll_layout.addLayout(inter_grid)
 
@@ -2342,6 +2435,20 @@ class TutorialPage(QWidget):
         elif lesson_id == "actions":
             self.stack.setCurrentWidget(self.actions_lesson)
 
+    def get_progress(self, lesson_id: str) -> int:
+        """Get progress percentage for a lesson."""
+        if lesson_id == "alphabet":
+            if hasattr(self, 'alphabet_lesson'):
+                completed = len(self.alphabet_lesson.completed_letters)
+                total = 26
+                return int((completed / total) * 100)
+        return 0
+
     def _show_lesson_list(self):
-        """Return to the lesson list."""
+        """Return to the lesson list and update progress."""
+        # Update progress on cards
+        if hasattr(self, 'lesson_cards'):
+            for lid, card in self.lesson_cards.items():
+                card.update_progress(self.get_progress(lid))
+        
         self.stack.setCurrentWidget(self.lesson_list)

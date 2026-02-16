@@ -188,7 +188,7 @@ class AnalyticsPage(QWidget):
         self.main_layout.setSpacing(16)
         
         # Header
-        header, _ = make_page_header("📊 Analytics & Progress", back_signal=self.back_requested)
+        header, _ = make_page_header("📊 Analytics & Progress")
         
         # Refresh button
         refresh_btn = QPushButton("🔄 Refresh")

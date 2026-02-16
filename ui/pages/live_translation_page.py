@@ -396,7 +396,7 @@ class LiveTranslationPage(QWidget):
         main_layout.setSpacing(16)
         
         # === HEADER ===
-        header, _ = make_page_header("🔴 Live Translation", back_signal=self.back_requested)
+        header, _ = make_page_header("🔴 Live Translation")
         
         self.fps_label = QLabel("FPS: --")
         self.fps_label.setObjectName("statusPill")

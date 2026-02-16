@@ -667,7 +667,7 @@ class ProfilePage(QWidget):
         main_layout.setSpacing(24)
         
         # === HEADER ===
-        header, _ = make_page_header("👤 Profile & Settings", back_signal=self.back_requested)
+        header, _ = make_page_header("👤 Profile & Settings")
         main_layout.addLayout(header)
         
         # === CONTENT ===

@@ -490,7 +490,7 @@ class ConversationPage(QWidget):
         h_layout = QHBoxLayout(header_frame)
         h_layout.setContentsMargins(24, 10, 24, 10)
 
-        header, _ = make_page_header("💬 Conversation Mode", back_signal=self.back_requested)
+        header, _ = make_page_header("💬 Conversation Mode")
 
         hint = QLabel("Type a message → see it in sign language")
         hint.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; background: transparent;")

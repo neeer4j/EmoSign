@@ -125,9 +125,9 @@ class HistoryPage(QWidget):
         # === HEADER ===
         header = QHBoxLayout()
         
-        back_btn = QPushButton("← Back")
-        back_btn.setObjectName("ghost")
-        back_btn.clicked.connect(self.back_requested.emit)
+        # back_btn = QPushButton("← Back")
+        # back_btn.setObjectName("ghost")
+        # back_btn.clicked.connect(self.back_requested.emit)
         
         title = QLabel("📜 Translation History")
         title.setObjectName("pageTitle")
@@ -136,7 +136,7 @@ class HistoryPage(QWidget):
         self.count_label = QLabel("0 translations")
         self.count_label.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
         
-        header.addWidget(back_btn)
+        # header.addWidget(back_btn)
         header.addWidget(title)
         header.addStretch()
         header.addWidget(self.count_label)

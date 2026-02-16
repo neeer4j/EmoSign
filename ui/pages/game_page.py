@@ -722,7 +722,7 @@ class GamePage(QWidget):
         main_layout.setSpacing(12)
 
         # Header
-        header, _ = make_page_header("🎮 Sign Language Game", back_callback=self._on_back)
+        header, _ = make_page_header("🎮 Sign Language Game")
 
         self._prediction_pill = QLabel("Sign: --")
         self._prediction_pill.setObjectName("statusPill")

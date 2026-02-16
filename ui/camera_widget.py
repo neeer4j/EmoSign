@@ -45,6 +45,7 @@ class CameraWidget(QFrame):
         self._emotion_buffer_size = 8      # vote over last N frames (increased for stability)
         self.dynamic_gestures_enabled = True  # Toggle for dynamic gesture recognition
         self.emotion_detection_enabled = True  # Toggle for emotion detection
+        self.heuristic_threshold = 0.5        # Confidence threshold for heuristic classifier
         
         # Setup UI
         self._setup_ui()
@@ -123,7 +124,7 @@ class CameraWidget(QFrame):
             
             # Heuristic gesture detection (more reliable than ML on synthetic data)
             heuristic_label, heuristic_conf = self.heuristic_classifier.predict(landmarks)
-            if heuristic_label and heuristic_conf > 0.5:
+            if heuristic_label and heuristic_conf >= self.heuristic_threshold:
                 self.heuristic_gesture_detected.emit(heuristic_label, heuristic_conf)
         
         # Dynamic gesture tracking (runs even when hand disappears to finalize gestures)

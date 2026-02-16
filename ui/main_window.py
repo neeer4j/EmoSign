@@ -389,16 +389,16 @@ class MainWindow(QMainWindow):
         self.dashboard_page.navigate_to_profile.connect(lambda: self._navigate_to("profile"))
         self.dashboard_page.navigate_to_training.connect(lambda: self._navigate_to("training"))
         
-        # Page back buttons
-        self.live_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.history_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.profile_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.tutorial_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.training_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.game_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.analytics_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.settings_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        self.conversation_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # Page back buttons - REMOVED (Sidebar is the primary navigation)
+        # self.live_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.history_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.profile_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.tutorial_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.training_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.game_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.analytics_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.settings_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
+        # self.conversation_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         
         # Training page signals
         self.training_page.model_trained.connect(self._on_model_trained)

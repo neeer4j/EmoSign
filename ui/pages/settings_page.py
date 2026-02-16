@@ -148,7 +148,7 @@ class SettingsPage(QWidget):
         layout.setSpacing(24)
         
         # ========== HEADER ==========
-        header, _ = make_page_header("⚙️ Settings", back_signal=self.back_requested)
+        header, _ = make_page_header("⚙️ Settings")
         layout.addLayout(header)
         
         # ========== SCROLLABLE CONTENT ==========

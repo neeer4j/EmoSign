@@ -486,7 +486,7 @@ class TrainingPage(QWidget):
         main_layout.setSpacing(16)
         
         # Header
-        header, _ = make_page_header("🎓 Train Gestures", back_signal=self.back_requested)
+        header, _ = make_page_header("🎓 Train Gestures")
         main_layout.addLayout(header)
         
         # Info banner
