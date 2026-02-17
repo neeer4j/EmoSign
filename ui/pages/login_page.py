@@ -138,23 +138,24 @@ class NeuralNetworkBackground(QWidget):
         else:
             painter.fillRect(self.rect(), QColor("#12121a" if is_dark else "#e2e8f0"))
             
-        # 2. Dark/Light Overlay (Slight shade for text visibility)
+        # 2. Dark overlay with violet tint for text visibility
         painter.setOpacity(1.0)
-        # Use a flat dark overlay to ensure text pops, but keep image visible
-        overlay_color = QColor(0, 0, 0, 100) if is_dark else QColor(255, 255, 255, 160)
+        overlay_color = QColor(12, 8, 24, 130) if is_dark else QColor(255, 255, 255, 160)
         painter.fillRect(self.rect(), overlay_color)
         
-        # 3. Subtle radial glow at center
-        painter.setOpacity(0.08 if is_dark else 0.04)
-        glow = QLinearGradient(w * 0.3, h * 0.3, w * 0.7, h * 0.7)
-        glow.setColorAt(0.0, QColor(139, 92, 246))
-        glow.setColorAt(1.0, QColor(6, 182, 212))
+        # 3. Violet tint overlay
+        painter.setOpacity(0.18 if is_dark else 0.06)
+        glow = QLinearGradient(0, 0, w, h)
+        glow.setColorAt(0.0, QColor(88, 28, 135))
+        glow.setColorAt(0.4, QColor(139, 92, 246))
+        glow.setColorAt(0.8, QColor(67, 56, 202))
+        glow.setColorAt(1.0, QColor(30, 27, 75))
         painter.fillRect(self.rect(), glow)
         
-        # 4. Draw Neural Network Overlay
+        # 4. Draw Neural Network Overlay — bright cyan/blue dots
         painter.setOpacity(1.0)
-        node_color = QColor(139, 92, 246, 80) if is_dark else QColor(139, 92, 246, 50)
-        line_alpha_base = 80 if is_dark else 40
+        node_color = QColor(56, 189, 248, 180) if is_dark else QColor(56, 189, 248, 100)
+        line_alpha_base = 50 if is_dark else 30
         
         painter.setBrush(QBrush(node_color))
         
@@ -162,10 +163,10 @@ class NeuralNetworkBackground(QWidget):
         for i, node1 in enumerate(self.nodes):
             for node2 in self.nodes[i+1:]:
                 dist = math.hypot(node1.x - node2.x, node1.y - node2.y)
-                if dist < 140:
-                    alpha = int((1 - dist/140) * line_alpha_base)
-                    pen = QPen(QColor(139, 92, 246, alpha))
-                    pen.setWidthF(0.8)
+                if dist < 150:
+                    alpha = int((1 - dist/150) * line_alpha_base)
+                    pen = QPen(QColor(100, 160, 255, alpha))
+                    pen.setWidthF(0.5)
                     painter.setPen(pen)
                     painter.drawLine(QPointF(node1.x, node1.y), QPointF(node2.x, node2.y))
         
@@ -173,11 +174,11 @@ class NeuralNetworkBackground(QWidget):
         painter.setPen(Qt.NoPen)
         for node in self.nodes:
             # Soft glow around each node
-            glow_color = QColor(139, 92, 246, 20)
+            glow_color = QColor(56, 189, 248, 30)
             painter.setBrush(QBrush(glow_color))
-            painter.drawEllipse(QPointF(node.x, node.y), node.size * 3, node.size * 3)
+            painter.drawEllipse(QPointF(node.x, node.y), node.size * 2.5, node.size * 2.5)
             
-            # Solid node
+            # Solid bright node
             painter.setBrush(QBrush(node_color))
             painter.drawEllipse(QPointF(node.x, node.y), node.size, node.size)
 
@@ -245,7 +246,7 @@ class GradientButton(QPushButton):
         self.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
-                    stop:0 #7c3aed, stop:0.5 #8b5cf6, stop:1 #a855f7);
+                    stop:0 #a855f7, stop:0.5 #d946ef, stop:1 #ec4899);
                 color: white;
                 font-weight: 700;
                 font-size: 15px;
@@ -256,14 +257,14 @@ class GradientButton(QPushButton):
             }
             QPushButton:hover {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
-                    stop:0 #6d28d9, stop:0.5 #7c3aed, stop:1 #9333ea);
+                    stop:0 #9333ea, stop:0.5 #c026d3, stop:1 #db2777);
             }
             QPushButton:pressed {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
-                    stop:0 #5b21b6, stop:0.5 #6d28d9, stop:1 #7c3aed);
+                    stop:0 #7c3aed, stop:0.5 #a21caf, stop:1 #be185d);
             }
             QPushButton:disabled {
-                background: rgba(139, 92, 246, 0.3);
+                background: rgba(217, 70, 239, 0.3);
                 color: rgba(255, 255, 255, 0.4);
             }
         """)
@@ -271,7 +272,7 @@ class GradientButton(QPushButton):
         # Subtle glow
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(24)
-        shadow.setColor(QColor(139, 92, 246, 80))
+        shadow.setColor(QColor(217, 70, 239, 80))
         shadow.setOffset(0, 6)
         self.setGraphicsEffect(shadow)
 
@@ -313,23 +314,16 @@ class LoginPage(QWidget):
         subtext_color = 'rgba(255, 255, 255, 0.6)' if is_dark else 'rgba(15, 23, 42, 0.55)'
         accent_color = '#a78bfa'
         
-        # App icon/logo area
-        logo_container = QHBoxLayout()
-        logo_container.setSpacing(14)
-        
+        # App logo — replaces both old small logo + text headline
         logo_label = QLabel()
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         logo_path = os.path.join(base_dir, "assets", "newlogo.png")
         
-        # Load and scale logo
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             if not pixmap.isNull():
-                # Colorize logic for visibility
+                # Colorize for visibility
                 target_color = QColor('white') if is_dark else QColor('#0f172a')
-                
-                # Create a colorized version
-                img = pixmap.toImage()
                 result = QPixmap(pixmap.size())
                 result.fill(Qt.transparent)
                 painter = QPainter(result)
@@ -339,109 +333,120 @@ class LoginPage(QWidget):
                 painter.fillRect(result.rect(), target_color)
                 painter.end()
                 
-                scaled = result.scaledToHeight(64, Qt.SmoothTransformation)
+                # Scale to match the old 52px headline height
+                scaled = result.scaledToHeight(72, Qt.SmoothTransformation)
                 logo_label.setPixmap(scaled)
-                logo_label.setStyleSheet("background: transparent; border: none;")
         
-        # Fallback text if no logo
-        if logo_label.pixmap().isNull():
-             logo_label.setText("EMOSIGN")
-             logo_label.setStyleSheet(f"""
-                font-size: 24px;
-                font-weight: 800;
-                color: {accent_color};
-                letter-spacing: 4px;
-                background: transparent;
-                border: none;
+        if logo_label.pixmap() is None or logo_label.pixmap().isNull():
+            logo_label.setText("EmoSign")
+            logo_label.setStyleSheet(f"""
+                font-size: 52px; font-weight: 800;
+                color: {text_color}; background: transparent;
+                letter-spacing: -1px; border: none;
             """)
-
-        logo_container.addWidget(logo_label)
-        logo_container.addStretch()
+        else:
+            logo_label.setStyleSheet("background: transparent; border: none;")
         
-        # Big headline
-        headline = QLabel("Bridging\nCommunication\nBarriers")
-        headline.setStyleSheet(f"""
-            font-size: 48px;
-            font-weight: 800;
-            color: {text_color};
-            line-height: 1.1;
-            background: transparent;
-            letter-spacing: -1px;
-        """)
-        
-        tagline = QLabel("Real-time sign language detection & emotion\nanalysis powered by AI")
+        tagline = QLabel("Emotion & Sign Language Translator")
         tagline.setStyleSheet(f"""
             font-size: 16px;
             color: {subtext_color};
             background: transparent;
             line-height: 1.6;
-            margin-top: 16px;
+            margin-top: 4px;
         """)
         
-        # Feature pills
-        pills_layout = QHBoxLayout()
-        pills_layout.setSpacing(10)
+        # Feature list with icons
+        features_layout = QVBoxLayout()
+        features_layout.setSpacing(18)
         
-        pill_items = ["ASL A-Z", "Emotion AI", "Real-time"]
-        pill_bg = 'rgba(139, 92, 246, 0.12)' if is_dark else 'rgba(139, 92, 246, 0.08)'
-        pill_border = 'rgba(139, 92, 246, 0.2)' if is_dark else 'rgba(139, 92, 246, 0.15)'
+        feature_items = [
+            ("🤟", "Hand Gesture Recognition", "ASL alphabet A-Z detection", "#f59e0b"),
+            ("😊", "Emotion Detection", "Real-time facial analysis", "#f97316"),
+            ("🎬", "Video Processing", "Upload and translate videos", "#a855f7"),
+            ("📜", "Translation History", "Save and review translations", "#c084fc"),
+        ]
         
-        for pill_text in pill_items:
-            pill = QLabel(pill_text)
-            pill.setStyleSheet(f"""
-                font-size: 12px;
-                font-weight: 600;
-                color: {accent_color};
-                background: {pill_bg};
-                border: 1px solid {pill_border};
-                border-radius: 16px;
-                padding: 6px 14px;
+        for icon, title, desc, icon_color in feature_items:
+            row = QHBoxLayout()
+            row.setSpacing(14)
+            
+            # Icon box
+            icon_frame = QFrame()
+            icon_frame.setFixedSize(44, 44)
+            icon_bg = f'rgba(139, 92, 246, 0.15)' if is_dark else f'rgba(139, 92, 246, 0.08)'
+            icon_border_c = f'rgba(139, 92, 246, 0.25)' if is_dark else f'rgba(139, 92, 246, 0.15)'
+            icon_frame.setStyleSheet(f"""
+                QFrame {{
+                    background: {icon_bg};
+                    border: 1px solid {icon_border_c};
+                    border-radius: 10px;
+                }}
             """)
-            pill.setAlignment(Qt.AlignCenter)
-            pills_layout.addWidget(pill)
-        pills_layout.addStretch()
+            icon_lbl = QLabel(icon)
+            icon_lbl.setAlignment(Qt.AlignCenter)
+            icon_lbl.setStyleSheet("font-size: 20px; background: transparent; border: none;")
+            icon_frame_layout = QVBoxLayout(icon_frame)
+            icon_frame_layout.setContentsMargins(0, 0, 0, 0)
+            icon_frame_layout.addWidget(icon_lbl)
+            
+            # Text column
+            text_col = QVBoxLayout()
+            text_col.setSpacing(1)
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet(f"""
+                font-size: 14px;
+                font-weight: 700;
+                color: {text_color};
+                background: transparent;
+                border: none;
+            """)
+            desc_lbl = QLabel(desc)
+            desc_lbl.setStyleSheet(f"""
+                font-size: 12px;
+                color: {subtext_color};
+                background: transparent;
+                border: none;
+            """)
+            text_col.addWidget(title_lbl)
+            text_col.addWidget(desc_lbl)
+            
+            row.addWidget(icon_frame)
+            row.addLayout(text_col)
+            row.addStretch()
+            features_layout.addLayout(row)
         
         left_layout.addStretch(2)
-        left_layout.addLayout(logo_container)
-        left_layout.addSpacing(24)
-        left_layout.addWidget(headline)
+        left_layout.addWidget(logo_label)
         left_layout.addWidget(tagline)
-        left_layout.addSpacing(28)
-        left_layout.addLayout(pills_layout)
+        left_layout.addSpacing(32)
+        left_layout.addLayout(features_layout)
         left_layout.addStretch(3)
         
-        # === RIGHT PANEL — Glass Card ===
+        # === RIGHT PANEL — Split panel (full-height dark pane) ===
         right_panel = QFrame()
-        right_panel.setStyleSheet("background: transparent;")
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(40, 60, 80, 60)
-        right_layout.setAlignment(Qt.AlignCenter)
-        
-        # The glass card
-        card = QFrame()
-        card.setObjectName("loginCard")
-        card.setFixedWidth(420)
-        
-        card_bg = 'rgba(18, 18, 26, 0.75)' if is_dark else 'rgba(255, 255, 255, 0.8)'
-        card_border = 'rgba(255, 255, 255, 0.06)' if is_dark else 'rgba(0, 0, 0, 0.06)'
-        
-        card.setStyleSheet(f"""
-            #loginCard {{
-                background: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 24px;
+        right_panel.setObjectName("loginRightPanel")
+        rp_bg = 'rgba(10, 8, 20, 0.55)' if is_dark else 'rgba(255, 255, 255, 0.65)'
+        rp_border = 'rgba(139, 92, 246, 0.08)' if is_dark else 'rgba(0, 0, 0, 0.04)'
+        right_panel.setStyleSheet(f"""
+            #loginRightPanel {{
+                background: {rp_bg};
+                border-left: 1px solid {rp_border};
             }}
         """)
+        right_panel.setFixedWidth(460)
         
-        # Card shadow for depth
-        card_shadow = QGraphicsDropShadowEffect(card)
-        card_shadow.setBlurRadius(60)
-        card_shadow.setColor(QColor(0, 0, 0, 80) if is_dark else QColor(0, 0, 0, 30))
-        card_shadow.setOffset(0, 12)
-        card.setGraphicsEffect(card_shadow)
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(50, 0, 50, 0)
+        right_layout.setAlignment(Qt.AlignCenter)
+        
+        # Content container (no visible card frame — content lives directly in the panel)
+        card = QFrame()
+        card.setObjectName("loginCard")
+        card.setStyleSheet("#loginCard { background: transparent; border: none; }")
         
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(40, 44, 40, 40)
+        card_layout.setContentsMargins(0, 0, 0, 0)
         card_layout.setSpacing(0)
         
         # Form header
@@ -589,9 +594,9 @@ class LoginPage(QWidget):
         
         right_layout.addWidget(card)
         
-        # Add panels
+        # Add panels — left stretches, right is fixed-width split
         main_layout.addWidget(left_panel, 1)
-        main_layout.addWidget(right_panel, 0)
+        main_layout.addWidget(right_panel)
     
     def resizeEvent(self, event):
         self.bg.setGeometry(self.rect())
