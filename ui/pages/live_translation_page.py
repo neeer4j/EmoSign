@@ -171,11 +171,36 @@ class TranslationDisplay(QFrame):
 
 
 class CurrentGestureDisplay(QFrame):
-    """Compact display for current gesture recognition."""
+    """Compact display for current gesture recognition with capture window.
     
-    def __init__(self, parent=None):
+    Capture-window approach (replaces cooldown):
+    1. A time bar fills 0→100 % over CAPTURE_WINDOW_MS
+    2. During the window every detected gesture is recorded as a *vote*
+    3. When the bar completes the gesture with the most votes wins
+    4. The confirmed gesture is shown briefly, then the next window starts
+    """
+    
+    # Emitted when a capture window completes with a majority-vote winner
+    capture_complete = Signal(str, float)   # gesture, confidence
+    
+    def __init__(self, capture_ms: int = 2500, parent=None):
         super().__init__(parent)
         self.setObjectName("card")
+        self._capture_ms = capture_ms       # capture-window duration
+        self._is_capturing = False
+        self._capture_elapsed = 0
+        self._tick_interval = 30            # timer tick (ms)
+        self._vote_buffer: dict = {}        # gesture → vote count
+        self._confidence_buffer: dict = {}  # gesture → max confidence
+        self._show_delay = 600              # ms to show result before next window
+        self._auto_continue = False         # auto-start next window?
+        self._min_votes = 4                 # min votes to confirm (avoids noise)
+        
+        # Capture-window timer
+        self._capture_timer = QTimer()
+        self._capture_timer.setInterval(self._tick_interval)
+        self._capture_timer.timeout.connect(self._tick_capture)
+        
         self._setup_ui()
     
     def _setup_ui(self):
@@ -200,6 +225,37 @@ class CurrentGestureDisplay(QFrame):
         self.confidence_bar.setTextVisible(False)
         self.confidence_bar.setMaximumHeight(6)
         
+        # Capture-window progress bar — fills 0→100 % during the window
+        self.capture_bar = QProgressBar()
+        self.capture_bar.setMaximum(100)
+        self.capture_bar.setValue(0)
+        self.capture_bar.setTextVisible(False)
+        self.capture_bar.setMaximumHeight(8)
+        self.capture_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {COLORS['bg_input']};
+                border: none;
+                border-radius: 4px;
+            }}
+            QProgressBar::chunk {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {COLORS['primary']}, stop:1 {COLORS['accent']});
+                border-radius: 4px;
+            }}
+        """)
+        self.capture_bar.hide()
+        
+        # Capture-window status label
+        self.capture_label = QLabel("")
+        self.capture_label.setAlignment(Qt.AlignCenter)
+        self.capture_label.setStyleSheet(f"""
+            color: {COLORS['primary']};
+            font-size: 11px;
+            font-weight: 600;
+            background: transparent;
+        """)
+        self.capture_label.hide()
+        
         # Type label
         self.type_label = QLabel("Waiting...")
         self.type_label.setAlignment(Qt.AlignCenter)
@@ -207,6 +263,9 @@ class CurrentGestureDisplay(QFrame):
         
         layout.addWidget(self.gesture_label)
         layout.addWidget(self.confidence_bar)
+        layout.addSpacing(4)
+        layout.addWidget(self.capture_bar)
+        layout.addWidget(self.capture_label)
         layout.addWidget(self.type_label)
         
         # Glow effect
@@ -216,15 +275,16 @@ class CurrentGestureDisplay(QFrame):
         glow.setOffset(0, 0)
         self.gesture_label.setGraphicsEffect(glow)
     
+    # ── public API ──────────────────────────────────────────────
+    
     def update_gesture(self, label: str, confidence: float, gesture_type: str = ""):
-        """Update displayed gesture."""
+        """Update displayed gesture (used for real-time leader preview)."""
         self.gesture_label.setText(label)
         self.confidence_bar.setValue(int(confidence * 100))
         
         if gesture_type:
             self.type_label.setText(gesture_type.capitalize())
         
-        # Color based on confidence
         if confidence >= 0.8:
             color = COLORS['success']
         elif confidence >= 0.6:
@@ -239,21 +299,141 @@ class CurrentGestureDisplay(QFrame):
             background: transparent;
         """)
     
-    def set_no_hand(self):
-        """Set no hand detected state."""
-        self.gesture_label.setText("👋")
-        self.confidence_bar.setValue(0)
-        self.type_label.setText("Show your hand")
+    def start_capture_window(self):
+        """Start a new capture window.
+        
+        The bar fills 0→100 %.  Call ``add_vote()`` during the window
+        for each detected gesture.  When the window completes the
+        gesture with the most votes is confirmed.
+        """
+        self._is_capturing = True
+        self._capture_elapsed = 0
+        self._vote_buffer.clear()
+        self._confidence_buffer.clear()
+        self.capture_bar.setValue(0)
+        self.capture_bar.show()
+        self.capture_label.setText("🎯 Show your gesture…")
+        self.capture_label.show()
+        self.gesture_label.setText("?")
         self.gesture_label.setStyleSheet(f"""
             font-size: 52px;
             font-weight: bold;
             color: {COLORS['text_muted']};
             background: transparent;
         """)
+        self.type_label.setText("Capturing…")
+        self._capture_timer.start()
+    
+    def add_vote(self, gesture: str, confidence: float):
+        """Record a gesture vote during the active capture window.
+        
+        Call once per frame where a gesture was detected.  The gesture
+        with the most votes wins when the window ends.
+        """
+        if not self._is_capturing:
+            return
+        gesture = gesture.upper().strip()
+        self._vote_buffer[gesture] = self._vote_buffer.get(gesture, 0) + 1
+        self._confidence_buffer[gesture] = max(
+            self._confidence_buffer.get(gesture, 0), confidence
+        )
+        # Show the current leader in real-time for user feedback
+        if self._vote_buffer:
+            leader = max(self._vote_buffer, key=self._vote_buffer.get)
+            leader_conf = self._confidence_buffer.get(leader, 0)
+            total = sum(self._vote_buffer.values())
+            pct = self._vote_buffer[leader] / total if total else 0
+            self.update_gesture(leader, leader_conf, f"leading ({pct:.0%})")
+    
+    def set_auto_continue(self, enabled: bool):
+        """Enable / disable auto-starting the next capture window."""
+        self._auto_continue = enabled
+    
+    def is_capturing(self) -> bool:
+        """Return True while a capture window is active."""
+        return self._is_capturing
+    
+    def stop_capture(self):
+        """Stop the capture window and timer."""
+        self._capture_timer.stop()
+        self._is_capturing = False
+        self._auto_continue = False
+        self.capture_bar.hide()
+        self.capture_label.hide()
+    
+    def set_no_hand(self):
+        """Set no-hand-detected state (only when NOT mid-capture)."""
+        if not self._is_capturing:
+            self.gesture_label.setText("👋")
+            self.confidence_bar.setValue(0)
+            self.type_label.setText("Show your hand")
+            self.gesture_label.setStyleSheet(f"""
+                font-size: 52px;
+                font-weight: bold;
+                color: {COLORS['text_muted']};
+                background: transparent;
+            """)
     
     def clear(self):
-        """Clear display."""
+        """Clear display and stop any active capture."""
+        self.stop_capture()
         self.set_no_hand()
+    
+    # ── internal ────────────────────────────────────────────────
+    
+    def _tick_capture(self):
+        """Timer tick — advance progress bar and resolve when done."""
+        self._capture_elapsed += self._tick_interval
+        progress = min(100, int(self._capture_elapsed / self._capture_ms * 100))
+        self.capture_bar.setValue(progress)
+        
+        remaining = max(0, self._capture_ms - self._capture_elapsed) / 1000
+        if self._vote_buffer:
+            leader = max(self._vote_buffer, key=self._vote_buffer.get)
+            self.capture_label.setText(f"🎯 Capturing… {remaining:.1f}s")
+        else:
+            self.capture_label.setText(f"🎯 Show gesture… {remaining:.1f}s")
+        
+        if self._capture_elapsed >= self._capture_ms:
+            self._capture_timer.stop()
+            self._is_capturing = False
+            self._resolve_capture()
+    
+    def _resolve_capture(self):
+        """End-of-window: pick the majority-vote winner and emit signal."""
+        total = sum(self._vote_buffer.values()) if self._vote_buffer else 0
+        
+        if not self._vote_buffer or total < self._min_votes:
+            # Not enough votes — skip this window
+            self.capture_label.setText("⚠ No gesture detected")
+            self.capture_bar.hide()
+            self.gesture_label.setText("—")
+            self.type_label.setText("No detection")
+            if self._auto_continue:
+                QTimer.singleShot(self._show_delay, self._maybe_next_window)
+            return
+        
+        # Majority vote
+        winner = max(self._vote_buffer, key=self._vote_buffer.get)
+        confidence = self._confidence_buffer.get(winner, 0.5)
+        votes = self._vote_buffer[winner]
+        
+        # Show confirmed gesture
+        self.update_gesture(winner, confidence, "✓ confirmed")
+        self.capture_label.setText(f"✓ '{winner}' confirmed ({votes}/{total} votes)")
+        self.capture_bar.setValue(100)
+        
+        # Notify listeners
+        self.capture_complete.emit(winner, confidence)
+        
+        # Auto-start next window after a brief display pause
+        if self._auto_continue:
+            QTimer.singleShot(self._show_delay, self._maybe_next_window)
+    
+    def _maybe_next_window(self):
+        """Start the next capture window if auto-continue is still on."""
+        if self._auto_continue:
+            self.start_capture_window()
 
 
 class SourceSelector(QFrame):
@@ -488,8 +668,9 @@ class LiveTranslationPage(QWidget):
         right_layout = QVBoxLayout(right_panel)
         right_layout.setSpacing(16)
         
-        # Current gesture display
-        self.gesture_display = CurrentGestureDisplay()
+        # Current gesture display (with capture window)
+        capture_ms = getattr(config, 'CAPTURE_WINDOW_MS', 1500)
+        self.gesture_display = CurrentGestureDisplay(capture_ms=capture_ms)
         self.gesture_display.setMaximumHeight(200)
         right_layout.addWidget(self.gesture_display)
         
@@ -543,6 +724,9 @@ class LiveTranslationPage(QWidget):
         self.camera_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
         self.camera_widget.dynamic_gesture_detected.connect(self._on_dynamic_gesture)
         
+        # Capture-window completion → feed confirmed gesture to engine
+        self.gesture_display.capture_complete.connect(self._on_capture_complete)
+        
         # Video widget - connect same signals for video translation
         self.video_widget.features_ready.connect(self._on_video_features)
         self.video_widget.hand_detected.connect(self._on_hand_detected)
@@ -566,14 +750,23 @@ class LiveTranslationPage(QWidget):
         self.engine.set_on_translation_updated(self._on_translation_updated)
     
     def _on_gesture_confirmed(self, gesture: str, confidence: float):
-        """Handle gesture confirmation from SimpleTranslationEngine."""
-        self.gesture_display.update_gesture(gesture, confidence, "confirmed")
+        """Handle gesture confirmation from SimpleTranslationEngine.
         
+        Called by engine.force_confirm() or engine.add_gesture() when
+        stability is reached.  The capture window handles timing, so
+        we only update the preview here.
+        """
         # Update preview with accumulated gestures
         result = self.engine.get_translation()
         if result:
             preview_text = " ".join(result.gestures)
             self.translation_display.set_preview(f"📝 {preview_text}")
+    
+    def _on_capture_complete(self, gesture: str, confidence: float):
+        """Handle capture-window completion — feed confirmed gesture to engine."""
+        # Directly confirm in engine (bypasses stability check; voting was
+        # already done inside the capture window).
+        self.engine.force_confirm(gesture, confidence)
     
     def _on_translation_updated(self, result: SimpleResult):
         """Handle translation update from SimpleTranslationEngine."""
@@ -749,10 +942,17 @@ class LiveTranslationPage(QWidget):
         
         self.translation_display.set_status("Translating...", True)
         self._check_timer.start()
+        
+        # Start the first capture window (bar fills → votes → confirm)
+        self.gesture_display.set_auto_continue(True)
+        self.gesture_display.start_capture_window()
     
     def _stop_translation(self):
         """Stop translation without finalizing."""
         self._is_translating = False
+        
+        # Stop capture window
+        self.gesture_display.stop_capture()
         
         # Stop sources
         if self._current_source == "camera":
@@ -782,8 +982,12 @@ class LiveTranslationPage(QWidget):
         
         self._is_translating = False
         
+        # Stop capture window
+        self.gesture_display.stop_capture()
+        
         # Get final translation from simple engine
         result = self.engine.finalize()
+        self.engine.clear()   # explicit clear (finalize no longer auto-clears)
         self.engine.stop()
         
         if result and result.text:
@@ -805,18 +1009,18 @@ class LiveTranslationPage(QWidget):
         self._check_timer.stop()
     
     def _check_timeout(self):
-        """Check for inactivity timeout to auto-translate."""
+        """Periodic update — with capture windows we never auto-clear.
+        
+        The capture window handles all timing.  This timer now only
+        serves to refresh the translation display periodically.
+        """
         if not self._is_translating:
             return
         
-        # Check if engine has timeout ready
-        if self.engine.check_timeout():
-            result = self.engine.finalize()
-            if result and result.text:
-                self._on_translation_updated(result)
-                # Reset for next translation
-                self.engine.clear()
-                self.engine.start()  # Restart for next sequence
+        # Just refresh the translation preview (no finalize / no clear)
+        result = self.engine.get_translation()
+        if result:
+            self._on_translation_updated(result)
     
     # === Gesture Processing ===
     
@@ -827,13 +1031,13 @@ class LiveTranslationPage(QWidget):
             self._ml_handled_frame = False
             return
         
-        # Get ML prediction
-        label, confidence = self.classifier.predict(features)
+        # Use RAW prediction (no temporal smoothing) — the capture window
+        # itself performs majority voting, so double-smoothing hurts accuracy.
+        label, confidence = self.classifier.predict(features, use_smoothing=False)
         
         if label and confidence > config.CONFIDENCE_THRESHOLD:
-            # Feed to simple translation engine (primary — ML is more accurate)
-            self.engine.add_gesture(label, confidence)
-            self.gesture_display.update_gesture(label, confidence, "ml")
+            # Feed to capture-window vote buffer (NOT directly to engine)
+            self.gesture_display.add_vote(label, confidence)
             self._ml_handled_frame = True  # Skip heuristic for this frame
         else:
             self._ml_handled_frame = False
@@ -842,17 +1046,15 @@ class LiveTranslationPage(QWidget):
     def _on_heuristic_gesture(self, gesture: str, confidence: float):
         """Handle heuristic gesture detection from camera.
         
-        Only used as fallback when ML didn't produce a result this frame.
+        Used as fallback when ML didn't produce a result this frame,
+        or as supplementary vote when ML also voted (both count).
         """
         if not self._is_translating:
             return
         
-        # Skip if ML already handled this frame (avoid double-feeding)
-        if getattr(self, '_ml_handled_frame', False):
-            return
-        
-        self.engine.add_gesture(gesture, confidence)
-        self.gesture_display.update_gesture(gesture, confidence, "heuristic")
+        # Feed to capture-window vote buffer
+        # Both ML and heuristic votes count — the majority wins
+        self.gesture_display.add_vote(gesture, confidence)
     
     @Slot(str, float)
     def _on_dynamic_gesture(self, gesture: str, confidence: float):
@@ -862,9 +1064,8 @@ class LiveTranslationPage(QWidget):
         
         # Dynamic gestures are word-level - prefix with WORD_
         gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
-        self.engine.add_gesture(gesture_name, confidence)
-        
-        self.gesture_display.update_gesture(f"✨{gesture}", confidence, "dynamic")
+        # Feed to capture-window vote buffer
+        self.gesture_display.add_vote(gesture_name, confidence)
     
     @Slot(bool)
     def _on_hand_detected(self, detected: bool):
@@ -880,6 +1081,7 @@ class LiveTranslationPage(QWidget):
         """Handle video playback finished."""
         # Auto-translate when video ends
         result = self.engine.finalize()
+        self.engine.clear()  # explicit clear after finalize
         if result and result.text:
             self._on_translation_updated(result)
         self.translation_display.set_status("Video complete")

@@ -46,6 +46,7 @@ This will install:
 - pyttsx3 (for voice/speech output)
 - pyperclip (for copy/paste)
 - reportlab (for PDF export)
+- torch (PyTorch - for neural network classifiers)
 
 
 STEP 3: Download MediaPipe models (if missing)
@@ -68,10 +69,13 @@ QUICK INSTALL (COPY-PASTE THIS)
 =====================================================
 
 For Windows:
-    pip install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab
+    pip install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab torch
 
 For Mac/Linux:
-    pip3 install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab
+    pip3 install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab torch
+
+For CPU-only PyTorch (smaller download):
+    pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 
 =====================================================
@@ -82,6 +86,8 @@ hand tracking & recognition:
 - tracks your hands in real-time (uses mediapipe)
 - now supports TWO-HAND gestures (for signs that need both hands)
 - tells you what letter you're signing (uses random forest ml model)
+- DUAL NEURAL NETWORK system: static FFN for still gestures, LSTM for motion gestures
+- auto-detects whether hand is moving or still and picks the right model
 - reads your face too and tells you if you look happy, sad, angry etc
 - hybrid mode: recognizes both letters AND dynamic gestures at the same time
 
@@ -126,7 +132,15 @@ main.py
     The starting point. Run this to open the app.
 
 config.py
-    All settings in one place - camera ID, voice speed, colors, etc.
+    All settings in one place - camera ID, voice speed, colors, model paths, etc.
+
+train_static_model.py
+    Trains the static FFN model on CSV data from data/ folder.
+    Run: python train_static_model.py
+
+train_dynamic_model.py
+    Trains the dynamic LSTM model on sequence data (or synthetic).
+    Run: python train_dynamic_model.py
 
 
 BACKEND FOLDER (backend/)
@@ -221,10 +235,31 @@ ml/__init__.py
     Just marks this as a Python package.
 
 ml/classifier.py
-    The main brain - Random Forest model that recognizes signs.
+    Legacy brain - Random Forest model that recognizes signs.
+
+ml/static_classifier.py
+    Static FFN (Feedforward Neural Network) classifier.
+    Uses a deep residual NN (512→512→256→128→64) on full 87-feature set
+    (63 normalised coords + z-depth + thumb distances + curl angles + orientation).
+    Handles still/stationary hand gestures (A-Z letters).
+    Trained with PyTorch. Best accuracy: 100%.
+
+ml/dynamic_classifier.py
+    Dynamic LSTM classifier for motion-based gestures.
+    Uses a 2-layer LSTM (hidden=256) on sequences of 30 frames (30×87 features).
+    Each frame uses the full FeatureExtractor output for maximum accuracy.
+    Handles gestures that involve movement (J, Z, WAVE, etc.).
+    Trained with PyTorch. Best accuracy: ~99%.
+
+ml/dual_model_manager.py
+    The smart router that picks which model to use each frame.
+    Measures hand displacement between frames:
+    - Low displacement → static FFN (single frame prediction)
+    - High displacement for 5+ frames → buffers 30 frames → LSTM prediction
+    Returns (label, confidence, model_used) for every frame.
 
 ml/trainer.py
-    Teaches the model new signs using training data.
+    Teaches the legacy Random Forest model using training data.
 
 ml/heuristic_classifier.py
     Backup detector using simple rules (if finger up = this letter).
@@ -399,12 +434,48 @@ architecture changes (v3.1):
 - explicit scope acknowledgment: NOT full ASL grammar, uses English word order
 - maintains backward compatibility with legacy pipeline
 
+architecture changes (v3.2 - Dual Neural Network):
+- added static FFN classifier (ml/static_classifier.py) - deep residual NN
+  trained on full 87-feature set from FeatureExtractor (coords + derived features)
+  includes z-depth diffs, thumb-finger distances, curl angles, orientation
+- added dynamic LSTM classifier (ml/dynamic_classifier.py) - 2-layer LSTM (hidden=256)
+  trained on 30-frame sequences with 87 features per frame
+- added DualModelManager (ml/dual_model_manager.py) - movement-aware routing
+  that auto-switches between static and dynamic models based on hand displacement
+- movement detection threshold: 0.015 normalised, 5 consecutive frames to trigger LSTM
+- both models saved as PyTorch .pth files in models/ directory
+- integrated into CameraWidget and VideoPlayerWidget via nn_gesture_detected signal
+- existing heuristic + rule-based systems remain fully operational alongside NNs
+- no UI changes required - new signal can be consumed by pages as needed
+
+architecture changes (v3.3 - Accuracy Overhaul):
+- static FFN upgraded from 63 raw coords to full 87-feature FeatureExtractor output
+- FFN architecture deepened: input→512→512→256→128→64 with residual skip connections,
+  BatchNorm, and Dropout for better gradient flow and 26-class discrimination
+- dynamic LSTM upgraded from 63 to 87 features per frame, hidden_size increased to 256
+- training data generator improved with letter-specific adjustments to disambiguate
+  similar hand shapes (U/V/H/R spread, R finger-crossing z-depth, G/Q rotation, etc.)
+- AdamW optimizer + cosine annealing + label smoothing + gradient clipping
+- static FFN: 100% test accuracy (26 classes), dynamic LSTM: ~99% test accuracy
+
 interpreter design patterns:
 - SignLanguageEngine: Main orchestrator with callback system
 - TemporalSequenceBuffer: Handles gesture accumulation and deduplication
 - SentenceMapper: Pattern matching with fallback to fingerspelling
 - GestureDictionary: Centralized storage of gestures and sentence mappings
 - SignVisualizer: Text-to-sign visualization engine
+
+dual neural network design:
+- StaticFFN: 3-layer feedforward NN (256→128→64→classes) with BatchNorm + Dropout
+- DynamicLSTM: 2-layer LSTM (hidden=128) → FC (64→classes) with Dropout
+- DualModelManager: Movement-aware router with frame buffering
+  * computes mean normalised landmark displacement each frame
+  * displacement < 0.015 → StaticFFN on single frame (~1ms inference)
+  * displacement >= 0.015 for 5+ frames → buffer 30 frames → LSTM (~5ms inference)
+  * when motion stops mid-buffer, tries to classify partial sequence
+  * returns (label, confidence, model_used) for each frame
+- Models are saved separately: static_ffn_model.pth, dynamic_lstm_model.pth
+- Both loaded at startup via DualModelManager.load()
 
 
 Built with anger by nagaraaj

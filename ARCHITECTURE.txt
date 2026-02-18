@@ -41,11 +41,29 @@ It's like the app is playing "connect the dots" on your hand.
 
 STEP 2: UNDERSTANDING THE SIGN
 ------------------------------
-Once it knows where your hand points are, it:
-- Measures the angles between your fingers
-- Checks if fingers are up or down
-- Looks at how your hand is positioned
-- Compares this to signs it has learned before
+Once it knows where your hand points are, it uses THREE systems:
+
+A) HEURISTIC CLASSIFIER (rule-based, always runs):
+   - Measures the angles between your fingers
+   - Checks if fingers are up or down
+   - Uses geometric rules to identify letters A-Z and numbers 0-9
+
+B) STATIC FFN (neural network, for still hands):
+   - If the hand is NOT MOVING, uses a deep residual feedforward NN
+   - Takes 87 features from FeatureExtractor (63 coords + z-depth +
+     thumb distances + curl angles + orientation + palm distances)
+   - Deep architecture: input→512→512→256→128→64 with residual connections
+   - ~1ms per frame, trained at 100% test accuracy
+
+C) DYNAMIC LSTM (neural network, for moving hands):
+   - If the hand IS MOVING for 5+ frames, switches to LSTM mode
+   - Buffers 30 consecutive frames of 87-dimensional feature vectors
+   - 2-layer LSTM (hidden=256) processes the full sequence
+   - Handles J, Z, WAVE, and other movement-based signs
+   - ~5ms per sequence, trained at ~99% test accuracy
+
+The DualModelManager automatically decides which NN to use based on
+hand displacement between frames. You never need to choose manually.
 
 Example: If your index finger is up and others are down = Letter "D"
 
@@ -95,7 +113,7 @@ Think of the app like a restaurant:
    (Gets what you're showing)
 
 🧠 BRAIN/ML = The chef
-   (Figures out what the sign means)
+   (Three systems: heuristic rules + static FFN + dynamic LSTM)
 
 📝 TRANSLATOR = The menu
    (Knows what each sign means in English)
@@ -154,8 +172,10 @@ When you use LIVE CAMERA mode:
                         ↓
     ┌─────────────────────────────────────────────────┐
     │   ML Brain thinks:                              │
-    │   "This looks like letter H... 85% sure!"       │
-    │   (PENDING state - needs confirmation)          │
+    │   Heuristic: "Looks like H... 85% sure!"         │
+    │   Static FFN: "H with 82% confidence" (still)    │
+    │   Dynamic LSTM: (inactive - hand not moving)      │
+    │   (PENDING state - needs confirmation)            │
     └─────────────────────────────────────────────────┘
                         ↓
     ┌─────────────────────────────────────────────────┐
@@ -275,7 +295,11 @@ signlanguage/
 │   └── hand_tracker.py ... Finds your hands
 │
 ├── ml/ ................... The learning part
-│   └── classifier.py ..... Recognizes signs
+│   ├── classifier.py ..... Legacy Random Forest recognizer
+│   ├── static_classifier.py  Static FFN (still gestures)
+│   ├── dynamic_classifier.py Dynamic LSTM (motion gestures)
+│   ├── dual_model_manager.py Smart model router
+│   └── heuristic_classifier.py Rule-based backup
 │
 ├── ui/ ................... What you see on screen
 │   ├── main_window.py .... The main app window
@@ -285,7 +309,11 @@ signlanguage/
 │   └── db.py ............. Your account & history
 │
 └── models/ ............... Pre-trained knowledge
-    └── hand_landmarker.task  Knows how hands look
+    ├── hand_landmarker.task .. Knows how hands look
+    ├── static_ffn_model.pth .. Static FFN weights (PyTorch)
+    ├── static_labels.pkl ..... Static model class labels
+    ├── dynamic_lstm_model.pth  Dynamic LSTM weights (PyTorch)
+    └── dynamic_labels.pkl .... Dynamic model class labels
 
 
 =====================================================
@@ -316,25 +344,31 @@ A: ASL (American), BSL (British), ISL (Indian),
 SUMMARY - HOW EVERYTHING CONNECTS
 =====================================================
 
-    YOU → CAMERA → HAND DETECTION → ML BRAIN → SEQUENCE BUFFER → SENTENCE MAPPER → OUTPUT
-          (eyes)    (find hands)    (think)    (accumulate)      (translate)      (speak/show)
+    YOU → CAMERA → HAND DETECTION → DUAL NN BRAIN → SEQUENCE BUFFER → SENTENCE MAPPER → OUTPUT
+          (eyes)    (find hands)     (static/LSTM)  (accumulate)      (translate)      (speak/show)
 
 Architecture Flow:
 
-    1. Camera captures hand positions
-    2. ML model predicts gesture (with confidence)
-    3. Sequence buffer confirms stability over 5 frames
-    4. Deduplication removes repeated gestures
-    5. Sentence mapper matches sequence to predefined phrase
-    6. Falls back to fingerspelling if no match
-    7. Display result + speak + save to history
+    1. Camera captures hand positions (30 FPS)
+    2. MediaPipe extracts 21 landmarks per hand
+    3. DualModelManager measures displacement between frames
+    4. Low motion → Static FFN predicts on single frame (63 features)
+       High motion → Buffers 30 frames → LSTM predicts on sequence
+    5. Heuristic classifier runs in parallel as fallback
+    6. Sequence buffer confirms stability over 5 frames
+    7. Deduplication removes repeated gestures
+    8. Sentence mapper matches sequence to predefined phrase
+    9. Falls back to fingerspelling if no match
+   10. Display result + speak + save to history
 
 It's like having a translator friend who:
 1. Watches your hands
-2. Understands sign language patterns
-3. Recognizes common phrases (50+ predefined)
-4. Spells out unknown words letter-by-letter
-5. Tells you (or others) what it means in English
+2. Knows if you're holding still or making a motion
+3. Uses the right brain (static NN or motion LSTM) automatically
+4. Understands sign language patterns
+5. Recognizes common phrases (50+ predefined)
+6. Spells out unknown words letter-by-letter
+7. Tells you (or others) what it means in English
 
 Reliable for constrained vocabulary communication! 🎉
 

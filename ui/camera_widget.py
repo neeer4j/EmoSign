@@ -12,6 +12,7 @@ from detector.features import FeatureExtractor
 from detector.dynamic_gestures import DynamicGestureTracker
 from detector.face_detector import FaceDetector, Emotion
 from ml.heuristic_classifier import HeuristicClassifier
+from ml.dual_model_manager import DualModelManager
 
 
 class CameraWidget(QFrame):
@@ -24,6 +25,7 @@ class CameraWidget(QFrame):
     dynamic_gesture_detected = Signal(str, float)  # Emitted when dynamic gesture detected (name, confidence)
     emotion_detected = Signal(str, float)     # Emitted with detected emotion (name, confidence)
     heuristic_gesture_detected = Signal(str, float)  # Reliable gesture from geometry
+    nn_gesture_detected = Signal(str, float, str)    # (label, confidence, model_used) from dual NN
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -36,6 +38,8 @@ class CameraWidget(QFrame):
         self.dynamic_tracker = DynamicGestureTracker()
         self.face_detector = FaceDetector()
         self.heuristic_classifier = HeuristicClassifier()
+        self.dual_model_manager = DualModelManager()
+        self._nn_models_loaded = self.dual_model_manager.load()
         
         # State
         self.is_running = False
@@ -126,6 +130,12 @@ class CameraWidget(QFrame):
             heuristic_label, heuristic_conf = self.heuristic_classifier.predict(landmarks)
             if heuristic_label and heuristic_conf >= self.heuristic_threshold:
                 self.heuristic_gesture_detected.emit(heuristic_label, heuristic_conf)
+            
+            # Dual NN classification (static FFN / dynamic LSTM)
+            if self.dual_model_manager.any_model_loaded:
+                nn_label, nn_conf, model_used = self.dual_model_manager.process_frame(landmarks)
+                if nn_label and nn_conf > 0.0:
+                    self.nn_gesture_detected.emit(nn_label, nn_conf, model_used)
         
         # Dynamic gesture tracking (runs even when hand disappears to finalize gestures)
         if self.dynamic_gestures_enabled:

@@ -248,6 +248,18 @@ class SimpleTranslationEngine:
         self._pending_gesture = None
         self._pending_count = 0
     
+    def force_confirm(self, gesture: str, confidence: float):
+        """Directly confirm a gesture, bypassing stability checking.
+        
+        Used by the capture-window approach where voting is done externally.
+        The gesture is added straight to the buffer without requiring
+        consecutive stable frames.
+        """
+        if not self._is_active:
+            return
+        gesture = gesture.upper().strip()
+        self._confirm_gesture(gesture, confidence)
+    
     def add_gesture(self, gesture: str, confidence: float) -> bool:
         """Add a detected gesture to the buffer.
         
@@ -453,11 +465,10 @@ class SimpleTranslationEngine:
     def finalize(self) -> Optional[TranslationResult]:
         """Finalize and return the translation.
         
-        Returns the final translation and clears the buffer.
+        Returns the final translation WITHOUT clearing the buffer.
+        Call clear() explicitly afterwards if you want to reset.
         """
-        result = self.get_translation()
-        self.clear()
-        return result
+        return self.get_translation()
     
     def get_preview(self) -> str:
         """Get a preview of current gestures."""

@@ -19,6 +19,7 @@ from detector.hand_tracker import HandTracker
 from detector.features import FeatureExtractor
 from detector.dynamic_gestures import DynamicGestureTracker
 from ml.heuristic_classifier import HeuristicClassifier
+from ml.dual_model_manager import DualModelManager
 from ui.styles import COLORS
 from config import VIDEO_DETECTION_CONFIDENCE
 
@@ -32,6 +33,7 @@ class VideoPlayerWidget(QFrame):
     fps_updated = Signal(float)               # Emitted with current FPS
     dynamic_gesture_detected = Signal(str, float)  # (gesture_name, confidence)
     heuristic_gesture_detected = Signal(str, float)  # Reliable gesture from geometry
+    nn_gesture_detected = Signal(str, float, str)    # (label, confidence, model_used) from dual NN
     video_loaded = Signal(str)                # Emitted when video is loaded (filename)
     video_finished = Signal()                 # Emitted when video reaches end
     progress_updated = Signal(float)          # Emitted with progress (0-1)
@@ -49,6 +51,8 @@ class VideoPlayerWidget(QFrame):
         self.feature_extractor = FeatureExtractor()
         self.dynamic_tracker = DynamicGestureTracker()
         self.heuristic_classifier = HeuristicClassifier()
+        self.dual_model_manager = DualModelManager()
+        self._nn_models_loaded = self.dual_model_manager.load()
         
         # State
         self._is_loaded = False
@@ -418,6 +422,12 @@ class VideoPlayerWidget(QFrame):
             heuristic_label, heuristic_conf = self.heuristic_classifier.predict(landmarks)
             if heuristic_label and heuristic_conf > 0.5:
                 self.heuristic_gesture_detected.emit(heuristic_label, heuristic_conf)
+            
+            # Dual NN classification (static FFN / dynamic LSTM)
+            if self.dual_model_manager.any_model_loaded:
+                nn_label, nn_conf, model_used = self.dual_model_manager.process_frame(landmarks)
+                if nn_label and nn_conf > 0.0:
+                    self.nn_gesture_detected.emit(nn_label, nn_conf, model_used)
         
         # Dynamic gesture tracking
         if self.dynamic_gestures_enabled:

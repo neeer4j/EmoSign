@@ -34,6 +34,18 @@ VIDEO_DETECTION_CONFIDENCE = 0.5
 MODEL_PATH = os.path.join(MODELS_DIR, "gesture_model.pkl")
 LABELS_PATH = os.path.join(MODELS_DIR, "labels.pkl")
 
+# Neural Network Model Settings
+STATIC_MODEL_PATH = os.path.join(MODELS_DIR, "static_ffn_model.pth")
+STATIC_LABELS_PATH = os.path.join(MODELS_DIR, "static_labels.pkl")
+DYNAMIC_MODEL_PATH = os.path.join(MODELS_DIR, "dynamic_lstm_model.pth")
+DYNAMIC_LABELS_PATH = os.path.join(MODELS_DIR, "dynamic_labels.pkl")
+
+# Dual Model Manager Settings
+MOVEMENT_THRESHOLD = 0.015          # Normalized landmark displacement threshold
+MOVEMENT_FRAMES_REQUIRED = 5        # Consecutive frames exceeding threshold to trigger dynamic
+DYNAMIC_SEQUENCE_LENGTH = 30         # Number of frames buffered for LSTM
+FULL_FEATURE_COUNT = 87             # All features from FeatureExtractor (63 coords + 24 derived)
+
 # ASL Alphabet Labels
 ASL_LABELS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
@@ -64,6 +76,8 @@ TRANSLATION_TIME_WINDOW = 3.0    # Seconds of inactivity before auto-translate
 WORD_TIMEOUT = 1.5               # Seconds of inactivity to finalize a word
 LETTER_DEBOUNCE_TIME = 0.8       # Minimum time between same letter
 CONFIDENCE_THRESHOLD = 0.45      # Minimum confidence for gesture acceptance
+GESTURE_COOLDOWN_MS = 1500       # (legacy) Cooldown bar duration
+CAPTURE_WINDOW_MS = 2500         # Capture window duration (ms) — bar fills, then majority vote
 
 # Translation Modes
 TRANSLATION_MODE_INSTANT = "instant"      # Output each gesture immediately

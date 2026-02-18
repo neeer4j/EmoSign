@@ -1,10 +1,10 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 23,
+  "total_signs_detected": 56,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 2,
+  "total_sessions": 3,
   "total_practice_time": 1.4172597166666667,
   "sign_counts": {
     "Y": 2,
@@ -13,7 +13,7 @@
     "SZS": 2,
     "W": 2,
     "V": 2,
-    "O": 1,
+    "O": 7,
     "OM": 1,
     "OMO": 1,
     "OMOT": 1,
@@ -21,10 +21,15 @@
     "OMOTMT": 1,
     "OMOTMTS": 1,
     "OMOTMTSO": 1,
-    "OMOTMTSOA": 2
+    "OMOTMTSOA": 2,
+    "B": 6,
+    "BB": 2,
+    "OL": 9,
+    "OLX": 6,
+    "OLXX": 4
   },
-  "correct_predictions": 23,
-  "total_predictions": 23,
+  "correct_predictions": 56,
+  "total_predictions": 56,
   "current_streak": 1,
   "longest_streak": 1,
   "last_active_date": "2026-02-17",
@@ -43,22 +48,29 @@
     "OMOTMT",
     "OMOTMTS",
     "OMOTMTSO",
-    "OMOTMTSOA"
+    "OMOTMTSOA",
+    "B",
+    "BB",
+    "OL",
+    "OLX",
+    "OLXX"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [
     "first_sign",
     "practice_10",
     "accuracy_80",
-    "accuracy_95"
+    "accuracy_95",
+    "practice_50"
   ],
   "achievement_dates": {
     "first_sign": "2026-02-17T11:41:30.210737",
     "practice_10": "2026-02-17T11:41:56.240188",
     "accuracy_80": "2026-02-17T11:41:59.421418",
-    "accuracy_95": "2026-02-17T11:41:59.422413"
+    "accuracy_95": "2026-02-17T11:41:59.422413",
+    "practice_50": "2026-02-17T12:12:59.462846"
   },
-  "total_points": 215,
+  "total_points": 240,
   "session_dates": [
     "2026-02-06",
     "2026-02-17"
