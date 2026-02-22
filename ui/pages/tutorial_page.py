@@ -1121,7 +1121,7 @@ class AlphabetLesson(QWidget):
         # === RIGHT COLUMN: Camera Practice ===
         right_panel = QFrame()
         right_panel.setObjectName("card")
-        right_panel.setFixedWidth(340)
+        right_panel.setMinimumWidth(460)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(10, 10, 10, 10)
         right_layout.setSpacing(6)
@@ -1135,9 +1135,9 @@ class AlphabetLesson(QWidget):
         self.camera_container.setStyleSheet(f"""
             background: #000;
             border-radius: 10px;
-            min-height: 200px;
+            min-height: 340px;
         """)
-        self.camera_container.setFixedHeight(210)
+        self.camera_container.setMinimumHeight(360)
         cam_inner = QVBoxLayout(self.camera_container)
         cam_inner.setContentsMargins(0, 0, 0, 0)
 
@@ -1233,9 +1233,8 @@ class AlphabetLesson(QWidget):
 
         if self._camera_widget is None:
             self._camera_widget = CameraWidget()
-            self._camera_widget.setFixedSize(320, 200)
-            self._camera_widget.video_label.setMinimumSize(320, 200)
-            self._camera_widget.video_label.setMaximumSize(320, 200)
+            self._camera_widget.setMinimumSize(440, 340)
+            self._camera_widget.video_label.setMinimumSize(440, 340)
             # Lower threshold for tutorial practice (easier to trigger)
             self._camera_widget.heuristic_threshold = 0.35
             
@@ -1466,7 +1465,18 @@ class AlphabetLesson(QWidget):
 
     def _jump_to_letter(self, index: int):
         self.current_letter_index = index
+        self._hold_count = 0
         self._update_display()
+
+    def showEvent(self, event):
+        """Auto-start camera when lesson is shown."""
+        super().showEvent(event)
+        self._start_camera()
+
+    def hideEvent(self, event):
+        """Stop camera when lesson is hidden."""
+        super().hideEvent(event)
+        self._stop_camera()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1491,6 +1501,7 @@ class _PhraseLesson(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current = 0
+        self._camera_widget = None
         self._setup_ui()
 
     def _setup_ui(self):
@@ -1616,6 +1627,48 @@ class _PhraseLesson(QWidget):
         right_layout.addStretch()
         content_layout.addWidget(right_panel)
 
+        # CAMERA COLUMN: Live practice camera
+        cam_panel = QFrame()
+        cam_panel.setObjectName("card")
+        cam_panel.setMinimumWidth(380)
+        cam_layout = QVBoxLayout(cam_panel)
+        cam_layout.setContentsMargins(10, 10, 10, 10)
+        cam_layout.setSpacing(6)
+
+        cam_title = QLabel("📷 Practice with Camera")
+        cam_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']}; background: transparent;")
+        cam_layout.addWidget(cam_title)
+
+        self._cam_container = QFrame()
+        self._cam_container.setStyleSheet(f"""
+            background: #000;
+            border-radius: 10px;
+            min-height: 280px;
+        """)
+        self._cam_container.setMinimumHeight(300)
+        cam_inner = QVBoxLayout(self._cam_container)
+        cam_inner.setContentsMargins(0, 0, 0, 0)
+
+        self._cam_placeholder = QLabel("Camera loading...")
+        self._cam_placeholder.setAlignment(Qt.AlignCenter)
+        self._cam_placeholder.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        cam_inner.addWidget(self._cam_placeholder)
+
+        cam_layout.addWidget(self._cam_container)
+
+        self._cam_feedback = QLabel("👆 Show the sign to practice")
+        self._cam_feedback.setAlignment(Qt.AlignCenter)
+        self._cam_feedback.setStyleSheet(f"""
+            font-size: 13px; font-weight: 600;
+            color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']};
+            padding: 8px; border-radius: 8px;
+        """)
+        cam_layout.addWidget(self._cam_feedback)
+        cam_layout.addStretch()
+
+        content_layout.addWidget(cam_panel)
+
         layout.addLayout(content_layout, 1)
 
         # Navigation (compact)
@@ -1714,6 +1767,41 @@ class _PhraseLesson(QWidget):
 
     def cleanup(self):
         self._sign_card.cleanup()
+        self._stop_phrase_camera()
+
+    def _start_phrase_camera(self):
+        """Start the camera for practice."""
+        try:
+            from ui.camera_widget import CameraWidget
+        except ImportError:
+            return
+
+        if self._camera_widget is None:
+            self._camera_widget = CameraWidget()
+            self._camera_widget.setMinimumSize(360, 280)
+            self._camera_widget.video_label.setMinimumSize(360, 280)
+            self._camera_widget.heuristic_threshold = 0.35
+
+            self._cam_placeholder.hide()
+            self._cam_container.layout().addWidget(self._camera_widget)
+
+        self._camera_widget.start()
+        self._cam_feedback.setText("👀 Show the sign to the camera...")
+
+    def _stop_phrase_camera(self):
+        """Stop the camera."""
+        if self._camera_widget:
+            self._camera_widget.stop()
+
+    def showEvent(self, event):
+        """Auto-start camera when lesson is shown."""
+        super().showEvent(event)
+        self._start_phrase_camera()
+
+    def hideEvent(self, event):
+        """Stop camera when lesson is hidden."""
+        super().hideEvent(event)
+        self._stop_phrase_camera()
 
 
 # ─── Numbers ────────────────────────────────────────────────

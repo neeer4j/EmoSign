@@ -46,6 +46,15 @@ MOVEMENT_FRAMES_REQUIRED = 5        # Consecutive frames exceeding threshold to 
 DYNAMIC_SEQUENCE_LENGTH = 30         # Number of frames buffered for LSTM
 FULL_FEATURE_COUNT = 87             # All features from FeatureExtractor (63 coords + 24 derived)
 
+# Keras Pipeline Settings
+KERAS_STATIC_MODEL_PATH = os.path.join(MODELS_DIR, "keras_static_mlp.keras")
+KERAS_STATIC_LABELS_PATH = os.path.join(MODELS_DIR, "keras_static_labels.pkl")
+KERAS_DYNAMIC_MODEL_PATH = os.path.join(MODELS_DIR, "keras_dynamic_lstm.keras")
+KERAS_DYNAMIC_LABELS_PATH = os.path.join(MODELS_DIR, "keras_dynamic_labels.pkl")
+KERAS_FEATURE_COUNT = 63            # 21 landmarks × 3 coords (normalized)
+SMOOTHING_WINDOW = 5                # Majority-vote window for prediction smoothing
+MIN_PREDICTION_CONFIDENCE = 0.75    # Suppress predictions below this threshold
+
 # ASL Alphabet Labels
 ASL_LABELS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 

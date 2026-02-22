@@ -108,7 +108,7 @@ flowchart LR
     P --> |"Analytics & Stats"| U
     
     P <--> |"User Data"| DB[(SQLite Database)]
-    P <--> |"ML Models"| M[(Models)]
+    P <--> |"ML Models"| M[(Keras Models .keras)]
 ```
 
 ---
@@ -135,8 +135,10 @@ flowchart TB
     end
     
     subgraph "3.0 Recognition"
-        P6[ML Classifier]
-        P7[Heuristic Classifier]
+        P6[Keras MLP Classifier]
+        P7[Keras LSTM Classifier]
+        P14[Gesture Pipeline]
+        P15[Heuristic Classifier]
     end
     
     subgraph "4.0 Translation Engine"
@@ -158,11 +160,10 @@ flowchart TB
     
     CAM --> P1 --> P3
     VID --> P2 --> P3
-    P3 --> P4 --> P6
-    P3 --> P5 --> P10
-    P6 --> P10
-    P7 --> P10
     ML --> P6
+    ML --> P7
+    P14 --> P6
+    P14 --> P7
     P10 --> P8 --> P9 --> P11
     P10 --> P12
     P11 --> P13
@@ -224,8 +225,10 @@ sequenceDiagram
     participant UI as UI Layer
     participant Cam as Camera Widget
     participant Track as Hand Tracker
-    participant Feat as Feature Extractor
-    participant ML as ML Classifier
+    participant Norm as Landmark Normalizer
+    participant Pipe as Gesture Pipeline
+    participant MLP as Keras MLP
+    participant LSTM as Keras LSTM
     participant Eng as Translation Engine
     participant Buf as Sequence Buffer
     participant Map as Sentence Mapper
@@ -238,11 +241,21 @@ sequenceDiagram
     loop Every Frame
         Cam->>Track: process_frame(frame)
         Track->>Track: detect_hands()
-        Track-->>Feat: hand_landmarks
-        Feat->>Feat: extract_features()
-        Feat-->>ML: feature_vector
-        ML->>ML: predict()
-        ML-->>Eng: label, confidence
+        Track-->>Norm: hand_landmarks
+        Norm->>Norm: normalize(wrist, palm)
+        Norm-->>Pipe: 63-feature vector
+        
+        alt Movement < Threshold
+            Pipe->>MLP: predict(frame)
+            MLP-->>Pipe: label, conf
+        else Movement >= Threshold
+            Pipe->>Pipe: buffer(30 frames)
+            Pipe->>LSTM: predict(sequence)
+            LSTM-->>Pipe: label, conf
+        end
+
+        Pipe->>Pipe: majority_vote(5 frames)
+        Pipe-->>Eng: final_label, confidence
         Eng->>Buf: add_gesture(label)
         Buf->>Buf: check_stability()
         
@@ -300,12 +313,30 @@ classDiagram
         +get_landmarks()
     }
     
-    class Classifier {
-        -model: RandomForest
-        -labels: list
+    class GesturePipeline {
+        -mlp: KerasStaticClassifier
+        -lstm: KerasDynamicClassifier
+        -buffer: list
+        +load()
+        +process_frame(landmarks)
+        +get_status()
+    }
+    
+    class KerasStaticClassifier {
+        -model: KerasModel
         +load()
         +predict(features)
-        +save()
+    }
+
+    class KerasDynamicClassifier {
+        -model: KerasModel
+        +load()
+        +predict(sequence)
+    }
+    
+    class LandmarkNormalizer {
+        +normalize(landmarks)
+        +normalize_sequence(seq)
     }
     
     class SimpleTranslationEngine {

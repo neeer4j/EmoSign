@@ -181,23 +181,17 @@ class SignPanel(QFrame):
         speed_lbl = QLabel("Speed:")
         speed_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; background: transparent;")
         speed_row.addWidget(speed_lbl)
+        self._speed_buttons = []  # (btn, ms) pairs for style refresh
         for label, ms in [("Slow", 2000), ("Med", 1200), ("Fast", 600)]:
             btn = QPushButton(label)
             btn.setFixedHeight(24)
             btn.setCursor(Qt.PointingHandCursor)
-            sel = (ms == self._speed_ms)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: {COLORS['primary'] if sel else COLORS['bg_input']};
-                    color: {'white' if sel else COLORS['text_secondary']};
-                    border: 1px solid {COLORS['primary'] if sel else COLORS['border']};
-                    border-radius: 5px; padding: 1px 8px; font-size: 10px;
-                }}
-            """)
             btn.clicked.connect(lambda checked, m=ms: self._set_speed(m))
+            self._speed_buttons.append((btn, ms))
             speed_row.addWidget(btn)
         speed_row.addStretch()
         layout.addLayout(speed_row)
+        self._refresh_speed_buttons()
 
         # Empty state
         self._empty = True
@@ -267,6 +261,24 @@ class SignPanel(QFrame):
 
     def _set_speed(self, ms):
         self._speed_ms = ms
+        self._refresh_speed_buttons()
+
+    def _refresh_speed_buttons(self):
+        """Update speed button styles to reflect current selection."""
+        for btn, ms in self._speed_buttons:
+            sel = (ms == self._speed_ms)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {COLORS['primary'] if sel else COLORS['bg_input']};
+                    color: {'white' if sel else COLORS['text_secondary']};
+                    border: 1px solid {COLORS['primary'] if sel else COLORS['border']};
+                    border-radius: 5px; padding: 1px 8px; font-size: 10px;
+                }}
+                QPushButton:hover {{
+                    background: {COLORS['primary_hover'] if sel else COLORS['bg_card_hover']};
+                    color: white;
+                }}
+            """)
 
     def _toggle_playback(self):
         if self._is_playing:

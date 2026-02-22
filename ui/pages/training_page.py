@@ -24,6 +24,8 @@ from ui.camera_widget import CameraWidget
 from ml.data_collector import DataCollector
 from ml.trainer import Trainer
 from ml.classifier import Classifier
+from ml.keras_trainer import KerasTrainer
+from detector.landmark_normalizer import LandmarkNormalizer
 from core.simple_engine import (
     get_trainable_gestures, LETTERS, WORD_GESTURES,
     add_custom_gesture, remove_custom_gesture, load_custom_gestures
@@ -395,6 +397,30 @@ class TrainingControls(QFrame):
         
         layout.addSpacing(10)
         
+        # Mode toggle: Static vs Dynamic
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(8)
+        mode_label = QLabel("Mode:")
+        mode_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Static (Single Frame)", "Dynamic (Motion Clip)"])
+        self.mode_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {COLORS['bg_input']};
+                color: {COLORS['text_primary']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 6px;
+                padding: 6px 10px;
+                min-width: 180px;
+            }}
+        """)
+        mode_row.addWidget(mode_label)
+        mode_row.addWidget(self.mode_combo)
+        mode_row.addStretch()
+        layout.addLayout(mode_row)
+
+        layout.addSpacing(6)
+        
         # Action Buttons (Capture & Clear)
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
@@ -503,7 +529,13 @@ class TrainingControls(QFrame):
         """Set the current gesture to train."""
         self._current_gesture = gesture_id
         self.gesture_display.setText(display_name)
-        self.instructions.setText(f"Hold the '{display_name}' gesture in front of the camera")
+        is_dynamic = display_name.upper() in ('J', 'Z')
+        if is_dynamic:
+            self.mode_combo.setCurrentIndex(1)  # Auto-select Dynamic mode
+            self.instructions.setText(f"Perform the '{display_name}' motion in front of the camera")
+        else:
+            self.mode_combo.setCurrentIndex(0)
+            self.instructions.setText(f"Hold the '{display_name}' gesture in front of the camera")
         self.capture_btn.setEnabled(True)
     
     def update_sample_count(self, count: int, total: int = 0):
@@ -525,6 +557,9 @@ class TrainingControls(QFrame):
     
     def get_samples_per_capture(self) -> int:
         return self.samples_spin.value()
+    
+    def is_dynamic_mode(self) -> bool:
+        return self.mode_combo.currentIndex() == 1
 
 
 class TrainingStats(QFrame):
@@ -623,12 +658,19 @@ class TrainingPage(QWidget):
         self.data_collector = DataCollector()
         self.trainer = Trainer()
         self.classifier = Classifier()
+        self.keras_trainer = KerasTrainer()
+        self._normalizer = LandmarkNormalizer()
         
         # State
         self._is_capturing = False
         self._current_gesture = None
         self._capture_count = 0
         self._target_count = 30
+        
+        # Dynamic recording state
+        self._dynamic_sequences = []   # list of (label, [30 frames of landmarks])
+        self._current_sequence = []     # current 30-frame recording buffer
+        self._is_recording_dynamic = False
         
         # Capture timer
         self._capture_timer = QTimer()
@@ -720,9 +762,21 @@ class TrainingPage(QWidget):
         self._capture_count = 0
         self._target_count = self.training_controls.get_samples_per_capture()
         
+        # Check if dynamic mode
+        if self.training_controls.is_dynamic_mode():
+            self._is_recording_dynamic = True
+            self._current_sequence = []
+            self.training_controls.instructions.setText(
+                f"🎬 Recording motion clip... perform the gesture NOW"
+            )
+            self.training_controls.progress_bar.setMaximum(30)  # 30 frames
+            self.training_controls.progress_bar.setValue(0)
+        else:
+            self._is_recording_dynamic = False
+            self.training_controls.progress_bar.setMaximum(self._target_count)
+            self.training_controls.progress_bar.setValue(0)
+        
         self.training_controls.set_capturing(True)
-        self.training_controls.progress_bar.setMaximum(self._target_count)
-        self.training_controls.progress_bar.setValue(0)
         
         # Capture every 100ms
         self._capture_timer.start(100)
@@ -733,20 +787,55 @@ class TrainingPage(QWidget):
         self._capture_timer.stop()
         self.training_controls.set_capturing(False)
         
+        # If dynamic recording was active, save the sequence
+        if self._is_recording_dynamic and len(self._current_sequence) >= 10:
+            self._dynamic_sequences.append(
+                (self._current_gesture, list(self._current_sequence))
+            )
+            seq_count = len(self._dynamic_sequences)
+            self.training_controls.instructions.setText(
+                f"✅ Motion clip recorded! ({seq_count} clips total)"
+            )
+        self._is_recording_dynamic = False
+        self._current_sequence = []
+        
         # Update stats
         counts = self.data_collector.get_label_counts()
+        # Add dynamic sequence counts
+        for label, _ in self._dynamic_sequences:
+            counts[label] = counts.get(label, 0)
+        if self._dynamic_sequences:
+            dyn_labels = set(l for l, _ in self._dynamic_sequences)
+            for dl in dyn_labels:
+                dc = sum(1 for l, _ in self._dynamic_sequences if l == dl)
+                counts[f"{dl} (motion)"] = dc
+        
         self.training_stats.update_stats(counts)
         self.training_controls.update_sample_count(
             self.data_collector.get_sample_count()
         )
+        # Enable training if we have enough static OR dynamic data
+        total = self.data_collector.get_sample_count() + len(self._dynamic_sequences) * 30
+        self.training_controls.train_btn.setEnabled(total >= 50)
     
     @Slot(object)
     def _on_features(self, features):
-        """Handle features from camera."""
+        """Handle features from camera (both static and dynamic modes)."""
         if not self._is_capturing or features is None:
             return
         
-        # Add sample
+        if self._is_recording_dynamic:
+            # Dynamic mode: grab raw landmarks for sequence recording
+            landmarks = self.camera_widget.hand_tracker.get_landmarks()
+            if landmarks is not None:
+                self._current_sequence.append(landmarks)
+                self.training_controls.progress_bar.setValue(len(self._current_sequence))
+                # Auto-stop at 30 frames
+                if len(self._current_sequence) >= 30:
+                    self._stop_capture()
+            return
+        
+        # Static mode: add sample
         if self.data_collector.add_sample(features):
             self._capture_count += 1
             self.training_controls.progress_bar.setValue(self._capture_count)
@@ -761,11 +850,14 @@ class TrainingPage(QWidget):
     def _train_model(self):
         """Train the model with collected data."""
         total_samples = self.data_collector.get_sample_count()
-        if total_samples < 50:
+        total_dynamic = len(self._dynamic_sequences)
+        
+        if total_samples < 50 and total_dynamic < 5:
             QMessageBox.warning(
                 self, 
                 "Not Enough Data",
-                f"Need at least 50 samples to train. Currently have {total_samples}."
+                f"Need at least 50 static samples or 5 dynamic clips.\n"
+                f"Currently have {total_samples} static, {total_dynamic} dynamic."
             )
             return
         
@@ -787,49 +879,82 @@ class TrainingPage(QWidget):
             all_features.append(sample['features'])
             all_labels.append(sample['label'])
         
-        if len(all_features) < 100:
-            QMessageBox.warning(
-                self,
-                "Need More Data",
-                f"Need at least 100 total samples. Have {len(all_features)}.\n"
-                "Collect more samples or combine with existing data."
-            )
-            return
-        
-        # Convert to numpy
         import numpy as np
-        features_array = np.array(all_features, dtype=np.float32)
         
         # Train
         self.training_controls.setEnabled(False)
-        self.training_controls.instructions.setText("Training model... please wait")
+        self.training_controls.instructions.setText("Training models... please wait")
         
         try:
-            accuracy = self.trainer.train(features_array, all_labels)
-            self.trainer.save()
+            results = []
             
-            # Save training data
-            self.data_collector.save()
+            # --- 1. Train sklearn (legacy) ---
+            if len(all_features) >= 100:
+                features_array = np.array(all_features, dtype=np.float32)
+                accuracy = self.trainer.train(features_array, all_labels)
+                self.trainer.save()
+                self.data_collector.save()
+                self.classifier.load()
+                results.append(f"sklearn: {accuracy:.1%}")
             
-            # Reload classifier
-            self.classifier.load()
+            # --- 2. Train Keras MLP (static, 63 features) ---
+            if len(all_features) >= 100:
+                features_array = np.array(all_features, dtype=np.float32)
+                # Extract first 63 features (coordinates only)
+                keras_features = features_array[:, :63]
+                keras_acc = self.keras_trainer.train_static(
+                    keras_features, all_labels, epochs=50, batch_size=32
+                )
+                results.append(f"Keras MLP: {keras_acc:.1%}")
+                accuracy = keras_acc  # Use Keras accuracy as primary
+            else:
+                accuracy = 0.0
+            
+            # --- 3. Train Keras LSTM (dynamic sequences) ---
+            if len(self._dynamic_sequences) >= 5:
+                dyn_features = []
+                dyn_labels = []
+                for label, seq in self._dynamic_sequences:
+                    normed = self._normalizer.normalize_sequence(seq)
+                    if normed is not None:
+                        # Pad/truncate to 30 frames
+                        if normed.shape[0] < 30:
+                            pad = np.zeros((30 - normed.shape[0], 63), dtype=np.float32)
+                            normed = np.concatenate([pad, normed], axis=0)
+                        elif normed.shape[0] > 30:
+                            normed = normed[-30:]
+                        dyn_features.append(normed)
+                        dyn_labels.append(label)
+                
+                if len(dyn_features) >= 5:
+                    dyn_array = np.stack(dyn_features, axis=0)
+                    lstm_acc = self.keras_trainer.train_dynamic(
+                        dyn_array, dyn_labels, epochs=50, batch_size=8
+                    )
+                    results.append(f"Keras LSTM: {lstm_acc:.1%}")
             
             # Update UI
-            self.training_stats.set_trained(accuracy)
+            if accuracy > 0:
+                self.training_stats.set_trained(accuracy)
             self.training_controls.instructions.setText(
-                f"✅ Model trained! Accuracy: {accuracy:.1%}"
+                f"✅ Training complete! {' | '.join(results)}"
             )
             
             # Emit signal
-            self.model_trained.emit(accuracy)
+            if accuracy > 0:
+                self.model_trained.emit(accuracy)
+            
+            msg_parts = ["Models trained successfully!\n"]
+            for r in results:
+                msg_parts.append(f"  • {r}")
+            if self._dynamic_sequences:
+                msg_parts.append(f"\nDynamic clips: {len(self._dynamic_sequences)}")
+            msg_parts.append(f"Static samples: {len(all_labels)}")
             
             QMessageBox.information(
                 self,
                 "Training Complete",
-                f"Model trained successfully!\n\n"
-                f"Accuracy: {accuracy:.1%}\n"
-                f"Classes: {len(self.trainer.get_classes())}\n"
-                f"Total samples: {len(all_labels)}"
+                "\n".join(msg_parts)
             )
             
         except Exception as e:

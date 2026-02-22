@@ -19,7 +19,7 @@ from detector.hand_tracker import HandTracker
 from detector.features import FeatureExtractor
 from detector.dynamic_gestures import DynamicGestureTracker
 from ml.heuristic_classifier import HeuristicClassifier
-from ml.dual_model_manager import DualModelManager
+from ml.gesture_pipeline import GesturePipeline
 from ui.styles import COLORS
 from config import VIDEO_DETECTION_CONFIDENCE
 
@@ -51,8 +51,8 @@ class VideoPlayerWidget(QFrame):
         self.feature_extractor = FeatureExtractor()
         self.dynamic_tracker = DynamicGestureTracker()
         self.heuristic_classifier = HeuristicClassifier()
-        self.dual_model_manager = DualModelManager()
-        self._nn_models_loaded = self.dual_model_manager.load()
+        self.gesture_pipeline = GesturePipeline()
+        self._pipeline_status = self.gesture_pipeline.load()
         
         # State
         self._is_loaded = False
@@ -418,16 +418,15 @@ class VideoPlayerWidget(QFrame):
             features = self.feature_extractor.extract(landmarks)
             self.features_ready.emit(features)
             
-            # Heuristic gesture detection (more reliable than ML on varied video content)
+            # Heuristic gesture detection
             heuristic_label, heuristic_conf = self.heuristic_classifier.predict(landmarks)
             if heuristic_label and heuristic_conf > 0.5:
                 self.heuristic_gesture_detected.emit(heuristic_label, heuristic_conf)
             
-            # Dual NN classification (static FFN / dynamic LSTM)
-            if self.dual_model_manager.any_model_loaded:
-                nn_label, nn_conf, model_used = self.dual_model_manager.process_frame(landmarks)
-                if nn_label and nn_conf > 0.0:
-                    self.nn_gesture_detected.emit(nn_label, nn_conf, model_used)
+            # Unified pipeline: Keras MLP/LSTM + heuristic fallback + smoothing
+            pipe_label, pipe_conf, model_used = self.gesture_pipeline.process_frame(landmarks)
+            if pipe_label and pipe_conf > 0.0:
+                self.nn_gesture_detected.emit(pipe_label, pipe_conf, model_used)
         
         # Dynamic gesture tracking
         if self.dynamic_gestures_enabled:
@@ -456,7 +455,7 @@ class VideoPlayerWidget(QFrame):
         scaled_pixmap = pixmap.scaled(
             self.video_label.size(),
             Qt.KeepAspectRatio,
-            Qt.SmoothTransformation
+            Qt.FastTransformation
         )
         self.video_label.setPixmap(scaled_pixmap)
     

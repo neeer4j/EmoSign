@@ -48,22 +48,22 @@ A) HEURISTIC CLASSIFIER (rule-based, always runs):
    - Checks if fingers are up or down
    - Uses geometric rules to identify letters A-Z and numbers 0-9
 
-B) STATIC FFN (neural network, for still hands):
-   - If the hand is NOT MOVING, uses a deep residual feedforward NN
-   - Takes 87 features from FeatureExtractor (63 coords + z-depth +
-     thumb distances + curl angles + orientation + palm distances)
-   - Deep architecture: input→512→512→256→128→64 with residual connections
-   - ~1ms per frame, trained at 100% test accuracy
+B) KERAS STATIC MLP (neural network, for still hands):
+   - If the hand is NOT MOVING, uses a multi-layer perceptron (MLP)
+   - Uses 63 normalized coordinate features (wrist-relative + palm-scaled)
+   - Normalized by LandmarkNormalizer for high user-independence
+   - Architecture: Input(63)→128→128→Dropout→Softmax (26 classes)
+   - ~1ms per frame, trained at ~99% accuracy
 
-C) DYNAMIC LSTM (neural network, for moving hands):
+C) KERAS DYNAMIC LSTM (neural network, for moving hands):
    - If the hand IS MOVING for 5+ frames, switches to LSTM mode
-   - Buffers 30 consecutive frames of 87-dimensional feature vectors
-   - 2-layer LSTM (hidden=256) processes the full sequence
-   - Handles J, Z, WAVE, and other movement-based signs
-   - ~5ms per sequence, trained at ~99% test accuracy
+   - Buffers 30 consecutive frames of 63-dimensional feature vectors
+   - 2-layer LSTM (64 units) processes the temporal sequence
+   - Handles J, Z, and other motion-based signs
+   - Integrated with Training Page for easy user recording of clips
 
-The DualModelManager automatically decides which NN to use based on
-hand displacement between frames. You never need to choose manually.
+The GesturePipeline automatically decides which model to use based on
+hand displacement between frames. It also applies majority-vote smoothing.
 
 Example: If your index finger is up and others are down = Letter "D"
 
@@ -172,10 +172,10 @@ When you use LIVE CAMERA mode:
                         ↓
     ┌─────────────────────────────────────────────────┐
     │   ML Brain thinks:                              │
-    │   Heuristic: "Looks like H... 85% sure!"         │
-    │   Static FFN: "H with 82% confidence" (still)    │
-    │   Dynamic LSTM: (inactive - hand not moving)      │
-    │   (PENDING state - needs confirmation)            │
+    │   Heuristic: "Looks like H... 85% sure!"        │
+    │   Keras MLP: "H with 92% confidence" (still)    │
+    │   Keras LSTM: (inactive - hand not moving)      │
+    │   (PENDING state - needs confirmation)          │
     └─────────────────────────────────────────────────┘
                         ↓
     ┌─────────────────────────────────────────────────┐
@@ -295,10 +295,10 @@ signlanguage/
 │   └── hand_tracker.py ... Finds your hands
 │
 ├── ml/ ................... The learning part
-│   ├── classifier.py ..... Legacy Random Forest recognizer
-│   ├── static_classifier.py  Static FFN (still gestures)
-│   ├── dynamic_classifier.py Dynamic LSTM (motion gestures)
-│   ├── dual_model_manager.py Smart model router
+│   ├── keras_static_classifier.py  Static MLP (still gestures)
+│   ├── keras_dynamic_classifier.py Dynamic LSTM (motion gestures)
+│   ├── gesture_pipeline.py  Smart model router & orchestrator
+│   ├── keras_trainer.py ... Trainer for Keras models
 │   └── heuristic_classifier.py Rule-based backup
 │
 ├── ui/ ................... What you see on screen
@@ -310,10 +310,10 @@ signlanguage/
 │
 └── models/ ............... Pre-trained knowledge
     ├── hand_landmarker.task .. Knows how hands look
-    ├── static_ffn_model.pth .. Static FFN weights (PyTorch)
-    ├── static_labels.pkl ..... Static model class labels
-    ├── dynamic_lstm_model.pth  Dynamic LSTM weights (PyTorch)
-    └── dynamic_labels.pkl .... Dynamic model class labels
+    ├── keras_static_mlp.keras . Static MLP weights
+    ├── keras_static_labels.pkl . Static MLP labels
+    ├── keras_dynamic_lstm.keras Dynamic LSTM weights
+    └── keras_dynamic_labels.pkl Dynamic LSTM labels
 
 
 =====================================================
@@ -351,26 +351,28 @@ Architecture Flow:
 
     1. Camera captures hand positions (30 FPS)
     2. MediaPipe extracts 21 landmarks per hand
-    3. DualModelManager measures displacement between frames
-    4. Low motion → Static FFN predicts on single frame (63 features)
-       High motion → Buffers 30 frames → LSTM predicts on sequence
-    5. Heuristic classifier runs in parallel as fallback
-    6. Sequence buffer confirms stability over 5 frames
-    7. Deduplication removes repeated gestures
-    8. Sentence mapper matches sequence to predefined phrase
-    9. Falls back to fingerspelling if no match
-   10. Display result + speak + save to history
+    3. GesturePipeline measures wrist displacement between frames
+    4. LandmarkNormalizer transforms raw landmarks to 63-feature vectors
+    5. Low motion → Keras MLP predicts on single frame
+       High motion → Buffers 30 frames → Keras LSTM predicts on sequence
+    6. Heuristic classifier runs in parallel as fallback
+    7. Majority-vote smoothing over last 5 frames confirms sign
+    8. Deduplication removes repeated gestures
+    9. Sentence mapper matches sequence to predefined phrase
+   10. Falls back to fingerspelling if no match
+   11. Display result + speak + save to history
 
 It's like having a translator friend who:
 1. Watches your hands
 2. Knows if you're holding still or making a motion
-3. Uses the right brain (static NN or motion LSTM) automatically
-4. Understands sign language patterns
-5. Recognizes common phrases (50+ predefined)
-6. Spells out unknown words letter-by-letter
-7. Tells you (or others) what it means in English
+3. Uses the right brain (Static MLP or Motion LSTM) automatically
+4. Normalizes your hand size and position for better accuracy
+5. Understands sign language patterns
+6. Recognizes common phrases (50+ predefined)
+7. Spells out unknown words letter-by-letter
+8. Tells you (or others) what it means in English
 
-Reliable for constrained vocabulary communication! 🎉
+Reliable for Keras-based real-time communication! 🎉
 
 
 Built with anger by nagaraaj

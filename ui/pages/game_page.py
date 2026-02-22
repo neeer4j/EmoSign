@@ -702,6 +702,7 @@ class GamePage(QWidget):
         self._preset = DIFFICULTY_PRESETS["easy"]
         self._last_prediction = ""
         self._last_prediction_confidence = 0.0
+        self._is_paused = False
 
         # Timers
         self._tick_timer = QTimer(self)
@@ -761,6 +762,46 @@ class GamePage(QWidget):
         header.addWidget(self._hint_btn)
         header.addWidget(self._prediction_pill)
 
+        # Pause button
+        self._pause_btn = QPushButton("⏸ Pause")
+        self._pause_btn.setCursor(Qt.PointingHandCursor)
+        self._pause_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['bg_card']};
+                color: {COLORS['warning']};
+                border: 1px solid {COLORS['warning']};
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px; font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(245, 158, 11, 0.15);
+            }}
+        """)
+        self._pause_btn.clicked.connect(self._toggle_pause)
+        self._pause_btn.hide()
+        header.addWidget(self._pause_btn)
+
+        # End game button
+        self._end_btn = QPushButton("🛑 End Game")
+        self._end_btn.setCursor(Qt.PointingHandCursor)
+        self._end_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['bg_card']};
+                color: {COLORS['danger']};
+                border: 1px solid {COLORS['danger']};
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px; font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(239, 68, 68, 0.15);
+            }}
+        """)
+        self._end_btn.clicked.connect(self._end_game_early)
+        self._end_btn.hide()
+        header.addWidget(self._end_btn)
+
         main_layout.addLayout(header)
 
         # HUD
@@ -776,7 +817,7 @@ class GamePage(QWidget):
         # Game canvas (left)
         self.canvas = GameCanvas()
         self.canvas.setStyleSheet("border-radius: 16px;")
-        content.addWidget(self.canvas, 3)
+        content.addWidget(self.canvas, 5)
 
         # Right panel: camera + prediction + hint
         right_panel = QVBoxLayout()
@@ -791,8 +832,7 @@ class GamePage(QWidget):
         right_panel.addWidget(cam_label)
 
         self.camera_widget = CameraWidget()
-        self.camera_widget.setMaximumHeight(300)
-        self.camera_widget.setMinimumWidth(320)
+        self.camera_widget.setMinimumSize(380, 340)
         right_panel.addWidget(self.camera_widget)
 
         # Current prediction display
@@ -922,6 +962,8 @@ class GamePage(QWidget):
         self._diff_badge.hide()
         self._hint_btn.hide()
         self._prediction_pill.hide()
+        self._pause_btn.hide()
+        self._end_btn.hide()
 
         # Game-over overlay
         self.game_over = GameOverOverlay(self)
@@ -953,6 +995,7 @@ class GamePage(QWidget):
         self._level = 1
         self._matches_in_level = 0
         self._is_playing = True
+        self._is_paused = False
         self._last_prediction = ""
 
         self.canvas.clear_items()
@@ -963,6 +1006,9 @@ class GamePage(QWidget):
         self._diff_badge.show()
         self._hint_btn.show()
         self._prediction_pill.show()
+        self._pause_btn.show()
+        self._pause_btn.setText("⏸ Pause")
+        self._end_btn.show()
         self._diff_badge.setText(f"{self._preset['emoji']} {self._preset['name']}")
 
         self.hud.update_hud(self._score, self._lives, self._level, self._best_score)
@@ -981,9 +1027,12 @@ class GamePage(QWidget):
 
     def _end_game(self):
         self._is_playing = False
+        self._is_paused = False
         self._tick_timer.stop()
         self._spawn_timer.stop()
         self.camera_widget.stop()
+        self._pause_btn.hide()
+        self._end_btn.hide()
 
         is_new_best = self._score > self._best_score
         if is_new_best:
@@ -991,6 +1040,29 @@ class GamePage(QWidget):
 
         self.hud.update_hud(self._score, self._lives, self._level, self._best_score)
         self.game_over.show_results(self._score, self._best_score, is_new_best)
+
+    def _toggle_pause(self):
+        """Toggle pause/resume during gameplay."""
+        if not self._is_playing:
+            return
+        if self._is_paused:
+            # Resume
+            self._is_paused = False
+            self._pause_btn.setText("⏸ Pause")
+            self._tick_timer.start()
+            self._spawn_timer.start()
+        else:
+            # Pause
+            self._is_paused = True
+            self._pause_btn.setText("▶ Resume")
+            self._tick_timer.stop()
+            self._spawn_timer.stop()
+            self.canvas.update()  # trigger repaint to show paused state
+
+    def _end_game_early(self):
+        """End the game immediately with current score."""
+        if self._is_playing:
+            self._end_game()
 
     def _on_back(self):
         if self._is_playing:
@@ -1011,13 +1083,13 @@ class GamePage(QWidget):
     # ── Game loop ───────────────────────────────────────────────────────────
 
     def _tick(self):
-        if not self._is_playing:
+        if not self._is_playing or self._is_paused:
             return
         dt = self.TICK_INTERVAL_MS / 1000.0
         self.canvas.tick(dt)
 
     def _spawn_item(self):
-        if not self._is_playing:
+        if not self._is_playing or self._is_paused:
             return
 
         # Respect max_items constraint

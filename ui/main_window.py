@@ -477,8 +477,10 @@ class MainWindow(QMainWindow):
         old_sidebar.deleteLater()
         self.sidebar.navigate.connect(self._navigate_to)
         self.sidebar.theme_changed.connect(self._apply_theme)
-        # Update theme button text
-        if not ThemeManager.is_dark():
+        # Sync theme button text with current theme
+        if ThemeManager.is_dark():
+            self.sidebar.theme_btn.setText("🌙 Dark")
+        else:
             self.sidebar.theme_btn.setText("☀️ Light")
 
         # Recreate pages
@@ -626,6 +628,9 @@ class MainWindow(QMainWindow):
         """Navigate to a page."""
         self.sidebar.set_active(page_id)
         
+        # Stop cameras on pages we're leaving to save resources
+        self._stop_active_cameras(page_id)
+        
         if page_id == "dashboard":
             self.dashboard_page.refresh_stats()
             self.page_stack.setCurrentWidget(self.dashboard_page)
@@ -655,6 +660,39 @@ class MainWindow(QMainWindow):
         elif page_id == "admin":
             self.admin_page.refresh_all()
             self.page_stack.setCurrentWidget(self.admin_page)
+
+    def _stop_active_cameras(self, target_page_id: str):
+        """Stop cameras on all pages except the target to free resources."""
+        # Stop live page camera
+        if target_page_id != "live":
+            try:
+                if hasattr(self, 'live_page'):
+                    self.live_page.cleanup()
+            except Exception:
+                pass
+        # Stop game page camera
+        if target_page_id != "game":
+            try:
+                if hasattr(self, 'game_page'):
+                    self.game_page.cleanup()
+            except Exception:
+                pass
+        # Stop tutorial page camera (AlphabetLesson has a _camera_widget)
+        if target_page_id != "tutorial":
+            try:
+                if hasattr(self, 'tutorial_page') and hasattr(self.tutorial_page, 'alphabet_lesson'):
+                    lesson = self.tutorial_page.alphabet_lesson
+                    if hasattr(lesson, '_camera_widget') and lesson._camera_widget:
+                        lesson._stop_camera()
+            except Exception:
+                pass
+        # Stop training page camera
+        if target_page_id != "training":
+            try:
+                if hasattr(self, 'training_page'):
+                    self.training_page.cleanup()
+            except Exception:
+                pass
     
     @Slot(str, float, str)
     def _save_translation(self, label, confidence, gesture_type):

@@ -1,10 +1,10 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 56,
+  "total_signs_detected": 409,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 3,
+  "total_sessions": 4,
   "total_practice_time": 1.4172597166666667,
   "sign_counts": {
     "Y": 2,
@@ -13,7 +13,7 @@
     "SZS": 2,
     "W": 2,
     "V": 2,
-    "O": 7,
+    "O": 17,
     "OM": 1,
     "OMO": 1,
     "OMOT": 1,
@@ -26,13 +26,26 @@
     "BB": 2,
     "OL": 9,
     "OLX": 6,
-    "OLXX": 4
+    "OLXX": 4,
+    "OO": 11,
+    "OOO": 10,
+    "OOOB": 12,
+    "OOOBY": 9,
+    "OOOBYY": 9,
+    "OOOBYY5": 59,
+    "OOOBYY5X": 10,
+    "OOOBYY5XB": 10,
+    "OOOBYY5XB5": 16,
+    "OOOBYY5XB5A": 11,
+    "OOOBYY5XB5AA": 8,
+    "OOOBYY5XB5AAP": 28,
+    "OOOBYY5XB5AAPZ": 150
   },
-  "correct_predictions": 56,
-  "total_predictions": 56,
+  "correct_predictions": 409,
+  "total_predictions": 409,
   "current_streak": 1,
   "longest_streak": 1,
-  "last_active_date": "2026-02-17",
+  "last_active_date": "2026-02-19",
   "signs_learned": [
     "Y",
     "S",
@@ -53,7 +66,20 @@
     "BB",
     "OL",
     "OLX",
-    "OLXX"
+    "OLXX",
+    "OO",
+    "OOO",
+    "OOOB",
+    "OOOBY",
+    "OOOBYY",
+    "OOOBYY5",
+    "OOOBYY5X",
+    "OOOBYY5XB",
+    "OOOBYY5XB5",
+    "OOOBYY5XB5A",
+    "OOOBYY5XB5AA",
+    "OOOBYY5XB5AAP",
+    "OOOBYY5XB5AAPZ"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [
@@ -61,18 +87,21 @@
     "practice_10",
     "accuracy_80",
     "accuracy_95",
-    "practice_50"
+    "practice_50",
+    "practice_100"
   ],
   "achievement_dates": {
     "first_sign": "2026-02-17T11:41:30.210737",
     "practice_10": "2026-02-17T11:41:56.240188",
     "accuracy_80": "2026-02-17T11:41:59.421418",
     "accuracy_95": "2026-02-17T11:41:59.422413",
-    "practice_50": "2026-02-17T12:12:59.462846"
+    "practice_50": "2026-02-17T12:12:59.462846",
+    "practice_100": "2026-02-19T09:29:30.450049"
   },
-  "total_points": 240,
+  "total_points": 290,
   "session_dates": [
     "2026-02-06",
-    "2026-02-17"
+    "2026-02-17",
+    "2026-02-19"
   ]
 }

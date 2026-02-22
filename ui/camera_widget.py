@@ -12,7 +12,7 @@ from detector.features import FeatureExtractor
 from detector.dynamic_gestures import DynamicGestureTracker
 from detector.face_detector import FaceDetector, Emotion
 from ml.heuristic_classifier import HeuristicClassifier
-from ml.dual_model_manager import DualModelManager
+from ml.gesture_pipeline import GesturePipeline
 
 
 class CameraWidget(QFrame):
@@ -38,8 +38,8 @@ class CameraWidget(QFrame):
         self.dynamic_tracker = DynamicGestureTracker()
         self.face_detector = FaceDetector()
         self.heuristic_classifier = HeuristicClassifier()
-        self.dual_model_manager = DualModelManager()
-        self._nn_models_loaded = self.dual_model_manager.load()
+        self.gesture_pipeline = GesturePipeline()
+        self._pipeline_status = self.gesture_pipeline.load()
         
         # State
         self.is_running = False
@@ -50,6 +50,8 @@ class CameraWidget(QFrame):
         self.dynamic_gestures_enabled = True  # Toggle for dynamic gesture recognition
         self.emotion_detection_enabled = True  # Toggle for emotion detection
         self.heuristic_threshold = 0.5        # Confidence threshold for heuristic classifier
+        self._frame_count = 0                 # Frame counter for throttling
+        self._emotion_skip_frames = 3         # Run emotion detection every Nth frame
         
         # Setup UI
         self._setup_ui()
@@ -108,6 +110,8 @@ class CameraWidget(QFrame):
         if not success:
             return
         
+        self._frame_count += 1
+        
         # Process with MediaPipe Hand Tracker
         self.hand_tracker.process(frame_rgb)
         
@@ -126,16 +130,15 @@ class CameraWidget(QFrame):
             features = self.feature_extractor.extract(landmarks)
             self.features_ready.emit(features)
             
-            # Heuristic gesture detection (more reliable than ML on synthetic data)
+            # Heuristic gesture detection (standalone signal for pages that need it)
             heuristic_label, heuristic_conf = self.heuristic_classifier.predict(landmarks)
             if heuristic_label and heuristic_conf >= self.heuristic_threshold:
                 self.heuristic_gesture_detected.emit(heuristic_label, heuristic_conf)
             
-            # Dual NN classification (static FFN / dynamic LSTM)
-            if self.dual_model_manager.any_model_loaded:
-                nn_label, nn_conf, model_used = self.dual_model_manager.process_frame(landmarks)
-                if nn_label and nn_conf > 0.0:
-                    self.nn_gesture_detected.emit(nn_label, nn_conf, model_used)
+            # Unified pipeline: Keras MLP/LSTM + heuristic fallback + smoothing
+            pipe_label, pipe_conf, model_used = self.gesture_pipeline.process_frame(landmarks)
+            if pipe_label and pipe_conf > 0.0:
+                self.nn_gesture_detected.emit(pipe_label, pipe_conf, model_used)
         
         # Dynamic gesture tracking (runs even when hand disappears to finalize gestures)
         if self.dynamic_gestures_enabled:
@@ -143,9 +146,9 @@ class CameraWidget(QFrame):
             if gesture_name is not None and confidence > 0.6:
                 self.dynamic_gesture_detected.emit(gesture_name, confidence)
         
-        # Face/Emotion detection with temporal smoothing
+        # Face/Emotion detection with temporal smoothing (throttled for performance)
         emotion_result = None
-        if self.emotion_detection_enabled:
+        if self.emotion_detection_enabled and (self._frame_count % self._emotion_skip_frames == 0):
             emotion_result = self.face_detector.process(frame_rgb)
             if emotion_result and emotion_result.landmarks_detected:
                 # Add to rolling buffer
@@ -228,11 +231,12 @@ class CameraWidget(QFrame):
         q_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
         
         # Scale to fit label while maintaining aspect ratio
+        # Use FastTransformation for performance on low-end systems
         pixmap = QPixmap.fromImage(q_image)
         scaled_pixmap = pixmap.scaled(
             self.video_label.size(),
             Qt.KeepAspectRatio,
-            Qt.SmoothTransformation
+            Qt.FastTransformation
         )
         
         self.video_label.setPixmap(scaled_pixmap)

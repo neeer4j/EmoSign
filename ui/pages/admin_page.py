@@ -40,10 +40,13 @@ class AdminPage(QWidget):
         
         # Tabs
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #2d2d3d; background: #1a1a24; border-radius: 8px; }
-            QTabBar::tab { background: #1a1a24; color: #94a3b8; padding: 10px 20px; border-top-left-radius: 8px; border-top-right-radius: 8px; }
-            QTabBar::tab:selected { background: #2d2d3d; color: white; border-bottom: 2px solid #8b5cf6; }
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{ border: 1px solid {COLORS['border']}; background: {COLORS['bg_card']}; border-radius: 8px; }}
+            QTabBar::tab {{ background: {COLORS['bg_card']}; color: {COLORS['text_secondary']}; padding: 10px 20px; border-top-left-radius: 8px; border-top-right-radius: 8px; }}
+            QTabBar::tab:selected {{ background: {COLORS['bg_hover']}; color: {COLORS['text_primary']}; border-bottom: 2px solid {COLORS['primary']}; }}
+            QTableWidget::item {{ text-decoration: none; }}
+            QTableWidget::item:hover {{ text-decoration: none; background-color: {COLORS['bg_hover']}; }}
+            QTableWidget::item:selected {{ text-decoration: none; background-color: {COLORS['primary']}40; }}
         """)
         
         self.users_tab = QWidget()
