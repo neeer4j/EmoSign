@@ -197,12 +197,11 @@ class DashboardPage(QWidget):
         welcome_box = QVBoxLayout()
         welcome_box.setSpacing(2)
         
-        # Get user name from email
-        email = self.user.get("email", "User")
-        name = email.split("@")[0].title() if "@" in email else email
+        # Get username
+        username = self.user.get("email", "User")
         
         greeting = self._get_greeting()
-        welcome_label = QLabel(f"{greeting}, {name}! 👋")
+        welcome_label = QLabel(f"{greeting}, {username}! 👋")
         welcome_label.setObjectName("welcomeText")
         
         subtitle = QLabel("Ready to practice sign language today?")
@@ -216,7 +215,7 @@ class DashboardPage(QWidget):
         
         # Quick action buttons in header
         if not self.user.get("guest"):
-            profile_btn = QPushButton(f"👤 {name[:8]}")
+            profile_btn = QPushButton(f"👤 {username[:8]}")
             profile_btn.setObjectName("ghost")
             profile_btn.clicked.connect(self.navigate_to_profile.emit)
             header.addWidget(profile_btn)

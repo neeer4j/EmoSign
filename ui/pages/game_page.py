@@ -594,6 +594,7 @@ class GameOverOverlay(QFrame):
     """Semi-transparent overlay shown on game over."""
 
     play_again = Signal()
+    back_to_menu = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -640,6 +641,27 @@ class GameOverOverlay(QFrame):
         retry_btn.setCursor(Qt.PointingHandCursor)
         retry_btn.clicked.connect(self.play_again.emit)
         layout.addWidget(retry_btn, alignment=Qt.AlignCenter)
+
+        menu_btn = QPushButton("🎮  Change Difficulty")
+        menu_btn.setMinimumWidth(200)
+        menu_btn.setMinimumHeight(44)
+        menu_btn.setCursor(Qt.PointingHandCursor)
+        menu_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {COLORS['text_secondary']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 10px;
+                padding: 10px 20px;
+                font-size: 14px; font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['bg_card']};
+                color: {COLORS['text_primary']};
+            }}
+        """)
+        menu_btn.clicked.connect(self.back_to_menu.emit)
+        layout.addWidget(menu_btn, alignment=Qt.AlignCenter)
 
     def show_results(self, score: int, best: int, is_new_best: bool):
         self.final_score_label.setText(f"Score: {score}")
@@ -981,6 +1003,7 @@ class GamePage(QWidget):
         self.camera_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
         self.canvas.item_reached_bottom.connect(self._on_item_missed)
         self.game_over.play_again.connect(self._restart_same_difficulty)
+        self.game_over.back_to_menu.connect(self._back_to_menu)
         self._difficulty_selector.difficulty_chosen.connect(self._start_game)
 
     # ── Game lifecycle ──────────────────────────────────────────────────────
@@ -1024,6 +1047,17 @@ class GamePage(QWidget):
 
     def _restart_same_difficulty(self):
         self._start_game(self._difficulty_key)
+
+    def _back_to_menu(self):
+        """Return to difficulty selection screen."""
+        self.game_over.hide()
+        self._game_content.hide()
+        self.hud.hide()
+        self._diff_badge.hide()
+        self._hint_btn.hide()
+        self._prediction_pill.hide()
+        self._hint_container.hide()
+        self._difficulty_selector.show()
 
     def _end_game(self):
         self._is_playing = False

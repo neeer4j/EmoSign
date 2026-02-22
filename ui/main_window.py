@@ -154,6 +154,7 @@ class Sidebar(QFrame):
         # Divider
         layout.addSpacing(8)
         divider1 = QLabel("LEARN")
+        divider1.setObjectName("sidebarDivider")
         divider1.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 10px;
@@ -179,6 +180,7 @@ class Sidebar(QFrame):
         # Divider
         layout.addSpacing(8)
         divider2 = QLabel("ACCOUNT")
+        divider2.setObjectName("sidebarDivider")
         divider2.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 10px;
@@ -209,24 +211,6 @@ class Sidebar(QFrame):
         layout.addWidget(self.admin_btn)
         
         layout.addStretch()
-        
-        # Theme toggle button
-        self.theme_btn = QPushButton("🌙 Dark")
-        self.theme_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {COLORS['bg_input']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 8px;
-                color: {COLORS['text_secondary']};
-                padding: 8px;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background: {COLORS['bg_card']};
-            }}
-        """)
-        self.theme_btn.clicked.connect(self._toggle_theme)
-        layout.addWidget(self.theme_btn)
         
         layout.addSpacing(6)
         
@@ -381,9 +365,6 @@ class MainWindow(QMainWindow):
         # Sidebar navigation
         self.sidebar.navigate.connect(self._navigate_to)
         
-        # Sidebar theme change
-        self.sidebar.theme_changed.connect(self._apply_theme)
-        
         # Dashboard navigation
         self.dashboard_page.navigate_to_live.connect(lambda: self._navigate_to("live"))
         self.dashboard_page.navigate_to_history.connect(lambda: self._navigate_to("history"))
@@ -424,8 +405,9 @@ class MainWindow(QMainWindow):
         ThemeManager.set_theme(theme)
         self.setStyleSheet(ThemeManager.get_theme())
         # Defer the full page rebuild so the button press animates first
+        # 50ms delay prevents race condition with camera timer callbacks
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self._rebuild_pages)
+        QTimer.singleShot(50, self._rebuild_pages)
     
     def _apply_accent(self, accent: str):
         """Apply accent color to the application."""
@@ -454,13 +436,32 @@ class MainWindow(QMainWindow):
                 current_page_name = name
                 break
 
-        # Cleanup active cameras/resources
+        # Safely stop cameras BEFORE destroying pages (prevents crash)
+        # Use stop() not cleanup()/release() to avoid destroying MediaPipe
+        # resources while timer callbacks may still be pending
+        for page_attr in ['live_page', 'game_page', 'training_page']:
+            try:
+                page = getattr(self, page_attr, None)
+                if page and hasattr(page, 'camera_widget'):
+                    page.camera_widget.stop()
+                if page and hasattr(page, 'video_widget'):
+                    page.video_widget.release()
+            except Exception:
+                pass
+        # Stop tutorial camera if running
         try:
-            self.live_page.cleanup()
+            if hasattr(self, 'tutorial_page') and hasattr(self.tutorial_page, 'alphabet_lesson'):
+                lesson = self.tutorial_page.alphabet_lesson
+                if hasattr(lesson, '_camera_widget') and lesson._camera_widget:
+                    lesson._stop_camera()
         except Exception:
             pass
+        # Stop timers on live pages
         try:
-            self.game_page.cleanup()
+            if hasattr(self.live_page, '_auto_translate_timer'):
+                self.live_page._auto_translate_timer.stop()
+            if hasattr(self.live_page, '_check_timer'):
+                self.live_page._check_timer.stop()
         except Exception:
             pass
 
@@ -476,12 +477,6 @@ class MainWindow(QMainWindow):
         self.main_layout.replaceWidget(old_sidebar, self.sidebar)
         old_sidebar.deleteLater()
         self.sidebar.navigate.connect(self._navigate_to)
-        self.sidebar.theme_changed.connect(self._apply_theme)
-        # Sync theme button text with current theme
-        if ThemeManager.is_dark():
-            self.sidebar.theme_btn.setText("🌙 Dark")
-        else:
-            self.sidebar.theme_btn.setText("☀️ Light")
 
         # Recreate pages
         self._create_pages()
@@ -667,14 +662,14 @@ class MainWindow(QMainWindow):
         if target_page_id != "live":
             try:
                 if hasattr(self, 'live_page'):
-                    self.live_page.cleanup()
+                    self.live_page.stop_camera()
             except Exception:
                 pass
         # Stop game page camera
         if target_page_id != "game":
             try:
-                if hasattr(self, 'game_page'):
-                    self.game_page.cleanup()
+                if hasattr(self, 'game_page') and hasattr(self.game_page, 'camera_widget'):
+                    self.game_page.camera_widget.stop()
             except Exception:
                 pass
         # Stop tutorial page camera (AlphabetLesson has a _camera_widget)
@@ -689,8 +684,8 @@ class MainWindow(QMainWindow):
         # Stop training page camera
         if target_page_id != "training":
             try:
-                if hasattr(self, 'training_page'):
-                    self.training_page.cleanup()
+                if hasattr(self, 'training_page') and hasattr(self.training_page, 'camera_widget'):
+                    self.training_page.camera_widget.stop()
             except Exception:
                 pass
     

@@ -63,10 +63,10 @@ class NeuralNetworkBackground(QWidget):
             self.timer.timeout.connect(self._next_slide)
             self.timer.start(8000)
             
-        # Network animation timer (~30 FPS for smoothness without CPU burn)
+        # Network animation timer (~20 FPS for smoothness without CPU burn)
         self.anim_timer = QTimer(self)
         self.anim_timer.timeout.connect(self._update_network)
-        self.anim_timer.start(33)
+        self.anim_timer.start(50)
         
     def _init_nodes(self):
         self.nodes = [
@@ -74,7 +74,7 @@ class NeuralNetworkBackground(QWidget):
                 random.uniform(0, self.width()),
                 random.uniform(0, self.height()),
                 self.width(), self.height()
-            ) for _ in range(50)  # Number of nodes
+            ) for _ in range(30)  # Number of nodes
         ]
             
     def resizeEvent(self, event):
@@ -140,11 +140,11 @@ class NeuralNetworkBackground(QWidget):
             
         # 2. Dark overlay with violet tint for text visibility
         painter.setOpacity(1.0)
-        overlay_color = QColor(12, 8, 24, 130) if is_dark else QColor(255, 255, 255, 160)
+        overlay_color = QColor(12, 8, 24, 130) if is_dark else QColor(170, 140, 210, 160)
         painter.fillRect(self.rect(), overlay_color)
         
         # 3. Violet tint overlay
-        painter.setOpacity(0.18 if is_dark else 0.06)
+        painter.setOpacity(0.18 if is_dark else 0.35)
         glow = QLinearGradient(0, 0, w, h)
         glow.setColorAt(0.0, QColor(88, 28, 135))
         glow.setColorAt(0.4, QColor(139, 92, 246))
@@ -163,8 +163,8 @@ class NeuralNetworkBackground(QWidget):
         for i, node1 in enumerate(self.nodes):
             for node2 in self.nodes[i+1:]:
                 dist = math.hypot(node1.x - node2.x, node1.y - node2.y)
-                if dist < 150:
-                    alpha = int((1 - dist/150) * line_alpha_base)
+                if dist < 120:
+                    alpha = int((1 - dist/120) * line_alpha_base)
                     pen = QPen(QColor(100, 160, 255, alpha))
                     pen.setWidthF(0.5)
                     painter.setPen(pen)
@@ -476,7 +476,7 @@ class LoginPage(QWidget):
         form_layout = QVBoxLayout()
         form_layout.setSpacing(16)
         
-        self.email_input = PremiumInput("Email Address", "📧")
+        self.email_input = PremiumInput("Username", "👤")
         self.password_input = PremiumInput("Password", "🔒", is_password=True)
         self.confirm_input = PremiumInput("Confirm Password", "🔒", is_password=True)
         self.confirm_input.hide()

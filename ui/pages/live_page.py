@@ -64,12 +64,19 @@ class PredictionDisplay(QFrame):
         self.status_label.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 14px;")
         self.status_label.setAlignment(Qt.AlignCenter)
         
+        # Emotion display (separate from status to prevent blinking)
+        self.emotion_label = QLabel("")
+        self.emotion_label.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
+        self.emotion_label.setAlignment(Qt.AlignCenter)
+        self.emotion_label.hide()  # Hidden until emotion detected
+        
         layout.addWidget(title)
         layout.addStretch()
         layout.addWidget(self.letter_label)
         layout.addWidget(self.confidence_bar)
         layout.addWidget(self.confidence_label)
         layout.addWidget(self.status_label)
+        layout.addWidget(self.emotion_label)
         layout.addStretch()
         
         # Setup glow effect
@@ -127,6 +134,14 @@ class PredictionDisplay(QFrame):
             self.confidence_label.setText("Confidence: 0%")
             self.letter_label.setStyleSheet(f"color: {COLORS['text_muted']};")
             self._current_letter = ""
+    
+    def set_emotion(self, emotion_text):
+        """Set the emotion display persistently (independent of prediction)."""
+        if emotion_text:
+            self.emotion_label.setText(emotion_text)
+            self.emotion_label.show()
+        else:
+            self.emotion_label.hide()
     
     def reset(self):
         """Reset display."""
@@ -730,7 +745,7 @@ class LivePage(QWidget):
             'neutral': '😐'
         }
         emoji = emoji_map.get(emotion_name, '😐')
-        self.prediction_display.status_label.setText(f"{emoji} Feeling: {emotion_name.capitalize()}")
+        self.prediction_display.set_emotion(f"{emoji} Feeling: {emotion_name.capitalize()}")
     
     @Slot(str, float)
     def _on_heuristic_gesture(self, gesture_name, confidence):

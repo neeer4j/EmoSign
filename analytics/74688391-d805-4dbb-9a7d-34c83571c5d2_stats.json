@@ -1,11 +1,11 @@
 {
-  "user_id": "guest",
+  "user_id": "74688391-d805-4dbb-9a7d-34c83571c5d2",
   "total_translations": 0,
   "total_signs_detected": 0,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 10,
-  "total_practice_time": 13.0373647,
+  "total_sessions": 1,
+  "total_practice_time": 0.34707973333333336,
   "sign_counts": {},
   "correct_predictions": 0,
   "total_predictions": 0,
@@ -18,9 +18,6 @@
   "achievement_dates": {},
   "total_points": 0,
   "session_dates": [
-    "2026-02-02",
-    "2026-02-06",
-    "2026-02-09",
     "2026-02-22"
   ]
 }

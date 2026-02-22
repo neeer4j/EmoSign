@@ -438,7 +438,22 @@ QPushButton#navButton:checked {
     font-weight: 600;
 }
 
-/* Icon Button - Round */
+/* Sidebar Divider Labels */
+QLabel#sidebarDivider {
+    color: #555568;
+}
+
+/* Theme Toggle Button */
+QPushButton#themeToggle {
+    background: #131319;
+    border: 1px solid #262630;
+    color: #8888a0;
+}
+
+QPushButton#themeToggle:hover {
+    background: #1e1e28;
+    color: #e8e8f0;
+}
 QPushButton#iconButton {
     background: #16161e;
     border: 1px solid #262630;
@@ -748,8 +763,8 @@ def _build_light_colors(accent='teal'):
         'text_disabled': '#94a3b8',
         
         # Borders & Dividers
-        'border': 'transparent',
-        'border_light': 'transparent',
+        'border': '#e2e8f0',
+        'border_light': '#f1f5f9',
         'divider': '#e2e8f0',
         
         # Gradients
@@ -849,6 +864,21 @@ QLabel#welcomeText {{
     color: #0f172a;
 }}
 
+QLabel#status {{
+    color: #64748b;
+    font-size: 13px;
+}}
+
+QLabel#errorText {{
+    color: #dc2626;
+    font-size: 13px;
+}}
+
+QLabel#successText {{
+    color: #059669;
+    font-size: 13px;
+}}
+
 /* ========== CARDS & FRAMES ========== */
 QFrame {{
     background-color: transparent;
@@ -856,19 +886,19 @@ QFrame {{
 
 QFrame#card {{
     background-color: #ffffff;
-    border: none;
+    border: 1px solid #e2e8f0;
     border-radius: 16px;
 }}
 
 QFrame#cardHover {{
     background-color: #ffffff;
-    border: none;
+    border: 1px solid #e2e8f0;
     border-radius: 16px;
 }}
 
 QFrame#cardHover:hover {{
     background-color: #f1f5f9;
-    border: none;
+    border: 1px solid #cbd5e1;
 }}
 
 QFrame#highlightCard {{
@@ -986,6 +1016,23 @@ QPushButton#navButton:checked {{
     color: {primary};
     border-left: 3px solid {primary};
     font-weight: 600;
+}}
+
+/* Sidebar Divider Labels */
+QLabel#sidebarDivider {{
+    color: #64748b;
+}}
+
+/* Theme Toggle Button */
+QPushButton#themeToggle {{
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+}}
+
+QPushButton#themeToggle:hover {{
+    background: #e2e8f0;
+    color: #0f172a;
 }}
 
 QPushButton#iconButton {{

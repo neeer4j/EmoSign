@@ -373,9 +373,9 @@ class ProfileCard(QFrame):
         avatar_layout = QVBoxLayout(avatar_frame)
         avatar_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Get initials from email
-        email = self.user.get("email", "User")
-        initials = email[0].upper() if email else "U"
+        # Get initials from username
+        username = self.user.get("email", "User")
+        initials = username[0].upper() if username else "U"
         
         initial_label = QLabel(initials)
         initial_label.setStyleSheet("""
@@ -395,8 +395,7 @@ class ProfileCard(QFrame):
         layout.addLayout(avatar_container)
         
         # User name
-        name = email.split("@")[0].title() if "@" in email else email
-        name_label = QLabel(name)
+        name_label = QLabel(username)
         name_label.setStyleSheet(f"""
             font-size: 24px;
             font-weight: 700;
@@ -404,15 +403,6 @@ class ProfileCard(QFrame):
         """)
         name_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(name_label)
-        
-        # Email
-        email_label = QLabel(email)
-        email_label.setStyleSheet(f"""
-            font-size: 14px;
-            color: {COLORS['text_secondary']};
-        """)
-        email_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(email_label)
         
         # Account status badge
         if self.user.get("guest"):
