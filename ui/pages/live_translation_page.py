@@ -30,7 +30,6 @@ from ui.styles import COLORS, ICONS
 from ui.page_header import make_page_header
 from ui.camera_widget import CameraWidget
 from ui.video_player_widget import VideoPlayerWidget
-from ui.sign_visualizer import SignVisualizerWidget
 from ml.classifier import Classifier
 
 # Simple unified translation engine
@@ -54,7 +53,6 @@ except ImportError:
 # Legacy imports for compatibility
 from core.pipeline import SignLanguagePipeline, PipelineMode, PipelineConfig
 from core.gesture_sequence import GestureType, RecognizedGesture, TranslationResult
-from core.text_to_sign import TextToSignTranslator
 
 import config
 
@@ -462,14 +460,8 @@ class SourceSelector(QFrame):
         self.video_btn.clicked.connect(lambda: self._set_source("video"))
         self._apply_tab_style(self.video_btn, False)
         
-        self.text_btn = QPushButton("📤 Text to Sign")
-        self.text_btn.setCheckable(True)
-        self.text_btn.clicked.connect(lambda: self._set_source("text"))
-        self._apply_tab_style(self.text_btn, False)
-        
         layout.addWidget(self.camera_btn)
         layout.addWidget(self.video_btn)
-        layout.addWidget(self.text_btn)
         layout.addStretch()
     
     def _apply_tab_style(self, btn: QPushButton, active: bool):
@@ -502,10 +494,8 @@ class SourceSelector(QFrame):
         self._current = source
         self.camera_btn.setChecked(source == "camera")
         self.video_btn.setChecked(source == "video")
-        self.text_btn.setChecked(source == "text")
         self._apply_tab_style(self.camera_btn, source == "camera")
         self._apply_tab_style(self.video_btn, source == "video")
-        self._apply_tab_style(self.text_btn, source == "text")
         self.source_changed.emit(source)
     
     def get_source(self) -> str:
@@ -622,10 +612,6 @@ class LiveTranslationPage(QWidget):
         # Video widget
         self.video_widget = VideoPlayerWidget()
         self.source_stack.addWidget(self.video_widget)
-        
-        # Text-to-sign widget
-        self.sign_visualizer = SignVisualizerWidget()
-        self.source_stack.addWidget(self.sign_visualizer)
         
         source_layout.addWidget(self.source_stack)
         
@@ -813,48 +799,30 @@ class LiveTranslationPage(QWidget):
     
     @Slot(object)
     def _on_video_features(self, features):
-        """Handle extracted features from video (always process when video loaded)."""
-        # For video, we process as long as video is loaded, not just when "translating"
-        if not self._model_loaded or features is None:
+        """Handle extracted features from video."""
+        if not self._is_translating or not self._model_loaded or features is None:
             return
-        
         if not self.video_widget.is_loaded():
             return
-        
-        # Get ML prediction
-        label, confidence = self.classifier.predict(features)
-        
+        # Raw prediction — capture window does the voting/majority
+        label, confidence = self.classifier.predict(features, use_smoothing=False)
         if label and confidence > config.CONFIDENCE_THRESHOLD:
-            # Feed to simple engine
-            self.engine.add_gesture(label, confidence)
-            
-            # Update gesture display
-            self.gesture_display.update_gesture(label, confidence, "video")
+            self.gesture_display.add_vote(label, confidence)
     
     @Slot(str, float)
     def _on_video_heuristic_gesture(self, gesture: str, confidence: float):
-        """Handle heuristic gesture from video widget (always process)."""
-        if not self.video_widget.is_loaded():
+        """Handle heuristic gesture from video widget."""
+        if not self._is_translating or not self.video_widget.is_loaded():
             return
-        
-        # Feed to simple engine
-        self.engine.add_gesture(gesture, confidence)
-        
-        # Update gesture display
-        self.gesture_display.update_gesture(gesture, confidence, "heuristic")
+        self.gesture_display.add_vote(gesture, confidence)
     
     @Slot(str, float)
     def _on_video_dynamic_gesture(self, gesture: str, confidence: float):
-        """Handle dynamic gesture from video widget (always process)."""
-        if not self.video_widget.is_loaded():
+        """Handle dynamic gesture from video widget."""
+        if not self._is_translating or not self.video_widget.is_loaded():
             return
-        
-        # Prefix with WORD_ for word-level gestures
         gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
-        self.engine.add_gesture(gesture_name, confidence)
-        
-        # Update gesture display
-        self.gesture_display.update_gesture(f"✨{gesture}", confidence, "dynamic")
+        self.gesture_display.add_vote(gesture_name, confidence)
     
     # === Source Handling ===
     
@@ -873,12 +841,8 @@ class LiveTranslationPage(QWidget):
             self.start_btn.setText("▶️ Start Translation")
         elif source == "video":
             self.source_stack.setCurrentIndex(1)
-            # Show controls for video too - they control translation
             self.camera_controls.show()
             self.start_btn.setText("▶️ Enable Translation")
-        else:  # text
-            self.source_stack.setCurrentIndex(2)
-            self.camera_controls.hide()
         
         # Stop other sources
         if source != "camera" and self.camera_widget.is_running:
@@ -888,13 +852,11 @@ class LiveTranslationPage(QWidget):
     
     def _on_video_loaded(self, filename: str):
         """Handle video loaded - prepare for translation."""
-        self.translation_display.set_status(f"Video loaded: {filename}")
+        self.translation_display.set_status(f"Video loaded: {filename} — click Enable Translation then Play")
         self.translation_display.clear()
         self.gesture_display.clear()
         self.pipeline.clear()
         self.engine.clear()
-        # Auto-start engine for video
-        self.engine.start()
     
     # === Translation Control ===
     

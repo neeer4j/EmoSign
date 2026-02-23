@@ -1,6 +1,6 @@
 """
 Profile Page - User settings and account management
-Clean profile view with stats and logout
+Premium profile view with stats and settings
 """
 import os
 import json
@@ -243,7 +243,6 @@ class NotificationSettingsDialog(QDialog):
             "tip_notify": self.tip_notify.isChecked(),
             "sound_enabled": self.sound_enabled.isChecked()
         }
-        # Save to config file
         config_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         config_path = os.path.join(config_dir, "notification_settings.json")
         try:
@@ -345,247 +344,405 @@ class HelpSupportDialog(QDialog):
         layout.addWidget(close_btn)
 
 
-class ProfileCard(QFrame):
-    """User profile display card."""
+class ProfilePage(QWidget):
+    """User profile and settings page — premium design."""
     
-    def __init__(self, user_data, parent=None):
+    back_requested = Signal()
+    logout_requested = Signal()
+    
+    def __init__(self, user_data=None, db_service=None, parent=None):
         super().__init__(parent)
         self.user = user_data or {}
-        self.setObjectName("card")
+        self.db = db_service
+        self._stats = {}
         self._setup_ui()
+        self._load_stats()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
-        layout.setAlignment(Qt.AlignCenter)
+        """Build the profile page UI."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(32, 24, 32, 24)
+        main_layout.setSpacing(0)
         
-        # Avatar circle
-        avatar_frame = QFrame()
-        avatar_frame.setFixedSize(100, 100)
-        avatar_frame.setStyleSheet(f"""
-            QFrame {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {COLORS['primary']}, stop:1 {COLORS['accent']});
-                border-radius: 50px;
+        # Scrollable content
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background: transparent; border: none;
+            }}
+            QScrollBar:vertical {{
+                background: transparent; width: 6px; margin: 0;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {COLORS['border']}; border-radius: 3px; min-height: 30px;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0;
             }}
         """)
-        avatar_layout = QVBoxLayout(avatar_frame)
-        avatar_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Get initials from username
+        content = QWidget()
+        content.setStyleSheet("background: transparent;")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 8, 0)
+        content_layout.setSpacing(20)
+        
+        # ── HERO CARD ─────────────────────────────────────────────
+        hero = QFrame()
+        hero.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {COLORS['primary']}18, stop:1 {COLORS['accent']}10);
+                border: none;
+                border-radius: 16px;
+            }}
+        """)
+        hero_layout = QHBoxLayout(hero)
+        hero_layout.setContentsMargins(32, 28, 32, 28)
+        hero_layout.setSpacing(24)
+        
+        # Avatar
         username = self.user.get("email", "User")
         initials = username[0].upper() if username else "U"
         
-        initial_label = QLabel(initials)
-        initial_label.setStyleSheet("""
-            font-size: 40px;
-            font-weight: 700;
-            color: white;
-            background: transparent;
+        avatar = QFrame()
+        avatar.setFixedSize(80, 80)
+        avatar.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {COLORS['primary']}, stop:1 {COLORS['accent']});
+                border-radius: 40px;
+            }}
         """)
+        avatar_layout = QVBoxLayout(avatar)
+        avatar_layout.setContentsMargins(0, 0, 0, 0)
+        initial_label = QLabel(initials)
+        initial_label.setStyleSheet("font-size: 32px; font-weight: 700; color: white; background: transparent;")
         initial_label.setAlignment(Qt.AlignCenter)
         avatar_layout.addWidget(initial_label)
+        hero_layout.addWidget(avatar)
         
-        # Center the avatar
-        avatar_container = QHBoxLayout()
-        avatar_container.addStretch()
-        avatar_container.addWidget(avatar_frame)
-        avatar_container.addStretch()
-        layout.addLayout(avatar_container)
+        # User info column
+        info_col = QVBoxLayout()
+        info_col.setSpacing(4)
         
-        # User name
         name_label = QLabel(username)
         name_label.setStyleSheet(f"""
-            font-size: 24px;
-            font-weight: 700;
+            font-size: 22px; font-weight: 700;
             color: {COLORS['text_primary']};
+            background: transparent;
         """)
-        name_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(name_label)
+        info_col.addWidget(name_label)
         
-        # Account status badge
+        # Status badge
         if self.user.get("guest"):
-            status = "Guest Account"
-            status_color = COLORS['warning']
+            status_text, status_color = "Guest Account", COLORS['warning']
         elif self.user.get("offline"):
-            status = "Offline Mode"
-            status_color = COLORS['text_muted']
+            status_text, status_color = "Offline Mode", COLORS['text_muted']
         else:
-            status = "Verified Account"
-            status_color = COLORS['success']
+            status_text, status_color = "✓ Verified Account", COLORS['success']
         
-        status_badge = QLabel(f"• {status}")
-        status_badge.setStyleSheet(f"""
-            font-size: 13px;
-            font-weight: 600;
+        status = QLabel(status_text)
+        status.setStyleSheet(f"""
+            font-size: 12px; font-weight: 600;
             color: {status_color};
+            background: transparent;
         """)
-        status_badge.setAlignment(Qt.AlignCenter)
-        layout.addWidget(status_badge)
-    
-    def update_user(self, user_data):
-        """Update user data."""
-        self.user = user_data
-        # Would need to refresh UI
-
-
-class StatsRow(QFrame):
-    """Row of user statistics."""
-    
-    def __init__(self, stats=None, parent=None):
-        super().__init__(parent)
-        self.stats = stats or {}
-        self.setObjectName("card")
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(0)
+        info_col.addWidget(status)
+        info_col.addStretch()
+        hero_layout.addLayout(info_col, 1)
+        
+        # Sign out button in hero
+        signout_btn = QPushButton("Sign Out")
+        signout_btn.setCursor(Qt.PointingHandCursor)
+        signout_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {COLORS['danger']};
+                border: 1px solid {COLORS['danger']}50;
+                border-radius: 10px;
+                padding: 10px 20px;
+                font-size: 13px; font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['danger']}15;
+                border-color: {COLORS['danger']};
+            }}
+        """)
+        signout_btn.clicked.connect(self._handle_logout)
+        hero_layout.addWidget(signout_btn, alignment=Qt.AlignVCenter)
+        
+        content_layout.addWidget(hero)
+        
+        # ── STATS ROW ─────────────────────────────────────────────
+        stats_frame = QFrame()
+        stats_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border: none;
+                border-radius: 14px;
+            }}
+        """)
+        stats_grid = QHBoxLayout(stats_frame)
+        stats_grid.setContentsMargins(8, 8, 8, 8)
+        stats_grid.setSpacing(0)
         
         stats_data = [
-            (str(self.stats.get("total", 0)), "Total\nTranslations"),
-            (str(self.stats.get("unique_signs", 0)), "Unique\nSigns"),
-            (str(self.stats.get("today", 0)), "Today's\nSessions"),
-            ("0", "Day\nStreak"),
+            ("📝", "0", "Total Translations", COLORS['primary']),
+            ("✨", "0", "Unique Signs", COLORS['success']),
+            ("📅", "0", "Today's Sessions", COLORS['accent']),
+            ("🔥", "0", "Day Streak", "#f59e0b"),
         ]
         
-        for i, (value, label) in enumerate(stats_data):
-            stat_layout = QVBoxLayout()
+        self._stat_value_labels = []
+        
+        for i, (icon, value, label, color) in enumerate(stats_data):
+            stat_widget = QFrame()
+            stat_widget.setStyleSheet(f"""
+                QFrame {{
+                    background: {color}08;
+                    border-radius: 10px;
+                    border: none;
+                }}
+            """)
+            stat_layout = QVBoxLayout(stat_widget)
+            stat_layout.setContentsMargins(16, 16, 16, 16)
+            stat_layout.setSpacing(6)
             stat_layout.setAlignment(Qt.AlignCenter)
             
-            value_label = QLabel(value)
-            value_label.setStyleSheet(f"""
-                font-size: 28px;
-                font-weight: 700;
-                color: {COLORS['primary']};
-            """)
-            value_label.setAlignment(Qt.AlignCenter)
+            icon_lbl = QLabel(icon)
+            icon_lbl.setStyleSheet("font-size: 20px; background: transparent;")
+            icon_lbl.setAlignment(Qt.AlignCenter)
+            stat_layout.addWidget(icon_lbl)
             
-            label_label = QLabel(label)
-            label_label.setStyleSheet(f"""
-                font-size: 12px;
+            val_lbl = QLabel(value)
+            val_lbl.setStyleSheet(f"""
+                font-size: 26px; font-weight: 800;
+                color: {color};
+                background: transparent;
+            """)
+            val_lbl.setAlignment(Qt.AlignCenter)
+            stat_layout.addWidget(val_lbl)
+            self._stat_value_labels.append(val_lbl)
+            
+            name_lbl = QLabel(label)
+            name_lbl.setStyleSheet(f"""
+                font-size: 11px; font-weight: 600;
                 color: {COLORS['text_muted']};
-                text-align: center;
+                background: transparent;
             """)
-            label_label.setAlignment(Qt.AlignCenter)
+            name_lbl.setAlignment(Qt.AlignCenter)
+            stat_layout.addWidget(name_lbl)
             
-            stat_layout.addWidget(value_label)
-            stat_layout.addWidget(label_label)
-            layout.addLayout(stat_layout)
-            
-            # Add divider between stats
-            if i < len(stats_data) - 1:
-                divider = QFrame()
-                divider.setStyleSheet(f"background-color: {COLORS['border']}; max-width: 1px;")
-                divider.setFixedWidth(1)
-                layout.addWidget(divider)
-
-
-class SettingsSection(QFrame):
-    """Settings and actions section."""
-    
-    logout_requested = Signal()
-    password_change_requested = Signal()
-    navigate_to_settings = Signal()
-    
-    def __init__(self, db_service=None, user_data=None, parent=None):
-        super().__init__(parent)
-        self.db = db_service
-        self.user = user_data or {}
-        self.setObjectName("card")
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
+            stats_grid.addWidget(stat_widget, 1)
         
-        # Section title
-        title = QLabel("⚙️ Account Settings")
-        title.setObjectName("sectionTitle")
-        layout.addWidget(title)
+        content_layout.addWidget(stats_frame)
         
-        # Settings buttons - all functional now
-        settings = [
-            ("🔑", "Change Password", self._change_password),
-            ("🔔", "Notifications", self._show_notifications),
-            ("🎨", "Appearance", self._go_to_appearance),
-            ("📤", "Export Data", self._export_data),
-            ("❓", "Help & Support", self._show_help),
+        # ── SETTINGS GRID (2-column) ────────────────────────────
+        settings_label = QLabel("⚙️  ACCOUNT SETTINGS")
+        settings_label.setStyleSheet(f"""
+            font-size: 11px; font-weight: 700;
+            color: {COLORS['text_muted']};
+            letter-spacing: 1.5px;
+            padding-top: 8px;
+        """)
+        content_layout.addWidget(settings_label)
+        
+        grid = QGridLayout()
+        grid.setSpacing(12)
+        
+        settings_items = [
+            ("🔑", "Change Password", "Update your account password", self._change_password),
+            ("🔔", "Notifications", "Manage alert preferences", self._show_notifications),
+            ("🎨", "Appearance", "Theme and display settings", self._go_to_appearance),
+            ("📤", "Export Data", "Download your translation history", self._export_data),
+            ("❓", "Help & Support", "Get help and view guides", self._show_help),
         ]
         
-        for icon, text, action in settings:
-            btn = QPushButton(f"{icon}  {text}")
-            btn.setObjectName("navButton")
-            btn.setStyleSheet("""
-                QPushButton {
-                    text-align: left;
-                    padding: 14px 16px;
-                }
+        for i, (icon, title, desc, action) in enumerate(settings_items):
+            card = QFrame()
+            card.setCursor(Qt.PointingHandCursor)
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background: {COLORS['bg_card']};
+                    border: none;
+                    border-radius: 12px;
+                }}
+                QFrame:hover {{
+                    background: {COLORS['bg_card_hover']};
+                }}
             """)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.clicked.connect(action)
-            layout.addWidget(btn)
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(16, 14, 16, 14)
+            card_layout.setSpacing(14)
+            
+            icon_frame = QFrame()
+            icon_frame.setFixedSize(40, 40)
+            icon_frame.setStyleSheet(f"""
+                QFrame {{
+                    background: {COLORS['primary']}12;
+                    border-radius: 10px;
+                    border: none;
+                }}
+            """)
+            icon_inner = QVBoxLayout(icon_frame)
+            icon_inner.setContentsMargins(0, 0, 0, 0)
+            icon_lbl = QLabel(icon)
+            icon_lbl.setStyleSheet("font-size: 18px; background: transparent;")
+            icon_lbl.setAlignment(Qt.AlignCenter)
+            icon_inner.addWidget(icon_lbl)
+            card_layout.addWidget(icon_frame)
+            
+            text_col = QVBoxLayout()
+            text_col.setSpacing(2)
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet(f"""
+                font-size: 14px; font-weight: 600;
+                color: {COLORS['text_primary']};
+                background: transparent;
+            """)
+            desc_lbl = QLabel(desc)
+            desc_lbl.setStyleSheet(f"""
+                font-size: 11px;
+                color: {COLORS['text_muted']};
+                background: transparent;
+            """)
+            text_col.addWidget(title_lbl)
+            text_col.addWidget(desc_lbl)
+            card_layout.addLayout(text_col, 1)
+            
+            arrow = QLabel("→")
+            arrow.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 14px; background: transparent;")
+            card_layout.addWidget(arrow)
+            
+            # Make frame clickable via mouse event
+            card.mousePressEvent = lambda e, a=action: a()
+            
+            row, col = divmod(i, 2)
+            grid.addWidget(card, row, col)
         
-        layout.addSpacing(20)
+        content_layout.addLayout(grid)
         
-        # Danger zone
-        danger_title = QLabel("⚠️ Danger Zone")
-        danger_title.setObjectName("sectionTitle")
-        danger_title.setStyleSheet(f"color: {COLORS['danger']};")
-        layout.addWidget(danger_title)
+        # ── APP INFO FOOTER ───────────────────────────────────────
+        footer = QFrame()
+        footer.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border: none;
+                border-radius: 12px;
+            }}
+        """)
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(20, 14, 20, 14)
         
-        logout_btn = QPushButton("🚪  Sign Out")
-        logout_btn.setObjectName("danger")
-        logout_btn.setCursor(Qt.PointingHandCursor)
-        logout_btn.clicked.connect(self.logout_requested.emit)
-        layout.addWidget(logout_btn)
+        app_lbl = QLabel("EmoSign")
+        app_lbl.setStyleSheet(f"font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
+        ver_lbl = QLabel("v2.0.0")
+        ver_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; background: transparent;")
+        made_lbl = QLabel("Made with ❤️ using Python, MediaPipe & scikit-learn")
+        made_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; background: transparent;")
+        
+        footer_layout.addWidget(app_lbl)
+        footer_layout.addWidget(ver_lbl)
+        footer_layout.addStretch()
+        footer_layout.addWidget(made_lbl)
+        
+        content_layout.addWidget(footer)
+        content_layout.addStretch()
+        
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
     
-    def _change_password(self):
-        """Show change password dialog."""
-        if self.user.get("guest") or self.user.get("offline"):
-            QMessageBox.information(
-                self, "Not Available",
-                "Password change is not available in guest/offline mode."
-            )
+    # ── Data Loading ──────────────────────────────────────────────
+    
+    def _load_stats(self):
+        """Load user statistics from database."""
+        if not self.db or self.user.get("guest"):
             return
         
+        try:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            self._stats = loop.run_until_complete(
+                self.db.get_translation_stats(self.user.get("id", ""))
+            )
+            loop.close()
+            self._update_stats_display()
+        except Exception as e:
+            print(f"Failed to load stats: {e}")
+    
+    def _update_stats_display(self):
+        """Update stat value labels with loaded data."""
+        if not hasattr(self, '_stat_value_labels') or len(self._stat_value_labels) < 4:
+            return
+        self._stat_value_labels[0].setText(str(self._stats.get("total", 0)))
+        self._stat_value_labels[1].setText(str(self._stats.get("unique_signs", 0)))
+        self._stat_value_labels[2].setText(str(self._stats.get("today", 0)))
+        # Streak from analytics
+        try:
+            from core.analytics import analytics
+            if analytics:
+                user_id = self.user.get('id', 'guest')
+                progress = analytics.get_learning_progress(user_id)
+                self._stat_value_labels[3].setText(str(progress.get('current_streak', 0)))
+        except ImportError:
+            pass
+    
+    # ── Actions ───────────────────────────────────────────────────
+    
+    def _handle_logout(self):
+        reply = QMessageBox.question(
+            self, "Sign Out",
+            "Are you sure you want to sign out?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            if self.db:
+                try:
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(self.db.sign_out())
+                    loop.close()
+                except Exception as e:
+                    print(f"Sign out error: {e}")
+            self.logout_requested.emit()
+    
+    def _change_password(self):
+        if self.user.get("guest") or self.user.get("offline"):
+            QMessageBox.information(self, "Not Available", "Password change is not available in guest/offline mode.")
+            return
         dialog = ChangePasswordDialog(self.db, self.user.get("id", ""), self)
         dialog.exec()
     
     def _show_notifications(self):
-        """Show notification settings dialog."""
         dialog = NotificationSettingsDialog(self)
         dialog.exec()
     
     def _go_to_appearance(self):
-        """Navigate to appearance/settings page."""
-        self.navigate_to_settings.emit()
+        # Navigate to settings page
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'navigate_to') and callable(parent.navigate_to):
+                parent.navigate_to("settings")
+                return
+            parent = parent.parent()
     
     def _export_data(self):
-        """Export user data."""
         if not EXPORT_AVAILABLE:
-            QMessageBox.warning(
-                self, "Export Error",
-                "Export functionality is not available."
-            )
+            QMessageBox.warning(self, "Export Error", "Export functionality is not available.")
             return
         
-        # Ask for export location
-        file_path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Export Translation Data",
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Translation Data",
             os.path.expanduser("~/Documents/emosign_export.json"),
             "JSON Files (*.json);;CSV Files (*.csv);;Text Files (*.txt)"
         )
-        
         if not file_path:
             return
         
         try:
-            # Determine format from extension
             ext = os.path.splitext(file_path)[1].lower()
             if ext == ".csv":
                 fmt = ExportFormat.CSV
@@ -594,10 +751,7 @@ class SettingsSection(QFrame):
             else:
                 fmt = ExportFormat.JSON
             
-            # Create export manager and export
             exporter = ExportManager(os.path.dirname(file_path))
-            
-            # Get user's translation history if db available
             translations = []
             if self.db and self.user.get("id"):
                 try:
@@ -614,159 +768,21 @@ class SettingsSection(QFrame):
             
             if translations:
                 result_path = exporter.export_translations(translations, fmt, os.path.basename(file_path))
-                QMessageBox.information(
-                    self, "Export Complete",
-                    f"Data exported successfully!\n\nFile: {result_path}"
-                )
+                QMessageBox.information(self, "Export Complete", f"Data exported successfully!\n\nFile: {result_path}")
             else:
-                QMessageBox.information(
-                    self, "No Data",
-                    "No translation data to export. Start using the app to generate data!"
-                )
+                QMessageBox.information(self, "No Data", "No translation data to export.")
         except Exception as e:
             QMessageBox.warning(self, "Export Error", f"Failed to export data: {e}")
     
     def _show_help(self):
-        """Show help and support dialog."""
         dialog = HelpSupportDialog(self)
         dialog.exec()
     
-    def update_user(self, user_data):
-        """Update user data."""
-        self.user = user_data
-
-
-class ProfilePage(QWidget):
-    """User profile and settings page."""
-    
-    back_requested = Signal()
-    logout_requested = Signal()
-    
-    def __init__(self, user_data=None, db_service=None, parent=None):
-        super().__init__(parent)
-        self.user = user_data or {}
-        self.db = db_service
-        self._stats = {}
-        self._setup_ui()
-        self._load_stats()
-    
-    def _setup_ui(self):
-        """Setup profile page UI."""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 16, 24, 16)
-        main_layout.setSpacing(24)
-        
-        # === HEADER ===
-        header, _ = make_page_header("👤 Profile & Settings")
-        main_layout.addLayout(header)
-        
-        # === CONTENT ===
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(24)
-        
-        # Left column: Profile + Stats
-        left_column = QVBoxLayout()
-        left_column.setSpacing(20)
-        
-        self.profile_card = ProfileCard(self.user)
-        self.stats_row = StatsRow(self._stats)
-        
-        left_column.addWidget(self.profile_card)
-        left_column.addWidget(self.stats_row)
-        left_column.addStretch()
-        
-        # Right column: Settings
-        self.settings_section = SettingsSection(self.db, self.user)
-        self.settings_section.logout_requested.connect(self._handle_logout)
-        
-        content_layout.addLayout(left_column, 1)
-        content_layout.addWidget(self.settings_section, 1)
-        
-        main_layout.addLayout(content_layout)
-        
-        # === APP INFO ===
-        info_frame = QFrame()
-        info_frame.setObjectName("card")
-        info_layout = QHBoxLayout(info_frame)
-        info_layout.setContentsMargins(24, 16, 24, 16)
-        
-        app_name = QLabel("EmoSign")
-        app_name.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']};")
-        
-        version = QLabel("v2.0.0")
-        version.setStyleSheet(f"color: {COLORS['text_muted']};")
-        
-        made_with = QLabel("Made with ❤️ using Python, MediaPipe & scikit-learn")
-        made_with.setStyleSheet(f"color: {COLORS['text_muted']};")
-        
-        info_layout.addWidget(app_name)
-        info_layout.addWidget(version)
-        info_layout.addStretch()
-        info_layout.addWidget(made_with)
-        
-        main_layout.addWidget(info_frame)
-    
-    def _load_stats(self):
-        """Load user statistics."""
-        if not self.db or self.user.get("guest"):
-            return
-        
-        try:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            self._stats = loop.run_until_complete(
-                self.db.get_translation_stats(self.user.get("id", ""))
-            )
-            loop.close()
-            
-            # Update stats display
-            self._update_stats_display()
-        except Exception as e:
-            print(f"Failed to load stats: {e}")
-    
-    def _update_stats_display(self):
-        """Update the stats row with new data."""
-        # Remove old stats row and rebuild with new data
-        if hasattr(self, 'stats_row') and self.stats_row:
-            self.stats_row.deleteLater()
-        self.stats_row = StatsRow(self._stats)
-        # Find the left column layout and insert the new stats row
-        content_layout = self.centralWidget().layout() if hasattr(self, 'centralWidget') else None
-        # Re-insert into the layout - find it by traversing
-        main_layout = self.layout()
-        if main_layout and main_layout.count() > 1:
-            content_item = main_layout.itemAt(1)  # content_layout is second item
-            if content_item and content_item.layout():
-                left_col = content_item.layout().itemAt(0)
-                if left_col and left_col.layout():
-                    left_col.layout().insertWidget(1, self.stats_row)
-    
-    def _handle_logout(self):
-        """Handle logout request."""
-        reply = QMessageBox.question(
-            self, "Sign Out",
-            "Are you sure you want to sign out?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        
-        if reply == QMessageBox.Yes:
-            if self.db:
-                try:
-                    import asyncio
-                    loop = asyncio.new_event_loop()
-                    loop.run_until_complete(self.db.sign_out())
-                    loop.close()
-                except Exception as e:
-                    print(f"Sign out error: {e}")
-            
-            self.logout_requested.emit()
+    # ── Public API ────────────────────────────────────────────────
     
     def update_user(self, user_data):
-        """Update user data."""
         self.user = user_data
-        self.settings_section.user = user_data
         self._load_stats()
     
     def refresh(self):
-        """Refresh profile data."""
         self._load_stats()

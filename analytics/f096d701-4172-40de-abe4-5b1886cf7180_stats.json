@@ -1,10 +1,10 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 409,
+  "total_signs_detected": 474,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 4,
+  "total_sessions": 5,
   "total_practice_time": 1.4172597166666667,
   "sign_counts": {
     "Y": 2,
@@ -39,13 +39,32 @@
     "OOOBYY5XB5A": 11,
     "OOOBYY5XB5AA": 8,
     "OOOBYY5XB5AAP": 28,
-    "OOOBYY5XB5AAPZ": 150
+    "OOOBYY5XB5AAPZ": 150,
+    "C": 5,
+    "C5": 2,
+    "C5B": 2,
+    "C5B5": 3,
+    "C5B55": 2,
+    "C5B55C": 4,
+    "C5B55C5": 7,
+    "C5B55C5L": 2,
+    "C5B55C5LA": 2,
+    "C5B55C5LAS": 1,
+    "C5B55C5LASX": 3,
+    "C5B55C5LASXS": 3,
+    "C5B55C5LASXSA": 7,
+    "C5B55C5LASXSAA": 2,
+    "C5B55C5LASXSAAQ": 2,
+    "C5B55C5LASXSAAQG": 4,
+    "C5B55C5LASXSAAQGG": 8,
+    "C5B55C5LASXSAAQGG5": 2,
+    "C5B55C5LASXSAAQGG5Y": 4
   },
-  "correct_predictions": 409,
-  "total_predictions": 409,
+  "correct_predictions": 474,
+  "total_predictions": 474,
   "current_streak": 1,
   "longest_streak": 1,
-  "last_active_date": "2026-02-19",
+  "last_active_date": "2026-02-23",
   "signs_learned": [
     "Y",
     "S",
@@ -79,7 +98,26 @@
     "OOOBYY5XB5A",
     "OOOBYY5XB5AA",
     "OOOBYY5XB5AAP",
-    "OOOBYY5XB5AAPZ"
+    "OOOBYY5XB5AAPZ",
+    "C",
+    "C5",
+    "C5B",
+    "C5B5",
+    "C5B55",
+    "C5B55C",
+    "C5B55C5",
+    "C5B55C5L",
+    "C5B55C5LA",
+    "C5B55C5LAS",
+    "C5B55C5LASX",
+    "C5B55C5LASXS",
+    "C5B55C5LASXSA",
+    "C5B55C5LASXSAA",
+    "C5B55C5LASXSAAQ",
+    "C5B55C5LASXSAAQG",
+    "C5B55C5LASXSAAQGG",
+    "C5B55C5LASXSAAQGG5",
+    "C5B55C5LASXSAAQGG5Y"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [
@@ -102,6 +140,7 @@
   "session_dates": [
     "2026-02-06",
     "2026-02-17",
-    "2026-02-19"
+    "2026-02-19",
+    "2026-02-23"
   ]
 }

@@ -398,7 +398,6 @@ class MainWindow(QMainWindow):
         
         # Profile signals
         self.profile_page.logout_requested.connect(self._on_logout)
-        self.profile_page.settings_section.navigate_to_settings.connect(lambda: self._navigate_to("settings"))
     
     def _apply_theme(self, theme: str):
         """Apply theme — deferred rebuild for responsive button animation."""
