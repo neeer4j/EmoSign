@@ -709,6 +709,7 @@ class LiveTranslationPage(QWidget):
         )
         self.camera_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
         self.camera_widget.dynamic_gesture_detected.connect(self._on_dynamic_gesture)
+        self.camera_widget.nn_gesture_detected.connect(self._on_nn_gesture)
         
         # Capture-window completion → feed confirmed gesture to engine
         self.gesture_display.capture_complete.connect(self._on_capture_complete)
@@ -721,6 +722,7 @@ class LiveTranslationPage(QWidget):
         )
         self.video_widget.heuristic_gesture_detected.connect(self._on_video_heuristic_gesture)
         self.video_widget.dynamic_gesture_detected.connect(self._on_video_dynamic_gesture)
+        self.video_widget.nn_gesture_detected.connect(self._on_video_nn_gesture)
         self.video_widget.video_finished.connect(self._on_video_finished)
         self.video_widget.video_loaded.connect(self._on_video_loaded)
     
@@ -1028,6 +1030,38 @@ class LiveTranslationPage(QWidget):
         gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
         # Feed to capture-window vote buffer
         self.gesture_display.add_vote(gesture_name, confidence)
+    
+    @Slot(str, float, str)
+    def _on_nn_gesture(self, gesture: str, confidence: float, model_used: str):
+        """Handle gesture from GesturePipeline (Keras MLP/LSTM + heuristic).
+        
+        This includes trained dynamic gestures (J, Z, etc.) from the Keras LSTM.
+        """
+        if not self._is_translating:
+            return
+        
+        # The pipeline already distinguishes between static/dynamic via model_used
+        # For dynamic gestures (keras_dynamic), give them higher vote weight
+        if model_used == "keras_dynamic":
+            # Dynamic letter detected from trained LSTM - give extra votes
+            for _ in range(3):  # Triple vote weight for dynamic predictions
+                self.gesture_display.add_vote(gesture, confidence)
+        else:
+            # Static prediction from Keras MLP or heuristic
+            self.gesture_display.add_vote(gesture, confidence)
+    
+    @Slot(str, float, str)
+    def _on_video_nn_gesture(self, gesture: str, confidence: float, model_used: str):
+        """Handle gesture from GesturePipeline for video input."""
+        if not self._is_translating or not self.video_widget.is_loaded():
+            return
+        
+        # Same logic as camera
+        if model_used == "keras_dynamic":
+            for _ in range(3):
+                self.gesture_display.add_vote(gesture, confidence)
+        else:
+            self.gesture_display.add_vote(gesture, confidence)
     
     @Slot(bool)
     def _on_hand_detected(self, detected: bool):

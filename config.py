@@ -41,8 +41,8 @@ DYNAMIC_MODEL_PATH = os.path.join(MODELS_DIR, "dynamic_lstm_model.pth")
 DYNAMIC_LABELS_PATH = os.path.join(MODELS_DIR, "dynamic_labels.pkl")
 
 # Dual Model Manager Settings
-MOVEMENT_THRESHOLD = 0.015          # Normalized landmark displacement threshold
-MOVEMENT_FRAMES_REQUIRED = 5        # Consecutive frames exceeding threshold to trigger dynamic
+MOVEMENT_THRESHOLD = 0.02           # Normalized max-landmark displacement threshold
+MOVEMENT_FRAMES_REQUIRED = 3        # Consecutive frames exceeding threshold to trigger dynamic
 DYNAMIC_SEQUENCE_LENGTH = 30         # Number of frames buffered for LSTM
 FULL_FEATURE_COUNT = 87             # All features from FeatureExtractor (63 coords + 24 derived)
 

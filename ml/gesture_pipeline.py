@@ -28,6 +28,9 @@ from ml.keras_static_classifier import KerasStaticClassifier
 from ml.keras_dynamic_classifier import KerasDynamicClassifier
 from ml.heuristic_classifier import HeuristicClassifier
 
+# Debug flag - set to True to see movement detection logs
+DEBUG_MOVEMENT = True
+
 
 class GesturePipeline:
     """Movement-aware, smoothing, confidence-filtered gesture pipeline.
@@ -72,6 +75,9 @@ class GesturePipeline:
         # --- Prediction smoothing ---
         self._prediction_buffer: deque = deque(maxlen=smoothing_window)
         self._confidence_buffer: deque = deque(maxlen=smoothing_window)
+        
+        # --- Debug ---
+        self._debug_frame_count: int = 0
 
     # ==================================================================
     # Loading
@@ -95,7 +101,12 @@ class GesturePipeline:
     # ==================================================================
 
     def _compute_displacement(self, landmarks: np.ndarray) -> float:
-        """Mean displacement of 21 landmarks vs previous frame, normalized."""
+        """Max displacement of any landmark vs previous frame, normalized.
+
+        Uses np.max so that significant motion by ANY single landmark
+        (e.g. index finger drawing Z) triggers dynamic routing, instead
+        of being diluted by the 20 stationary landmarks.
+        """
         if self._prev_landmarks is None:
             return 0.0
 
@@ -107,7 +118,10 @@ class GesturePipeline:
         if scale < 1e-6:
             scale = 1.0
 
-        return float(np.mean(per_point) / scale)
+        disp = float(np.max(per_point) / scale)
+        if DEBUG_MOVEMENT and self._debug_frame_count % 10 == 0:
+            print(f"[MOVE] disp={disp:.4f}")
+        return disp
 
     # ==================================================================
     # Smoothing
@@ -166,6 +180,14 @@ class GesturePipeline:
         displacement = self._compute_displacement(lm)
         self._prev_landmarks = lm.copy()
 
+        # DEBUG: Print movement info
+        if DEBUG_MOVEMENT and self._debug_frame_count % 10 == 0:
+            print(f"[MOVE] disp={displacement:.4f} thresh={self.movement_threshold:.4f} "
+                  f"motion_cnt={self._motion_counter}/{self.movement_frames_required} "
+                  f"buffering={self._is_buffering} buf_len={len(self._landmark_buffer)}/{self.sequence_length} "
+                  f"dynamic_loaded={self._dynamic_loaded}")
+        self._debug_frame_count += 1
+
         # Always buffer for potential LSTM use
         self._landmark_buffer.append(landmarks)
 
@@ -175,10 +197,18 @@ class GesturePipeline:
         else:
             # Motion just stopped — try dynamic prediction on buffer
             if self._is_buffering and self._dynamic_loaded:
+                if DEBUG_MOVEMENT:
+                    print(f"[MOVE] Motion stopped! Trying dynamic predict on {len(self._landmark_buffer)} frames...")
                 label, conf = self._try_dynamic_predict()
+                if DEBUG_MOVEMENT:
+                    print(f"[LSTM] Raw prediction: label={label}, conf={conf:.3f}")
                 if label is not None:
                     label, conf = self._smooth_prediction(label, conf)
+                    if DEBUG_MOVEMENT:
+                        print(f"[LSTM] After smoothing: label={label}, conf={conf:.3f}, min_conf={self.min_confidence}")
                     if label and conf >= self.min_confidence:
+                        if DEBUG_MOVEMENT:
+                            print(f"[LSTM] ✓ RETURNING DYNAMIC: {label} ({conf:.1%})")
                         self._reset_motion_state()
                         return label, conf, "keras_dynamic"
             self._motion_counter = 0
@@ -186,6 +216,8 @@ class GesturePipeline:
 
         # Start buffering once motion threshold is sustained
         if self._motion_counter >= self.movement_frames_required:
+            if not self._is_buffering and DEBUG_MOVEMENT:
+                print(f"[MOVE] >>> BUFFERING STARTED! motion_counter={self._motion_counter}")
             self._is_buffering = True
 
         # Full buffer → dynamic prediction
@@ -194,12 +226,18 @@ class GesturePipeline:
             and self._dynamic_loaded
             and len(self._landmark_buffer) >= self.sequence_length
         ):
+            if DEBUG_MOVEMENT:
+                print(f"[LSTM] Buffer full ({len(self._landmark_buffer)}), predicting...")
             label, conf = self.dynamic_classifier.predict(
                 list(self._landmark_buffer)
             )
+            if DEBUG_MOVEMENT:
+                print(f"[LSTM] Full buffer prediction: label={label}, conf={conf:.3f}")
             if label is not None and conf > 0.0:
                 label, conf = self._smooth_prediction(label, conf)
                 if label and conf >= self.min_confidence:
+                    if DEBUG_MOVEMENT:
+                        print(f"[LSTM] ✓ RETURNING DYNAMIC (full buffer): {label} ({conf:.1%})")
                     self._reset_motion_state()
                     return label, conf, "keras_dynamic"
 

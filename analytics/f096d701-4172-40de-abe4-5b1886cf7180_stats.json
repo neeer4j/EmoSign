@@ -1,10 +1,10 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 474,
+  "total_signs_detected": 656,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 5,
+  "total_sessions": 8,
   "total_practice_time": 1.4172597166666667,
   "sign_counts": {
     "Y": 2,
@@ -13,7 +13,7 @@
     "SZS": 2,
     "W": 2,
     "V": 2,
-    "O": 17,
+    "O": 34,
     "OM": 1,
     "OMO": 1,
     "OMOT": 1,
@@ -27,8 +27,8 @@
     "OL": 9,
     "OLX": 6,
     "OLXX": 4,
-    "OO": 11,
-    "OOO": 10,
+    "OO": 27,
+    "OOO": 19,
     "OOOB": 12,
     "OOOBY": 9,
     "OOOBYY": 9,
@@ -58,10 +58,22 @@
     "C5B55C5LASXSAAQG": 4,
     "C5B55C5LASXSAAQGG": 8,
     "C5B55C5LASXSAAQGG5": 2,
-    "C5B55C5LASXSAAQGG5Y": 4
+    "C5B55C5LASXSAAQGG5Y": 4,
+    "D": 23,
+    "DS": 12,
+    "DSD": 13,
+    "DSDL": 7,
+    "DD": 11,
+    "DD1": 13,
+    "DD1D": 12,
+    "DD1DD": 13,
+    "DD1DDD": 12,
+    "DD1DDDD": 12,
+    "DD1DDDDI": 11,
+    "DD1DDDDIY": 1
   },
-  "correct_predictions": 474,
-  "total_predictions": 474,
+  "correct_predictions": 656,
+  "total_predictions": 656,
   "current_streak": 1,
   "longest_streak": 1,
   "last_active_date": "2026-02-23",
@@ -117,7 +129,19 @@
     "C5B55C5LASXSAAQG",
     "C5B55C5LASXSAAQGG",
     "C5B55C5LASXSAAQGG5",
-    "C5B55C5LASXSAAQGG5Y"
+    "C5B55C5LASXSAAQGG5Y",
+    "D",
+    "DS",
+    "DSD",
+    "DSDL",
+    "DD",
+    "DD1",
+    "DD1D",
+    "DD1DD",
+    "DD1DDD",
+    "DD1DDDD",
+    "DD1DDDDI",
+    "DD1DDDDIY"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [
@@ -126,7 +150,8 @@
     "accuracy_80",
     "accuracy_95",
     "practice_50",
-    "practice_100"
+    "practice_100",
+    "practice_500"
   ],
   "achievement_dates": {
     "first_sign": "2026-02-17T11:41:30.210737",
@@ -134,9 +159,10 @@
     "accuracy_80": "2026-02-17T11:41:59.421418",
     "accuracy_95": "2026-02-17T11:41:59.422413",
     "practice_50": "2026-02-17T12:12:59.462846",
-    "practice_100": "2026-02-19T09:29:30.450049"
+    "practice_100": "2026-02-19T09:29:30.450049",
+    "practice_500": "2026-02-23T11:48:28.424021"
   },
-  "total_points": 290,
+  "total_points": 390,
   "session_dates": [
     "2026-02-06",
     "2026-02-17",
