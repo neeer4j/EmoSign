@@ -1,13 +1,13 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 656,
+  "total_signs_detected": 734,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 8,
+  "total_sessions": 9,
   "total_practice_time": 1.4172597166666667,
   "sign_counts": {
-    "Y": 2,
+    "Y": 15,
     "S": 2,
     "SZ": 3,
     "SZS": 2,
@@ -70,10 +70,15 @@
     "DD1DDD": 12,
     "DD1DDDD": 12,
     "DD1DDDDI": 11,
-    "DD1DDDDIY": 1
+    "DD1DDDDIY": 1,
+    "YO": 13,
+    "YOO": 13,
+    "YOOO": 14,
+    "YOOOO": 16,
+    "YOOOON": 9
   },
-  "correct_predictions": 656,
-  "total_predictions": 656,
+  "correct_predictions": 734,
+  "total_predictions": 734,
   "current_streak": 1,
   "longest_streak": 1,
   "last_active_date": "2026-02-23",
@@ -141,7 +146,12 @@
     "DD1DDD",
     "DD1DDDD",
     "DD1DDDDI",
-    "DD1DDDDIY"
+    "DD1DDDDIY",
+    "YO",
+    "YOO",
+    "YOOO",
+    "YOOOO",
+    "YOOOON"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [

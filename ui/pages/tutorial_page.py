@@ -17,6 +17,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QColor, QPixmap
 
+import os
+import glob
+
 from ui.styles import COLORS
 from ui.hand_widget import AnimatedHandWidget
 
@@ -804,25 +807,56 @@ class SignCard(QFrame):
         hand_inner.setContentsMargins(8, 8, 8, 8)
 
         self._hand = AnimatedHandWidget()
-        self._hand.setFixedHeight(220)
+        self._hand.setFixedHeight(180)
         hand_inner.addWidget(self._hand)
 
         layout.addWidget(hand_frame)
 
+        # Row 3b — Reference image from assets/alphabets/
+        self._ref_img_frame = QFrame()
+        self._ref_img_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border-radius: 14px;
+                border: 1px solid {COLORS['border']};
+            }}
+        """)
+        ref_img_inner = QVBoxLayout(self._ref_img_frame)
+        ref_img_inner.setContentsMargins(8, 8, 8, 8)
+        ref_img_inner.setAlignment(Qt.AlignCenter)
+
+        ref_title = QLabel("📸 Reference")
+        ref_title.setAlignment(Qt.AlignCenter)
+        ref_title.setStyleSheet(f"""
+            font-size: 12px; font-weight: 600;
+            color: {COLORS['text_muted']};
+            background: transparent;
+        """)
+        ref_img_inner.addWidget(ref_title)
+
+        self._ref_img_label = QLabel()
+        self._ref_img_label.setAlignment(Qt.AlignCenter)
+        self._ref_img_label.setMinimumHeight(80)
+        self._ref_img_label.setStyleSheet("background: transparent;")
+        self._ref_img_label.setScaledContents(False)
+        ref_img_inner.addWidget(self._ref_img_label)
+
+        layout.addWidget(self._ref_img_frame)
+
         # Row 4 — step-by-step cards
         self._steps_container = QVBoxLayout()
-        self._steps_container.setSpacing(4)
+        self._steps_container.setSpacing(3)
         self._step_labels = []
         for _ in range(3):
             step = QLabel()
             step.setWordWrap(True)
             step.setStyleSheet(f"""
-                font-size: 14px;
+                font-size: 12px;
                 color: {COLORS['text_primary']};
                 background: {COLORS['bg_card']};
-                padding: 8px 14px;
-                border-radius: 10px;
-                border-left: 4px solid {COLORS['primary']};
+                padding: 5px 10px;
+                border-radius: 8px;
+                border-left: 3px solid {COLORS['primary']};
             """)
             self._steps_container.addWidget(step)
             self._step_labels.append(step)
@@ -865,6 +899,9 @@ class SignCard(QFrame):
         self._letter_lbl.setText(self.letter)
         self._imagine_lbl.setText(f'💡 {info["imagine"]}')
 
+        # Load reference image from assets/alphabets/
+        self._load_ref_image(self.letter, 'alphabets')
+
         # Animate hand to the letter pose
         self._hand.set_letter(self.letter)
 
@@ -884,6 +921,28 @@ class SignCard(QFrame):
             self._motion_lbl.show()
         else:
             self._motion_lbl.hide()
+
+    def _load_ref_image(self, name: str, folder: str):
+        """Load a reference image from assets/<folder>/ for the given name."""
+        base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)))), 'assets', folder)
+        # Search for files matching the name (case-insensitive) with any extension
+        matches = glob.glob(os.path.join(base, f'{name}.*')) + \
+                  glob.glob(os.path.join(base, f'{name.lower()}.*'))
+        if matches:
+            pixmap = QPixmap(matches[0])
+            if not pixmap.isNull():
+                # Scale to fit within available width, maintaining aspect ratio
+                avail_w = max(self._ref_img_label.width(), 260)
+                avail_h = 160
+                scaled = pixmap.scaled(
+                    avail_w, avail_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self._ref_img_label.setPixmap(scaled)
+                self._ref_img_frame.show()
+                return
+        # No image found — hide the frame
+        self._ref_img_label.clear()
+        self._ref_img_frame.hide()
 
     def cleanup(self):
         self._hand.cleanup()
@@ -1007,13 +1066,13 @@ class AlphabetLesson(QWidget):
 
         back_btn = QPushButton("← Back")
         back_btn.setObjectName("secondaryButton")
-        back_btn.setFixedWidth(80)
+        back_btn.setMinimumWidth(80)
         back_btn.clicked.connect(self._on_back)
         header.addWidget(back_btn)
 
         reset_btn = QPushButton("🔄 Reset")
         reset_btn.setObjectName("secondaryButton")
-        reset_btn.setFixedWidth(80)
+        reset_btn.setMinimumWidth(80)
         reset_btn.clicked.connect(self._reset_tutorial)
         header.addWidget(reset_btn)
 
@@ -1179,34 +1238,105 @@ class AlphabetLesson(QWidget):
 
         layout.addLayout(content_layout, 1)
 
-        # ── Navigation bar (compact quick-jump) ──
-        nav_layout = QHBoxLayout()
-        nav_layout.setSpacing(4)
+        # ── Navigation bar ──
+        nav_frame = QFrame()
+        nav_frame.setObjectName("alphabetNavFrame")
+        nav_frame.setStyleSheet(f"""
+            QFrame#alphabetNavFrame {{
+                background: {COLORS['bg_card']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 12px;
+            }}
+        """)
+        nav_frame_layout = QVBoxLayout(nav_frame)
+        nav_frame_layout.setContentsMargins(12, 8, 12, 10)
+        nav_frame_layout.setSpacing(6)
 
-        self.prev_btn = QPushButton("◀")
-        self.prev_btn.setFixedSize(32, 32)
-        self.prev_btn.setObjectName("secondaryButton")
+        # Top row: Prev / title / Next
+        nav_top = QHBoxLayout()
+        nav_top.setSpacing(8)
+
+        self.prev_btn = QPushButton("◀  Previous Letter")
+        self.prev_btn.setMinimumWidth(130)
+        self.prev_btn.setFixedHeight(36)
+        self.prev_btn.setCursor(Qt.PointingHandCursor)
+        self.prev_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {COLORS['bg_input']};
+                color: {COLORS['text_primary']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                font-size: 13px; font-weight: 600;
+                padding: 4px 14px;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['primary']};
+                color: white;
+                border-color: {COLORS['primary']};
+            }}
+            QPushButton:disabled {{
+                opacity: 0.4;
+                color: {COLORS['text_muted']};
+            }}
+        """)
         self.prev_btn.clicked.connect(self._prev_letter)
-        nav_layout.addWidget(self.prev_btn)
+        nav_top.addWidget(self.prev_btn)
 
-        # Quick jump letters
+        nav_top.addStretch()
+
+        nav_title = QLabel("📍 Jump to Letter")
+        nav_title.setAlignment(Qt.AlignCenter)
+        nav_title.setStyleSheet(f"""
+            font-size: 13px; font-weight: 700;
+            color: {COLORS['text_secondary']};
+            background: transparent;
+        """)
+        nav_top.addWidget(nav_title)
+
+        nav_top.addStretch()
+
+        self.next_btn = QPushButton("Next Letter  ▶")
+        self.next_btn.setMinimumWidth(130)
+        self.next_btn.setFixedHeight(36)
+        self.next_btn.setCursor(Qt.PointingHandCursor)
+        self.next_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px; font-weight: 700;
+                padding: 4px 14px;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['primary_hover']};
+            }}
+        """)
+        self.next_btn.clicked.connect(self._next_letter)
+        nav_top.addWidget(self.next_btn)
+
+        nav_frame_layout.addLayout(nav_top)
+
+        # Bottom row: Quick-jump letter grid (two rows of 13)
+        letter_grid_widget = QWidget()
+        letter_grid = QGridLayout(letter_grid_widget)
+        letter_grid.setSpacing(4)
+        letter_grid.setContentsMargins(0, 0, 0, 0)
         self.nav_buttons = []
-        for i, letter in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        for i, letter in enumerate(alphabet):
             btn = QPushButton(letter)
-            btn.setFixedSize(26, 26)
+            btn.setFixedSize(38, 32)
             btn.setCursor(Qt.PointingHandCursor)
-            # Style will be set in _update_display
+            btn.setToolTip(f"Jump to letter {letter}")
             btn.clicked.connect(lambda checked, idx=i: self._jump_to_letter(idx))
-            nav_layout.addWidget(btn)
+            row = 0 if i < 13 else 1
+            col = i if i < 13 else i - 13
+            letter_grid.addWidget(btn, row, col, Qt.AlignCenter)
             self.nav_buttons.append(btn)
 
-        self.next_btn = QPushButton("▶")
-        self.next_btn.setFixedSize(32, 32)
-        self.next_btn.setObjectName("primaryButton")
-        self.next_btn.clicked.connect(self._next_letter)
-        nav_layout.addWidget(self.next_btn)
-
-        layout.addLayout(nav_layout)
+        nav_frame_layout.addWidget(letter_grid_widget, 0, Qt.AlignCenter)
+        layout.addWidget(nav_frame)
         # Initialize display
         self._update_display()
 
@@ -1393,34 +1523,46 @@ class AlphabetLesson(QWidget):
                         QPushButton {{
                             background: {COLORS['primary']};
                             color: white;
-                            border: none; border-radius: 4px;
-                            font-size: 10px; font-weight: bold;
+                            border: 2px solid {COLORS['primary_light']};
+                            border-radius: 4px;
+                            font-size: 13px; font-weight: bold;
+                            padding: 0px;
+                            min-width: 36px;
+                            min-height: 28px;
                         }}
                     """)
                 elif char in self.completed_letters:
                     btn.setStyleSheet(f"""
                         QPushButton {{
-                            background: {COLORS['success']}40;
+                            background: {COLORS['success']}30;
                             color: {COLORS['success']};
-                            border: 1px solid {COLORS['success']};
+                            border: 2px solid {COLORS['success']};
                             border-radius: 4px;
-                            font-size: 10px; font-weight: bold;
+                            font-size: 13px; font-weight: bold;
+                            padding: 0px;
+                            min-width: 36px;
+                            min-height: 28px;
                         }}
                         QPushButton:hover {{
-                            background: {COLORS['success']}60;
+                            background: {COLORS['success']}50;
                         }}
                     """)
                 else:
                     btn.setStyleSheet(f"""
                         QPushButton {{
-                            background: {COLORS['bg_input']};
-                            color: {COLORS['text_secondary']};
-                            border: none; border-radius: 4px;
-                            font-size: 10px; font-weight: bold;
+                            background: {COLORS['bg_card']};
+                            color: {COLORS['text_primary']};
+                            border: 1px solid {COLORS['border_light']};
+                            border-radius: 4px;
+                            font-size: 13px; font-weight: bold;
+                            padding: 0px;
+                            min-width: 36px;
+                            min-height: 28px;
                         }}
                         QPushButton:hover {{
-                            background: {COLORS['primary']};
-                            color: {COLORS['text_primary']};
+                            background: {COLORS['primary']}30;
+                            color: {COLORS['primary_light']};
+                            border-color: {COLORS['primary']};
                         }}
                     """)
 
@@ -1428,18 +1570,34 @@ class AlphabetLesson(QWidget):
         self.prev_btn.setEnabled(self.current_letter_index > 0)
         # Next button: show checkmark on last letter
         if self.current_letter_index == 25:
-            self.next_btn.setText("✓")
+            self.next_btn.setText("All Done  ✓")
             self.next_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: {COLORS['success']};
                     color: white;
-                    border: none; border-radius: 4px;
-                    font-weight: bold;
+                    border: none; border-radius: 8px;
+                    font-size: 13px; font-weight: 700;
+                    padding: 4px 14px;
+                }}
+                QPushButton:hover {{
+                    background: {COLORS['success']}dd;
                 }}
             """)
         else:
-            self.next_btn.setText("▶")
-            self.next_btn.setStyleSheet("")  # Reset to default
+            self.next_btn.setText("Next Letter  ▶")
+            self.next_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {COLORS['primary']};
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 13px; font-weight: 700;
+                    padding: 4px 14px;
+                }}
+                QPushButton:hover {{
+                    background: {COLORS['primary_hover']};
+                }}
+            """)
 
         # Reset feedback when changing letters
         if self._camera_widget and self._camera_widget.is_running:
@@ -1497,6 +1655,7 @@ class _PhraseLesson(QWidget):
     TITLE = ""
     ICON  = ""
     DATA  = []   # list of dicts: {name, emoji, desc, steps, tip?}
+    ASSETS_FOLDER = ""  # subclasses set e.g. 'numbers', 'alphabets'
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1596,6 +1755,39 @@ class _PhraseLesson(QWidget):
             background: {COLORS['primary']}12; padding: 6px 10px; border-radius: 6px;
         """)
         left_layout.addWidget(self._tip)
+
+        # Reference image from assets folder
+        self._ref_img_frame = QFrame()
+        self._ref_img_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border-radius: 12px;
+                border: 1px solid {COLORS['border']};
+            }}
+        """)
+        ref_inner = QVBoxLayout(self._ref_img_frame)
+        ref_inner.setContentsMargins(8, 6, 8, 6)
+        ref_inner.setAlignment(Qt.AlignCenter)
+
+        ref_title = QLabel("📸 Reference")
+        ref_title.setAlignment(Qt.AlignCenter)
+        ref_title.setStyleSheet(f"""
+            font-size: 11px; font-weight: 600;
+            color: {COLORS['text_muted']};
+            background: transparent;
+        """)
+        ref_inner.addWidget(ref_title)
+
+        self._phrase_ref_img = QLabel()
+        self._phrase_ref_img.setAlignment(Qt.AlignCenter)
+        self._phrase_ref_img.setMinimumHeight(60)
+        self._phrase_ref_img.setStyleSheet("background: transparent;")
+        self._phrase_ref_img.setScaledContents(False)
+        ref_inner.addWidget(self._phrase_ref_img)
+
+        left_layout.addWidget(self._ref_img_frame)
+        self._ref_img_frame.hide()  # hidden by default
+
         left_layout.addStretch()
         content_layout.addWidget(left_panel, 1)
 
@@ -1671,18 +1863,127 @@ class _PhraseLesson(QWidget):
 
         layout.addLayout(content_layout, 1)
 
-        # Navigation (compact)
-        nav = QHBoxLayout()
-        self._prev_btn = QPushButton("← Previous")
-        self._prev_btn.setObjectName("secondaryButton")
+        # Navigation bar
+        nav_frame = QFrame()
+        nav_frame.setObjectName("phraseNavFrame")
+        nav_frame.setStyleSheet(f"""
+            QFrame#phraseNavFrame {{
+                background: {COLORS['bg_card']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 10px;
+            }}
+        """)
+        nav_inner = QHBoxLayout(nav_frame)
+        nav_inner.setContentsMargins(12, 8, 12, 8)
+
+        self._prev_btn = QPushButton("◀  Previous")
+        self._prev_btn.setMinimumWidth(120)
+        self._prev_btn.setFixedHeight(36)
+        self._prev_btn.setCursor(Qt.PointingHandCursor)
+        self._prev_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {COLORS['bg_input']};
+                color: {COLORS['text_primary']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                font-size: 13px; font-weight: 600;
+                padding: 4px 16px;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['primary']};
+                color: white;
+                border-color: {COLORS['primary']};
+            }}
+            QPushButton:disabled {{
+                opacity: 0.4;
+                color: {COLORS['text_muted']};
+            }}
+        """)
         self._prev_btn.clicked.connect(self._prev)
-        nav.addWidget(self._prev_btn)
-        nav.addStretch()
-        self._next_btn = QPushButton("Next →")
-        self._next_btn.setObjectName("primaryButton")
+        nav_inner.addWidget(self._prev_btn)
+
+        nav_inner.addStretch()
+
+        self._nav_indicator = QLabel()
+        self._nav_indicator.setAlignment(Qt.AlignCenter)
+        self._nav_indicator.setStyleSheet(f"""
+            font-size: 13px; font-weight: 700;
+            color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']};
+            padding: 4px 16px;
+            border-radius: 8px;
+        """)
+        nav_inner.addWidget(self._nav_indicator)
+
+        nav_inner.addStretch()
+
+        self._next_btn = QPushButton("Next  ▶")
+        self._next_btn.setMinimumWidth(120)
+        self._next_btn.setFixedHeight(36)
+        self._next_btn.setCursor(Qt.PointingHandCursor)
+        self._next_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px; font-weight: 700;
+                padding: 4px 16px;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['primary_hover']};
+            }}
+        """)
         self._next_btn.clicked.connect(self._next)
-        nav.addWidget(self._next_btn)
-        layout.addLayout(nav)
+        nav_inner.addWidget(self._next_btn)
+
+        layout.addWidget(nav_frame)
+
+        # Item jump buttons row (for quick navigation between items)
+        self._item_jump_frame = QFrame()
+        self._item_jump_frame.setObjectName("itemJumpFrame")
+        self._item_jump_frame.setStyleSheet(f"""
+            QFrame#itemJumpFrame {{
+                background: {COLORS['bg_card']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 10px;
+            }}
+        """)
+        jump_layout = QVBoxLayout(self._item_jump_frame)
+        jump_layout.setContentsMargins(10, 6, 10, 8)
+        jump_layout.setSpacing(4)
+
+        jump_title = QLabel("📍 Jump to Item")
+        jump_title.setAlignment(Qt.AlignCenter)
+        jump_title.setStyleSheet(f"""
+            font-size: 11px; font-weight: 600;
+            color: {COLORS['text_muted']};
+            background: transparent;
+        """)
+        jump_layout.addWidget(jump_title)
+
+        self._item_btn_container = QWidget()
+        self._item_btn_row = QHBoxLayout(self._item_btn_container)
+        self._item_btn_row.setContentsMargins(0, 0, 0, 0)
+        self._item_btn_row.setSpacing(4)
+        self._item_jump_btns = []
+
+        for idx, item in enumerate(self.DATA):
+            label = item.get('name', str(idx))
+            btn = QPushButton(label)
+            btn.setFixedHeight(30)
+            btn.setMinimumWidth(36)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setToolTip(f"Jump to {label}")
+            btn.clicked.connect(lambda checked, i=idx: self._jump_to_item(i))
+            self._item_btn_row.addWidget(btn)
+            self._item_jump_btns.append(btn)
+        self._item_btn_row.addStretch()
+
+        jump_layout.addWidget(self._item_btn_container, 0, Qt.AlignCenter)
+
+        if len(self.DATA) > 1:
+            layout.addWidget(self._item_jump_frame)
 
         self._refresh()
 
@@ -1711,6 +2012,9 @@ class _PhraseLesson(QWidget):
             self._tip.show()
         else:
             self._tip.hide()
+
+        # Load reference image if available
+        self._load_phrase_ref_image(d['name'])
 
         # Spelling buttons
         # Clear old buttons
@@ -1751,7 +2055,98 @@ class _PhraseLesson(QWidget):
             self._sign_card.set_letter(letters_only[0])
 
         self._prev_btn.setEnabled(self._current > 0)
-        self._next_btn.setText("Complete ✓" if self._current >= len(self.DATA) - 1 else "Next →")
+        if self._current >= len(self.DATA) - 1:
+            self._next_btn.setText("Complete  ✓")
+            self._next_btn.setMinimumWidth(130)
+            self._next_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {COLORS['success']};
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 13px; font-weight: 700;
+                    padding: 4px 18px;
+                }}
+                QPushButton:hover {{
+                    background: {COLORS['success']}dd;
+                }}
+            """)
+        else:
+            self._next_btn.setText("Next  ▶")
+            self._next_btn.setMinimumWidth(120)
+            self._next_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {COLORS['primary']};
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 13px; font-weight: 700;
+                    padding: 4px 16px;
+                }}
+                QPushButton:hover {{
+                    background: {COLORS['primary_hover']};
+                }}
+            """)
+
+        # Update nav indicator
+        if hasattr(self, '_nav_indicator'):
+            self._nav_indicator.setText(f"Step {self._current + 1} of {len(self.DATA)}")
+
+        # Update item jump buttons
+        if hasattr(self, '_item_jump_btns'):
+            for idx, btn in enumerate(self._item_jump_btns):
+                if idx == self._current:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background: {COLORS['primary']};
+                            color: white;
+                            border: 2px solid {COLORS['primary_light']};
+                            border-radius: 6px;
+                            font-size: 12px; font-weight: bold;
+                            padding: 2px 8px;
+                            min-height: 24px;
+                        }}
+                    """)
+                else:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background: {COLORS['bg_card']};
+                            color: {COLORS['text_primary']};
+                            border: 1px solid {COLORS['border_light']};
+                            border-radius: 6px;
+                            font-size: 12px; font-weight: bold;
+                            padding: 2px 8px;
+                            min-height: 24px;
+                        }}
+                        QPushButton:hover {{
+                            background: {COLORS['primary']}30;
+                            color: {COLORS['primary_light']};
+                            border-color: {COLORS['primary']};
+                        }}
+                    """)
+
+    def _load_phrase_ref_image(self, name: str):
+        """Load a reference image from assets/<ASSETS_FOLDER>/ for the given item name."""
+        if not self.ASSETS_FOLDER:
+            self._ref_img_frame.hide()
+            return
+        base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)))), 'assets', self.ASSETS_FOLDER)
+        # Search for files matching the name with any extension
+        matches = glob.glob(os.path.join(base, f'{name}.*')) + \
+                  glob.glob(os.path.join(base, f'{name.lower()}.*'))
+        if matches:
+            pixmap = QPixmap(matches[0])
+            if not pixmap.isNull():
+                avail_w = max(self._phrase_ref_img.width(), 240)
+                avail_h = 150
+                scaled = pixmap.scaled(
+                    avail_w, avail_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self._phrase_ref_img.setPixmap(scaled)
+                self._ref_img_frame.show()
+                return
+        self._phrase_ref_img.clear()
+        self._ref_img_frame.hide()
 
     def _prev(self):
         if self._current > 0:
@@ -1764,6 +2159,12 @@ class _PhraseLesson(QWidget):
             self._refresh()
         else:
             self.back_requested.emit()
+
+    def _jump_to_item(self, index: int):
+        """Jump to a specific item in the lesson."""
+        if 0 <= index < len(self.DATA):
+            self._current = index
+            self._refresh()
 
     def cleanup(self):
         self._sign_card.cleanup()
@@ -1809,6 +2210,7 @@ class _PhraseLesson(QWidget):
 class NumbersLesson(_PhraseLesson):
     TITLE = "Numbers 0-9"
     ICON  = "🔢"
+    ASSETS_FOLDER = "numbers"
     DATA  = [
         {
             'name': '0', 'emoji': '👌',
