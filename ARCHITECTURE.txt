@@ -317,8 +317,87 @@ signlanguage/
 
 
 =====================================================
-FREQUENTLY ASKED QUESTIONS
+BUG FIXES & IMPROVEMENTS (v3.5, Feb 2026)
 =====================================================
+
+GESTURE DETECTION
+-----------------
+• J/Z gestures now correctly track index fingertip (landmark[8]) instead of
+  palm-center. Added fingertip_buffer + _get_fingertip_trajectory() in
+  dynamic_gestures.py. Visual overlay in camera_widget.py updated to match.
+  Result: J and Z tracing accuracy significantly improved.
+
+• GesturePipeline: DEBUG_MOVEMENT was True in production code, spamming the
+  console every 10 frames. Fixed to False.
+
+• GesturePipeline._on_hand_lost(): was discarding the LSTM's final prediction
+  when the hand left frame. Now correctly emits the result.
+
+• GesturePipeline: stale frames from the previous gesture's buffer were leaking
+  into the next LSTM run. Added landmark_buffer.clear() when motion stops.
+
+• Dynamic gesture timeout was hardcoded at 60 frames (framerate-dependent).
+  Now uses self.buffer_size for framerate-independence.
+
+LIVE TRANSLATION UI
+-------------------
+• Space and Delete buttons were stub no-ops (just `pass`). Both are now fully
+  implemented using a _committed_text state string + SimpleTranslationEngine.undo_last().
+
+• pipeline.stop() was missing from _stop_and_translate, so the camera kept
+  processing frames after the user pressed Stop & Translate.
+
+• SimpleTranslationEngine gained a new undo_last() method to support the
+  Delete button (pops the last confirmed gesture and resets hold-lock).
+
+GAME PAGE
+---------
+• nn_gesture_detected signal from CameraWidget was never connected in GamePage.
+  Added _on_nn_gesture handler; the game now receives Keras MLP/LSTM predictions
+  in addition to the legacy PyTorch features_ready path.
+
+TRAINING PAGE
+-------------
+• _capture_timer fired a _capture_sample() callback every 100ms that was
+  just `pass`. Removed the dead timer entirely — sample collection is correctly
+  handled by the _on_features signal slot.
+
+CAMERA WIDGET
+-------------
+• `from collections import Counter` was inside _update_frame() and
+  re-imported on every third frame. Moved to module-level import.
+
+ANALYTICS
+---------
+• _load_stats() raised TypeError on schema changes (unexpected keyword args).
+  Now filters to known dataclass fields before unpacking.
+
+• night_owl (0-4 AM) and early_bird (4-6 AM) achievement windows overlapped
+  at hour 0-4. Split into non-overlapping ranges.
+
+HISTORY PAGE
+------------
+• empty_state widget disappeared permanently after the first history load due
+  to removeWidget() not unparenting it. Fixed with removeWidget + indexOf.
+
+• _show_empty_state(message) silently ignored its argument. Now updates the
+  description label correctly.
+
+• `import asyncio` was inlined inside three functions; moved to module-level.
+
+DASHBOARD
+---------
+• Greeting showed the full email address instead of the display name.
+  Now extracts username/display_name/name fields, falling back to the
+  local-part before '@' if only an email is available.
+
+CONVERSATION PAGE
+-----------------
+• Sign panel animation was creating a new QTimer() every letter, leaking
+  orphaned timers that could still fire after the animation finished.
+  Fixed to create _animation_timer once and reuse it.
+
+
 
 Q: Does it work without internet?
 A: Yes! Everything runs on your computer.

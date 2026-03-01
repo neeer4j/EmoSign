@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QColor
 
+import asyncio
+
 from ui.styles import COLORS, ICONS
 from datetime import datetime
 
@@ -213,17 +215,17 @@ class HistoryPage(QWidget):
         """)
         empty_title.setAlignment(Qt.AlignCenter)
         
-        empty_desc = QLabel("Start translating to see your history here")
-        empty_desc.setStyleSheet(f"""
+        self.empty_desc = QLabel("Start translating to see your history here")
+        self.empty_desc.setStyleSheet(f"""
             font-size: 14px;
             color: {COLORS['text_muted']};
             background: transparent;
         """)
-        empty_desc.setAlignment(Qt.AlignCenter)
+        self.empty_desc.setAlignment(Qt.AlignCenter)
         
         empty_layout.addWidget(empty_icon)
         empty_layout.addWidget(empty_title)
-        empty_layout.addWidget(empty_desc)
+        empty_layout.addWidget(self.empty_desc)
         
         self.list_layout.addWidget(self.empty_state)
         self.empty_state.hide()
@@ -238,7 +240,6 @@ class HistoryPage(QWidget):
             return
         
         try:
-            import asyncio
             loop = asyncio.new_event_loop()
             history = loop.run_until_complete(
                 self.db.get_translations(self.user.get("id", ""), limit=100)
@@ -274,11 +275,16 @@ class HistoryPage(QWidget):
     
     def _clear_list(self):
         """Clear the list view (except empty state)."""
-        while self.list_layout.count():
-            item = self.list_layout.takeAt(0)
-            widget = item.widget()
-            if widget and widget is not self.empty_state:
-                widget.deleteLater()
+        widgets_to_remove = []
+        for i in range(self.list_layout.count()):
+            item = self.list_layout.itemAt(i)
+            if item:
+                widget = item.widget()
+                if widget and widget is not self.empty_state:
+                    widgets_to_remove.append(widget)
+        for widget in widgets_to_remove:
+            self.list_layout.removeWidget(widget)
+            widget.deleteLater()
     
     def _filter_history(self):
         """Filter history based on search and type."""
@@ -316,7 +322,6 @@ class HistoryPage(QWidget):
         
         if reply == QMessageBox.Yes:
             try:
-                import asyncio
                 loop = asyncio.new_event_loop()
                 loop.run_until_complete(
                     self.db.delete_translation(translation_id, self.user.get("id", ""))
@@ -341,7 +346,6 @@ class HistoryPage(QWidget):
         
         if reply == QMessageBox.Yes:
             try:
-                import asyncio
                 loop = asyncio.new_event_loop()
                 loop.run_until_complete(
                     self.db.clear_history(self.user.get("id", ""))
@@ -355,16 +359,17 @@ class HistoryPage(QWidget):
                 QMessageBox.critical(self, "Error", f"Failed to clear history: {e}")
     
     def _show_empty_state(self, message=None):
-        """Show empty state."""
-        # Re-add to layout if needed
-        if self.empty_state.parent() != self.list_container:
+        """Show empty state, optionally with a custom message."""
+        # Always ensure the widget is in the layout (it may have been
+        # removed by _clear_list if it was the only item)
+        if self.list_layout.indexOf(self.empty_state) == -1:
             self.list_layout.addWidget(self.empty_state)
         self.empty_state.show()
         self.count_label.setText("0 translations")
-        
         if message:
-            # Update empty state message if provided
-            pass
+            self.empty_desc.setText(message)
+        else:
+            self.empty_desc.setText("Start translating to see your history here")
     
     def refresh(self):
         """Refresh history."""

@@ -431,7 +431,31 @@ architecture changes (v3.1):
 - explicit scope acknowledgment: NOT full ASL grammar, uses English word order
 - maintains backward compatibility with legacy pipeline
 
-architecture changes (v3.4 - Keras Migration):
+architecture changes (v3.5 - Bug Fix Pass, Feb 2026):
+- analytics.py: fixed _load_stats TypeError crash when stats schema changes (unknown fields now filtered safely)
+- analytics.py: fixed night_owl (0-4 AM) and early_bird (4-6 AM) hour ranges overlapping
+- history_page.py: fixed empty_state widget disappearing after first history load (removeWidget + indexOf fix)
+- history_page.py: fixed _show_empty_state(message) silently doing nothing (now updates empty_desc label)
+- history_page.py: moved 3x inline 'import asyncio' to module-level
+- dashboard_page.py: fixed greeting showing full email address instead of clean display name
+- gesture_pipeline.py: fixed DEBUG_MOVEMENT = True left on in production (was spamming console every 10 frames)
+- gesture_pipeline.py: fixed _on_hand_lost() discarding the LSTM prediction instead of using it
+- gesture_pipeline.py: fixed stale landmark buffer contaminating the next gesture's LSTM run (added clear())
+- dynamic_gestures.py: fixed J/Z detection using palm-center trajectory instead of index fingertip (landmark[8])
+  * added fingertip_buffer tracking landmark[8] alongside position_buffer
+  * added _get_fingertip_trajectory() method; J/Z matchers now call it
+- dynamic_gestures.py: fixed hard-coded 60-frame timeout being framerate-dependent (now uses self.buffer_size)
+- simple_engine.py: added missing undo_last() method for Space/Delete undo support
+- live_translation_page.py: Space and Delete buttons were pass no-ops; now fully implemented with _committed_text state
+- live_translation_page.py: added pipeline.stop() call in _stop_and_translate (camera kept running after translate)
+- live_translation_page.py: removed dead _ml_handled_frame flag that was never read
+- conversation_page.py: fixed QTimer memory leak in sign panel animation (was creating new QTimer() every letter)
+- camera_widget.py: moved 'from collections import Counter' out of hot _update_frame path to module-level
+- camera_widget.py: fixed trajectory overlay using palm-center path for J/Z visual (now uses fingertip_buffer)
+- game_page.py: connected nn_gesture_detected signal so Keras MLP/LSTM predictions drive the game correctly
+  * added _on_nn_gesture handler; game previously only used legacy PyTorch features_ready path
+- training_page.py: removed dead _capture_timer and _capture_sample: pass callback
+  * sample collection is correctly handled by _on_features; the 100ms timer did nothing
 - migrated from PyTorch to TensorFlow/Keras for better production stability
 - implemented LandmarkNormalizer (63 coord features: wrist-centric + palm-scaled)
 - new modules: keras_static_classifier, keras_dynamic_classifier, gesture_pipeline

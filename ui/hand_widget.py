@@ -82,7 +82,7 @@ class AnimatedHandWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(180, 140)
+        self.setMinimumSize(150, 100)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self._current_heights = [0.0, 0.0, 0.0, 0.0, 0.0]
@@ -110,8 +110,8 @@ class AnimatedHandWidget(QWidget):
         bars_frame = QFrame()
         bars_frame.setStyleSheet("background: transparent;")
         bars_layout = QHBoxLayout(bars_frame)
-        bars_layout.setContentsMargins(12, 8, 12, 4)
-        bars_layout.setSpacing(8)
+        bars_layout.setContentsMargins(4, 4, 4, 2)
+        bars_layout.setSpacing(4)
 
         self._bar_widgets = []
         self._bar_labels = []
@@ -125,14 +125,14 @@ class AnimatedHandWidget(QWidget):
             # Status emoji
             status_lbl = QLabel("✊")
             status_lbl.setAlignment(Qt.AlignCenter)
-            status_lbl.setStyleSheet("font-size: 16px; background: transparent;")
+            status_lbl.setStyleSheet("font-size: 13px; background: transparent;")
             finger_col.addWidget(status_lbl)
             self._status_labels.append(status_lbl)
 
             # The bar itself
             bar = QFrame()
-            bar.setFixedWidth(28)
-            bar.setFixedHeight(10)  # start small
+            bar.setFixedWidth(22)
+            bar.setFixedHeight(8)  # start small
             bar.setStyleSheet(f"""
                 background: {_BAR_DOWN_COLOR};
                 border-radius: 6px;
@@ -144,7 +144,7 @@ class AnimatedHandWidget(QWidget):
             name_lbl = QLabel(name[:3])  # Thu, Ind, Mid, Rin, Pin
             name_lbl.setAlignment(Qt.AlignCenter)
             name_lbl.setStyleSheet(f"""
-                font-size: 10px; font-weight: 700;
+                font-size: 9px; font-weight: 700;
                 color: {COLORS['text_muted']};
                 background: transparent;
             """)
@@ -220,7 +220,7 @@ class AnimatedHandWidget(QWidget):
         self._update_bars()
 
     def _update_bars(self):
-        max_h = 80  # max bar height in pixels
+        max_h = 60  # max bar height in pixels (reduced from 80 for compact layout)
         # Get direction from current letter data
         data = ASL_FINGER_STATES.get(self._current_letter, {})
         direction = data.get('direction', 'up')

@@ -197,8 +197,16 @@ class DashboardPage(QWidget):
         welcome_box = QVBoxLayout()
         welcome_box.setSpacing(2)
         
-        # Get username
-        username = self.user.get("email", "User")
+        # Prefer an explicit display name; fall back to email local-part, then "User"
+        email = self.user.get("email", "")
+        raw_name = (
+            self.user.get("username")
+            or self.user.get("display_name")
+            or self.user.get("name")
+            or (email.split("@")[0] if "@" in email else email)
+            or "User"
+        )
+        username = raw_name.capitalize() if raw_name.islower() else raw_name
         
         greeting = self._get_greeting()
         welcome_label = QLabel(f"{greeting}, {username}! 👋")

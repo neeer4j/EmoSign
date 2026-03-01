@@ -5,6 +5,8 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QFrame
 from PySide6.QtCore import Qt, QTimer, Signal, QSize
 from PySide6.QtGui import QImage, QPixmap
 import cv2
+import numpy as np
+from collections import Counter
 
 from detector.camera import Camera
 from detector.hand_tracker import HandTracker
@@ -35,7 +37,7 @@ class CameraWidget(QFrame):
         self.camera = Camera()
         self.hand_tracker = HandTracker()
         self.feature_extractor = FeatureExtractor()
-        self.dynamic_tracker = DynamicGestureTracker()
+        self.dynamic_tracker = DynamicGestureTracker(buffer_size=20, fps=20)
         self.face_detector = FaceDetector()
         self.heuristic_classifier = HeuristicClassifier()
         self.gesture_pipeline = GesturePipeline()
@@ -51,7 +53,8 @@ class CameraWidget(QFrame):
         self.emotion_detection_enabled = True  # Toggle for emotion detection
         self.heuristic_threshold = 0.5        # Confidence threshold for heuristic classifier
         self._frame_count = 0                 # Frame counter for throttling
-        self._emotion_skip_frames = 3         # Run emotion detection every Nth frame
+        self._emotion_skip_frames = 5         # Run emotion detection every Nth frame (reduced load)
+        self._ml_skip_frames = 2              # Run heavy ML pipeline every Nth frame
         
         # Setup UI
         self._setup_ui()
@@ -85,7 +88,7 @@ class CameraWidget(QFrame):
         
         self.is_running = True
         self.dynamic_tracker.clear()  # Reset dynamic gesture tracker
-        self.timer.start(33)  # ~30 FPS
+        self.timer.start(50)  # ~20 FPS — less CPU load, still smooth enough for signing
         return True
     
     def stop(self):
@@ -126,19 +129,41 @@ class CameraWidget(QFrame):
         if hand_detected:
             landmarks = self.hand_tracker.get_landmarks()
             
-            # Extract features for ML-based gesture recognition
+            # Extract features for ML-based gesture recognition (every frame)
             features = self.feature_extractor.extract(landmarks)
             self.features_ready.emit(features)
-            
-            # Heuristic gesture detection (standalone signal for pages that need it)
-            heuristic_label, heuristic_conf = self.heuristic_classifier.predict(landmarks)
-            if heuristic_label and heuristic_conf >= self.heuristic_threshold:
-                self.heuristic_gesture_detected.emit(heuristic_label, heuristic_conf)
-            
-            # Unified pipeline: Keras MLP/LSTM + heuristic fallback + smoothing
-            pipe_label, pipe_conf, model_used = self.gesture_pipeline.process_frame(landmarks)
-            if pipe_label and pipe_conf > 0.0:
-                self.nn_gesture_detected.emit(pipe_label, pipe_conf, model_used)
+
+            # Heavy ML classifiers run every _ml_skip_frames to reduce CPU load.
+            # Dynamic gesture tracking still runs every frame for smooth trajectory.
+            if self._frame_count % self._ml_skip_frames == 0:
+                # Heuristic gesture detection
+                heuristic_label, heuristic_conf = self.heuristic_classifier.predict(landmarks)
+                if heuristic_label and heuristic_conf >= self.heuristic_threshold:
+                    self.heuristic_gesture_detected.emit(heuristic_label, heuristic_conf)
+
+                # Unified pipeline: Keras MLP/LSTM + heuristic fallback + smoothing
+                pipe_label, pipe_conf, model_used = self.gesture_pipeline.process_frame(landmarks)
+
+                # ── Trajectory override for J and Z ────────────────────────────
+                # Z: static MLP sees extended index finger → outputs "D".
+                #    If the index-fingertip trail already looks like a Z,
+                #    the drawn letter wins.
+                # J: static MLP sees extended pinky → outputs "I" (or "Y").
+                #    If the pinky trail already looks like a J,
+                #    the drawn letter wins.
+                if self.dynamic_gestures_enabled:
+                    if pipe_label and pipe_label.upper() in ("D",):
+                        traj_conf_z = self.dynamic_tracker._match_z_gesture()
+                        if traj_conf_z > 0.45:
+                            pipe_label, pipe_conf, model_used = "Z", traj_conf_z, "trajectory"
+                    if pipe_label and pipe_label.upper() in ("I", "Y"):
+                        traj_conf_j = self.dynamic_tracker._match_j_gesture()
+                        if traj_conf_j > 0.45:
+                            pipe_label, pipe_conf, model_used = "J", traj_conf_j, "trajectory"
+                # ───────────────────────────────────────────────────────────────
+
+                if pipe_label and pipe_conf > 0.0:
+                    self.nn_gesture_detected.emit(pipe_label, pipe_conf, model_used)
         
         # Dynamic gesture tracking (runs even when hand disappears to finalize gestures)
         if self.dynamic_gestures_enabled:
@@ -157,7 +182,6 @@ class CameraWidget(QFrame):
                     self._emotion_buffer.pop(0)
                 
                 # Majority vote over the buffer
-                from collections import Counter
                 counts = Counter(self._emotion_buffer)
                 smoothed_emotion = counts.most_common(1)[0][0]
                 
@@ -188,35 +212,54 @@ class CameraWidget(QFrame):
         self.fps_updated.emit(self.camera.get_fps())
     
     def _draw_tracking_overlay(self, frame):
-        """Draw dynamic gesture tracking visualization."""
+        """Draw dynamic gesture tracking visualization.
+
+        - Z is drawn with the index finger  → show fingertip_buffer (landmark 8)
+        - J is drawn with the pinky finger  → show pinky_buffer     (landmark 20)
+        We pick whichever tip has covered more total distance recently,
+        so the right trail lights up automatically.
+        """
         if not self.dynamic_gestures_enabled:
             return frame
-        
-        # Draw trajectory if tracking
-        if len(self.dynamic_tracker.position_buffer) > 1:
-            positions = list(self.dynamic_tracker.position_buffer)
+
+        def _trail_length(buf):
+            if len(buf) < 2:
+                return 0.0
+            pts = list(buf)
+            return sum(
+                float(np.linalg.norm(np.array(pts[i][:2]) - np.array(pts[i-1][:2])))
+                for i in range(1, len(pts))
+            )
+
+        # Pick the buffer whose tip has moved more — that's the active drawing finger
+        index_len = _trail_length(self.dynamic_tracker.fingertip_buffer)
+        pinky_len  = _trail_length(self.dynamic_tracker.pinky_buffer)
+        traj_buffer = (
+            self.dynamic_tracker.pinky_buffer
+            if pinky_len > index_len
+            else self.dynamic_tracker.fingertip_buffer
+        )
+
+        if len(traj_buffer) > 1:
+            positions = list(traj_buffer)
             h, w = frame.shape[:2]
-            
-            # Draw trajectory line
+
             for i in range(1, len(positions)):
-                # Convert normalized coords to pixel coords
                 x1 = int(positions[i-1][0] * w)
                 y1 = int(positions[i-1][1] * h)
                 x2 = int(positions[i][0] * w)
                 y2 = int(positions[i][1] * h)
-                
-                # Draw with fading effect (older = more transparent)
+
                 alpha = i / len(positions)
                 color = (0, int(255 * alpha), int(255 * (1 - alpha)))
                 thickness = max(1, int(3 * alpha))
                 cv2.line(frame, (x1, y1), (x2, y2), color, thickness)
-        
-        # Show tracking state
+
         state = self.dynamic_tracker.state.value
         if state == "tracking":
-            cv2.putText(frame, "TRACKING GESTURE...", (10, 30), 
+            cv2.putText(frame, "TRACKING GESTURE...", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-        
+
         return frame
     
     def _display_frame(self, frame_bgr):

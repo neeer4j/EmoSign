@@ -77,6 +77,11 @@ class HandTracker:
         # Timestamp tracking for VIDEO mode (in milliseconds)
         self._start_time = time.time() * 1000
         self._frame_count = 0
+
+        # EMA landmark smoothing — reduces per-frame jitter
+        # alpha=1.0 means no smoothing (raw), 0.5 gives heavy smoothing
+        self._smoothing_alpha: float = 0.55
+        self._smoothed_landmarks = None   # [(x, y, z), ...] or None
     
     def process(self, frame_rgb, timestamp_ms: int = None):
         """Process RGB frame to detect hands.
@@ -104,6 +109,10 @@ class HandTracker:
         else:
             # IMAGE mode - simple detection
             self.results = self.detector.detect(mp_image)
+
+        # Reset smoothed landmarks when hand goes away so next detection starts fresh
+        if not (self.results and self.results.hand_landmarks):
+            self._smoothed_landmarks = None
         
         return self.results
     
@@ -120,11 +129,23 @@ class HandTracker:
         # Get first hand's landmarks
         hand_landmarks = self.results.hand_landmarks[0]
         
-        landmarks = []
-        for lm in hand_landmarks:
-            landmarks.append((lm.x, lm.y, lm.z))
-        
-        return landmarks
+        raw = [(lm.x, lm.y, lm.z) for lm in hand_landmarks]
+
+        # Apply EMA smoothing to reduce jitter
+        if self._smoothed_landmarks is None:
+            # First frame after detection — initialise with raw values
+            self._smoothed_landmarks = raw
+        else:
+            a = self._smoothing_alpha
+            smoothed = []
+            for prev, curr in zip(self._smoothed_landmarks, raw):
+                sx = a * curr[0] + (1 - a) * prev[0]
+                sy = a * curr[1] + (1 - a) * prev[1]
+                sz = a * curr[2] + (1 - a) * prev[2]
+                smoothed.append((sx, sy, sz))
+            self._smoothed_landmarks = smoothed
+
+        return self._smoothed_landmarks
     
     def get_all_hands_landmarks(self):
         """Get landmarks for all detected hands.
@@ -183,14 +204,26 @@ class HandTracker:
         landmark_color = (0, 255, 0)  # Green
         connection_color = (255, 255, 255)  # White
         
+        # Use smoothed coords for drawing if available (prevents jitter)
+        use_smoothed = (
+            self._smoothed_landmarks is not None
+            and len(self._smoothed_landmarks) == 21
+        )
+
         # Draw each hand
-        for hand_landmarks in self.results.hand_landmarks:
-            # Get pixel coordinates
-            points = []
-            for lm in hand_landmarks:
-                px = int(lm.x * w)
-                py = int(lm.y * h)
-                points.append((px, py))
+        for hand_idx, hand_landmarks in enumerate(self.results.hand_landmarks):
+            # Use smoothed landmarks for the first (primary) hand,
+            # raw for any additional hands
+            if use_smoothed and hand_idx == 0:
+                points = [
+                    (int(lm[0] * w), int(lm[1] * h))
+                    for lm in self._smoothed_landmarks
+                ]
+            else:
+                points = [
+                    (int(lm.x * w), int(lm.y * h))
+                    for lm in hand_landmarks
+                ]
             
             # Draw connections
             for connection in HAND_CONNECTIONS:

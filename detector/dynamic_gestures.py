@@ -45,8 +45,10 @@ class DynamicGestureTracker:
         
         # Tracking buffers
         self.landmark_buffer = deque(maxlen=buffer_size)
-        self.position_buffer = deque(maxlen=buffer_size)  # Palm center positions
-        self.velocity_buffer = deque(maxlen=buffer_size)
+        self.position_buffer = deque(maxlen=buffer_size)   # Palm center positions
+        self.fingertip_buffer = deque(maxlen=buffer_size)  # Index finger tip (landmark 8)  — used for Z
+        self.pinky_buffer     = deque(maxlen=buffer_size)  # Pinky tip      (landmark 20) — used for J
+        self.velocity_buffer  = deque(maxlen=buffer_size)
         self.timestamp_buffer = deque(maxlen=buffer_size)
         
         # State
@@ -61,12 +63,13 @@ class DynamicGestureTracker:
     
     def _register_default_patterns(self):
         """Register built-in gesture patterns."""
-        # Letter J - index finger draws a J shape (down then curve left)
+        # Letter J - pinky finger draws a J shape (down then curve left)
+        # ASL J: extend pinky, trace a J downward then hook left
         self.patterns.append(GesturePattern(
             name="J",
-            description="Draw letter J with index finger",
-            min_frames=15,
-            max_frames=45,
+            description="Draw letter J with pinky finger",
+            min_frames=10,
+            max_frames=35,
             pattern_matcher=self._match_j_gesture
         ))
         
@@ -74,8 +77,8 @@ class DynamicGestureTracker:
         self.patterns.append(GesturePattern(
             name="Z", 
             description="Draw letter Z in the air",
-            min_frames=20,
-            max_frames=60,
+            min_frames=12,
+            max_frames=45,
             pattern_matcher=self._match_z_gesture
         ))
         
@@ -120,6 +123,11 @@ class DynamicGestureTracker:
         # Calculate palm center (average of wrist and middle MCP)
         palm_center = (landmarks_array[0] + landmarks_array[9]) / 2
         
+        # Index fingertip — landmark 8 (used for Z trajectory)
+        index_tip = landmarks_array[8]
+        # Pinky fingertip — landmark 20 (used for J trajectory)
+        pinky_tip = landmarks_array[20]
+        
         # Calculate velocity if we have previous position
         velocity = np.zeros(3)
         if len(self.position_buffer) > 0:
@@ -129,6 +137,8 @@ class DynamicGestureTracker:
         # Add to buffers
         self.landmark_buffer.append(landmarks_array)
         self.position_buffer.append(palm_center)
+        self.fingertip_buffer.append(index_tip)
+        self.pinky_buffer.append(pinky_tip)
         self.velocity_buffer.append(velocity)
         self.timestamp_buffer.append(self.frame_count)
         
@@ -142,8 +152,8 @@ class DynamicGestureTracker:
         elif self.state == GestureState.TRACKING:
             frames_elapsed = self.frame_count - self.gesture_start_frame
             
-            # Check if movement stopped or timeout
-            if self._detect_movement_stop() or frames_elapsed > 60:
+            # Use buffer_size as timeout so it scales with configured fps/duration
+            if self._detect_movement_stop() or frames_elapsed > self.buffer_size:
                 result = self._try_match_gestures()
                 self._reset_tracking()
                 return result
@@ -194,66 +204,142 @@ class DynamicGestureTracker:
         return best_match, best_confidence
     
     def _get_trajectory(self) -> np.ndarray:
-        """Get the trajectory as numpy array."""
+        """Get the palm-center trajectory as a numpy array."""
         if len(self.position_buffer) < 2:
             return np.array([])
         return np.array(list(self.position_buffer))
+
+    def _get_fingertip_trajectory(self) -> np.ndarray:
+        """Get the index-fingertip (landmark 8) trajectory — used for Z."""
+        if len(self.fingertip_buffer) < 2:
+            return np.array([])
+        return np.array(list(self.fingertip_buffer))
+
+    def _get_pinky_trajectory(self) -> np.ndarray:
+        """Get the pinky-tip (landmark 20) trajectory — used for J.
+
+        ASL J is signed by extending the pinky and tracing a J shape,
+        so we track the pinky tip rather than the index fingertip.
+        """
+        if len(self.pinky_buffer) < 2:
+            return np.array([])
+        return np.array(list(self.pinky_buffer))
     
     def _match_j_gesture(self) -> float:
-        """Match J gesture: down then curve left/up."""
-        trajectory = self._get_trajectory()
-        if len(trajectory) < 15:
+        """Match J gesture: pinky draws down-then-hook-left (ASL J).
+
+        ASL J: extend only the pinky finger and trace a J shape — down
+        and then curve/hook to the left at the bottom.  We track the
+        PINKY TIP (landmark 20), not the index finger.
+        """
+        trajectory = self._get_pinky_trajectory()
+        if len(trajectory) < 10:   # ~0.5 s at 20 FPS
             return 0.0
         
-        # Analyze trajectory segments
+        # Verify pinky is actually extended (tip far above MCP)
+        if len(self.landmark_buffer) > 0:
+            lm = self.landmark_buffer[-1]
+            pinky_mcp = lm[17]   # Pinky MCP (knuckle)
+            pinky_tip = lm[20]
+            # In image coords Y increases downward; tip should be ABOVE mcp
+            if (pinky_mcp[1] - pinky_tip[1]) < 0.03:
+                return 0.0   # Pinky not extended
+
         n = len(trajectory)
-        first_half = trajectory[:n//2]
-        second_half = trajectory[n//2:]
+        first_half  = trajectory[:n // 2]
+        second_half = trajectory[n // 2:]
         
-        # First half should go down (positive y change in image coords)
-        first_direction = first_half[-1] - first_half[0]
-        going_down = first_direction[1] > 0.03
+        # First half: stroke goes DOWN (positive y in image coords)
+        first_direction  = first_half[-1]  - first_half[0]
+        going_down = first_direction[1] > 0.02
         
-        # Second half should curve left (negative x) and possibly up
+        # Second half: curves LEFT (negative x) and/or slightly up
         second_direction = second_half[-1] - second_half[0]
-        curving_left = second_direction[0] < -0.02
-        
+        curving_left = second_direction[0] < -0.015
+
         if going_down and curving_left:
-            # Calculate smoothness
             smoothness = self._calculate_smoothness(trajectory)
-            return min(0.65 + smoothness * 0.35, 1.0)
+            # Measure how pronounced the hook is
+            hook_depth = abs(second_direction[0])
+            confidence = min(0.60 + smoothness * 0.25 + min(hook_depth * 2, 0.15), 1.0)
+            return confidence
         
         return 0.0
     
     def _match_z_gesture(self) -> float:
-        """Match Z gesture: right, diagonal down-left, right."""
-        trajectory = self._get_trajectory()
-        if len(trajectory) < 20:
+        """Match Z gesture: right → diagonal-down-left → right (ASL Z).
+
+        ASL Z: extend only the index finger and trace a Z shape in the air.
+        We track the INDEX FINGERTIP (landmark 8).
+
+        Detection strategy — instead of relying on rigid three-segment
+        division we:
+        1. Verify the index finger is actually extended.
+        2. Count X-axis direction reversals (right→left→right = 2 reversals).
+        3. Confirm the overall trajectory spans enough horizontal distance.
+        4. Confirm a net downward component (Z slants down-left in the middle).
+        """
+        trajectory = self._get_fingertip_trajectory()
+        if len(trajectory) < 12:   # ~0.6 s at 20 FPS
             return 0.0
-        
+
+        # Verify index is extended (tip above PIP)
+        if len(self.landmark_buffer) > 0:
+            lm = self.landmark_buffer[-1]
+            index_pip = lm[6]
+            index_tip = lm[8]
+            if (index_pip[1] - index_tip[1]) < 0.02:  # tip not above PIP
+                return 0.0
+
+        xy = trajectory[:, :2]   # use only x, y
+
+        # --- Direction reversal count on the X axis ---
+        x_pos = xy[:, 0]
+        x_vel = np.diff(x_pos)
+        # Smooth out noise: only count reversals where speed exceeds a tiny threshold
+        significant = x_vel[np.abs(x_vel) > 0.005]
+        if len(significant) < 4:
+            return 0.0
+        sign_changes = int(np.sum(np.abs(np.diff(np.sign(significant))) > 0))
+
+        # Z needs at least 1 reversal (right→left or left→right twice)
+        if sign_changes < 1:
+            return 0.0
+
+        # --- Horizontal span ---
+        x_range = float(np.max(x_pos) - np.min(x_pos))
+        if x_range < 0.08:   # too small to be a real Z
+            return 0.0
+
+        # --- Diagonal stroke: net movement should have a downward component ---
+        y_pos = xy[:, 1]
+        net_y = float(y_pos[-1] - y_pos[0])   # positive = moved down in image
+        has_diagonal = net_y > 0.02
+
+        # --- Rigid 3-segment check as a bonus boost ---
+        # (still helpful when the user draws a clean textbook Z)
         n = len(trajectory)
         third = n // 3
-        
         seg1 = trajectory[:third]
-        seg2 = trajectory[third:2*third]
-        seg3 = trajectory[2*third:]
-        
-        # Segment 1: should go right
+        seg2 = trajectory[third: 2 * third]
+        seg3 = trajectory[2 * third:]
         dir1 = seg1[-1] - seg1[0]
-        going_right1 = dir1[0] > 0.02
-        
-        # Segment 2: should go diagonal (left and down)
         dir2 = seg2[-1] - seg2[0]
-        going_diagonal = dir2[0] < -0.02 and dir2[1] > 0.02
-        
-        # Segment 3: should go right again
         dir3 = seg3[-1] - seg3[0]
-        going_right2 = dir3[0] > 0.02
-        
-        if going_right1 and going_diagonal and going_right2:
+        clean_z = (
+            dir1[0] > 0.015             # seg1 goes right
+            and dir2[0] < -0.015        # seg2 goes left
+            and dir2[1] > 0.010         # seg2 goes down
+            and dir3[0] > 0.015         # seg3 goes right
+        )
+
+        if has_diagonal or clean_z:
+            base = 0.55 + min(x_range * 1.5, 0.20)
+            if clean_z:
+                base += 0.15
             smoothness = self._calculate_smoothness(trajectory)
-            return min(0.6 + smoothness * 0.4, 1.0)
-        
+            return min(base + smoothness * 0.10, 1.0)
+
         return 0.0
     
     def _match_wave_gesture(self) -> float:
@@ -407,6 +493,8 @@ class DynamicGestureTracker:
         """Clear all buffers and reset state."""
         self.landmark_buffer.clear()
         self.position_buffer.clear()
+        self.fingertip_buffer.clear()
+        self.pinky_buffer.clear()
         self.velocity_buffer.clear()
         self.timestamp_buffer.clear()
         self._reset_tracking()

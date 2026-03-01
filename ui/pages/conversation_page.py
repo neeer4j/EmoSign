@@ -308,9 +308,14 @@ class SignPanel(QFrame):
             self.progress_lbl.setText("✅ Done!")
             return
         self._show_letter(ni)
-        self._animation_timer = QTimer()
-        self._animation_timer.setSingleShot(True)
-        self._animation_timer.timeout.connect(self._play_next)
+        # Stop and reuse the existing timer instead of creating a new QTimer
+        # on every letter (the old approach leaked timers that could still fire).
+        if self._animation_timer is None:
+            self._animation_timer = QTimer()
+            self._animation_timer.setSingleShot(True)
+            self._animation_timer.timeout.connect(self._play_next)
+        else:
+            self._animation_timer.stop()
         self._animation_timer.start(self._speed_ms)
 
     def cleanup(self):

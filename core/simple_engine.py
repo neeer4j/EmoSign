@@ -247,6 +247,25 @@ class SimpleTranslationEngine:
         self._gesture_is_held = False
         self._pending_gesture = None
         self._pending_count = 0
+
+    def undo_last(self) -> bool:
+        """Remove the most recently confirmed gesture from the buffer.
+
+        Useful for a Delete/Backspace button in the UI.  Returns True if
+        a gesture was removed, False if the buffer was already empty.
+        After removal the translation callbacks are NOT automatically
+        re-fired — call get_translation() and update the display yourself.
+        """
+        if not self._gesture_buffer:
+            return False
+        self._gesture_buffer.pop()
+        # Reset the hold-lock to the new last gesture (or None)
+        if self._gesture_buffer:
+            self._last_confirmed_gesture = self._gesture_buffer[-1].gesture
+        else:
+            self._last_confirmed_gesture = None
+            self._gesture_is_held = False
+        return True
     
     def force_confirm(self, gesture: str, confidence: float):
         """Directly confirm a gesture, bypassing stability checking.

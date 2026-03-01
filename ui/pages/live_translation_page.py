@@ -549,6 +549,8 @@ class LiveTranslationPage(QWidget):
         # State
         self._is_translating = False
         self._current_source = "camera"
+        # Text committed by pressing ␣ Space — new gestures append after it
+        self._committed_text: str = ""
         
         # Auto-check timer for timeout-based translation
         self._check_timer = QTimer()
@@ -782,6 +784,11 @@ class LiveTranslationPage(QWidget):
             is_active=not result.is_complete
         )
         
+        # Prepend any committed text (from previous ␣ Space presses)
+        if self._committed_text:
+            display_text = self._committed_text + result.text
+            self.translation_display.set_translation(display_text)
+
         # If complete, save to history
         if result.is_complete:
             self._save_translation_result(result)
@@ -951,13 +958,11 @@ class LiveTranslationPage(QWidget):
         
         # Get final translation from simple engine
         result = self.engine.finalize()
+        committed = self._committed_text
+        self._committed_text = ""
         self.engine.clear()   # explicit clear (finalize no longer auto-clears)
         self.engine.stop()
-        
-        if result and result.text:
-            self._on_translation_updated(result)
-        else:
-            self.translation_display.set_status("No translation available")
+        self.pipeline.stop()  # stop background pipeline too
         
         # Stop camera
         self.camera_widget.stop()
@@ -992,7 +997,6 @@ class LiveTranslationPage(QWidget):
     def _on_features(self, features):
         """Handle extracted features from camera/video."""
         if not self._is_translating or not self._model_loaded or features is None:
-            self._ml_handled_frame = False
             return
         
         # Use RAW prediction (no temporal smoothing) — the capture window
@@ -1002,9 +1006,6 @@ class LiveTranslationPage(QWidget):
         if label and confidence > config.CONFIDENCE_THRESHOLD:
             # Feed to capture-window vote buffer (NOT directly to engine)
             self.gesture_display.add_vote(label, confidence)
-            self._ml_handled_frame = True  # Skip heuristic for this frame
-        else:
-            self._ml_handled_frame = False
     
     @Slot(str, float)
     def _on_heuristic_gesture(self, gesture: str, confidence: float):
@@ -1128,24 +1129,43 @@ class LiveTranslationPage(QWidget):
     
     def _clear_translation(self):
         """Clear current translation."""
+        self._committed_text = ""
         self.pipeline.clear()
         self.engine.clear()
         self.translation_display.clear()
         self.gesture_display.clear()
-    
+
     def _insert_space(self):
-        """Insert a word boundary."""
-        # For simple engine, we don't need explicit space handling
-        # The engine auto-detects word boundaries
-        pass
-    
+        """Commit the current engine output as a word and start fresh.
+
+        The translation display will show the committed text as a
+        frozen prefix; subsequent gestures append to it.
+        """
+        result = self.engine.finalize()
+        if result and result.text:
+            self._committed_text += result.text + " "
+            self.translation_display.set_translation(self._committed_text.rstrip())
+        self.engine.clear()
+
     def _delete_last(self):
-        """Delete last character/word."""
-        # For simple engine, we can clear and restart
-        # In future, implement proper deletion from buffer
-        pass
-    
-    def _save_translation(self, result: TranslationResult):
+        """Undo the last confirmed gesture.
+
+        If the engine buffer is already empty and there is committed text,
+        strip the last character from the committed text instead.
+        """
+        if self.engine.undo_last():
+            # Engine had gestures — refresh the running translation
+            result = self.engine.get_translation()
+            display = self._committed_text + (result.text if result else "")
+            self.translation_display.set_translation(display if display else "")
+        elif self._committed_text:
+            # Engine buffer exhausted — trim committed text
+            self._committed_text = self._committed_text.rstrip()
+            if self._committed_text:
+                self._committed_text = self._committed_text[:-1]
+            self.translation_display.set_translation(
+                self._committed_text if self._committed_text else ""
+            )
         """Save translation to history."""
         if not self.db or self.user.get("guest"):
             return

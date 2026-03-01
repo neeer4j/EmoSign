@@ -1001,6 +1001,9 @@ class GamePage(QWidget):
         self.camera_widget.features_ready.connect(self._on_features)
         self.camera_widget.hand_detected.connect(self._on_hand_detected)
         self.camera_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
+        # Also use Keras MLP/LSTM predictions from the unified pipeline —
+        # these are more accurate than the legacy PyTorch features_ready path.
+        self.camera_widget.nn_gesture_detected.connect(self._on_nn_gesture)
         self.canvas.item_reached_bottom.connect(self._on_item_missed)
         self.game_over.play_again.connect(self._restart_same_difficulty)
         self.game_over.back_to_menu.connect(self._back_to_menu)
@@ -1180,6 +1183,31 @@ class GamePage(QWidget):
         self._last_prediction = upper
         self._pred_char_label.setText(upper)
         self._prediction_pill.setText(f"Sign: {upper} ({confidence:.0%})")
+        self._try_match(upper)
+
+    @Slot(str, float, str)
+    def _on_nn_gesture(self, gesture: str, confidence: float, model_used: str):
+        """Handle Keras MLP/LSTM predictions from the unified gesture pipeline.
+
+        This is the primary prediction path and is more accurate than the
+        legacy PyTorch path in _on_features. Both can fire; the most recent
+        confident prediction wins for the display.
+        """
+        if not self._is_playing or self._is_paused:
+            return
+        if not gesture or confidence < 0.50:
+            return
+        upper = gesture.upper()
+        self._last_prediction = upper
+        self._last_prediction_confidence = confidence
+        self._pred_char_label.setText(upper)
+        self._prediction_pill.setText(f"Sign: {upper} ({confidence:.0%})")
+
+        color = COLORS['success'] if confidence >= 0.7 else COLORS['primary']
+        self._pred_char_label.setStyleSheet(f"""
+            font-size: 56px; font-weight: 900;
+            color: {color}; background: transparent;
+        """)
         self._try_match(upper)
 
     @Slot(bool)

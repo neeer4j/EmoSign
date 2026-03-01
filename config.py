@@ -24,8 +24,8 @@ FPS = 30
 
 # MediaPipe Settings
 MAX_HANDS = 1
-MIN_DETECTION_CONFIDENCE = 0.7
-MIN_TRACKING_CONFIDENCE = 0.5
+MIN_DETECTION_CONFIDENCE = 0.6   # Lowered: faster initial palm lock-on
+MIN_TRACKING_CONFIDENCE = 0.3    # Lowered: hold lock between frames at 20 FPS
 
 # Video-specific settings (lower threshold for compressed video content)
 VIDEO_DETECTION_CONFIDENCE = 0.5

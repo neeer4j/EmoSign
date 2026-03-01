@@ -762,88 +762,97 @@ class SignCard(QFrame):
     # ── build ──
     def _build(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 16, 18, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
 
-        # Row 1 — big emoji + letter
-        top_row = QHBoxLayout()
-        top_row.setAlignment(Qt.AlignCenter)
+        # ── Row 1: emoji + letter + analogy (single compact header) ──
+        header_row = QHBoxLayout()
+        header_row.setSpacing(8)
         self._emoji_lbl = QLabel()
-        self._emoji_lbl.setStyleSheet("font-size: 52px; background: transparent;")
-        self._emoji_lbl.setAlignment(Qt.AlignCenter)
-        top_row.addWidget(self._emoji_lbl)
+        self._emoji_lbl.setStyleSheet("font-size: 32px; background: transparent;")
+        self._emoji_lbl.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        self._emoji_lbl.setFixedWidth(40)
+        header_row.addWidget(self._emoji_lbl)
+
         self._letter_lbl = QLabel()
         self._letter_lbl.setStyleSheet(f"""
-            font-size: 60px; font-weight: 900;
+            font-size: 40px; font-weight: 900;
             color: {COLORS['primary']}; background: transparent;
         """)
-        self._letter_lbl.setAlignment(Qt.AlignCenter)
-        top_row.addWidget(self._letter_lbl)
-        layout.addLayout(top_row)
+        self._letter_lbl.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        self._letter_lbl.setFixedWidth(48)
+        header_row.addWidget(self._letter_lbl)
 
-        # Row 2 — "Imagine..." analogy
         self._imagine_lbl = QLabel()
-        self._imagine_lbl.setAlignment(Qt.AlignCenter)
         self._imagine_lbl.setWordWrap(True)
+        self._imagine_lbl.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         self._imagine_lbl.setStyleSheet(f"""
-            font-size: 16px; font-weight: 700;
+            font-size: 12px; font-weight: 600;
             color: {COLORS['text_primary']};
-            background: {COLORS['primary']}12;
-            padding: 10px 16px;
-            border-radius: 12px;
+            background: {COLORS['primary']}15;
+            padding: 5px 10px;
+            border-radius: 8px;
         """)
-        layout.addWidget(self._imagine_lbl)
+        header_row.addWidget(self._imagine_lbl, 1)
+        layout.addLayout(header_row)
 
-        # Row 3 — ANIMATED HAND (replaces bar chart)
+        # ── Row 2: Finger bars (left) | Reference photo (right) ──
+        media_row = QHBoxLayout()
+        media_row.setSpacing(8)
+
+        # Left — animated finger-position bars
         hand_frame = QFrame()
         hand_frame.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border-radius: 14px;
+                border-radius: 10px;
                 border: 1px solid {COLORS['border']};
             }}
         """)
-        hand_inner = QVBoxLayout(hand_frame)
-        hand_inner.setContentsMargins(8, 8, 8, 8)
-
+        hand_vbox = QVBoxLayout(hand_frame)
+        hand_vbox.setContentsMargins(4, 4, 4, 2)
+        hand_vbox.setSpacing(2)
+        hand_title = QLabel("🖐 Finger Positions")
+        hand_title.setAlignment(Qt.AlignCenter)
+        hand_title.setStyleSheet(f"font-size: 10px; font-weight: 700; color: {COLORS['text_muted']}; background: transparent;")
+        hand_vbox.addWidget(hand_title)
         self._hand = AnimatedHandWidget()
-        self._hand.setFixedHeight(180)
-        hand_inner.addWidget(self._hand)
+        self._hand._desc_label.hide()  # desc shown in header
+        self._hand.setMinimumHeight(95)
+        self._hand.setMaximumHeight(105)
+        hand_vbox.addWidget(self._hand)
+        media_row.addWidget(hand_frame, 1)
 
-        layout.addWidget(hand_frame)
-
-        # Row 3b — Reference image from assets/alphabets/
+        # Right — reference photo
         self._ref_img_frame = QFrame()
         self._ref_img_frame.setStyleSheet(f"""
             QFrame {{
-                background: {COLORS['bg_card']};
-                border-radius: 14px;
-                border: 1px solid {COLORS['border']};
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 {COLORS['bg_card']}, stop:1 {COLORS['bg_input']});
+                border-radius: 10px;
+                border: 1.5px solid {COLORS['primary']}50;
             }}
         """)
-        ref_img_inner = QVBoxLayout(self._ref_img_frame)
-        ref_img_inner.setContentsMargins(8, 8, 8, 8)
-        ref_img_inner.setAlignment(Qt.AlignCenter)
-
+        ref_vbox = QVBoxLayout(self._ref_img_frame)
+        ref_vbox.setContentsMargins(4, 4, 4, 4)
+        ref_vbox.setSpacing(2)
+        ref_vbox.setAlignment(Qt.AlignCenter)
         ref_title = QLabel("📸 Reference")
         ref_title.setAlignment(Qt.AlignCenter)
-        ref_title.setStyleSheet(f"""
-            font-size: 12px; font-weight: 600;
-            color: {COLORS['text_muted']};
-            background: transparent;
-        """)
-        ref_img_inner.addWidget(ref_title)
-
+        ref_title.setStyleSheet(f"font-size: 10px; font-weight: 700; color: {COLORS['primary']}; background: transparent;")
+        ref_vbox.addWidget(ref_title)
         self._ref_img_label = QLabel()
         self._ref_img_label.setAlignment(Qt.AlignCenter)
-        self._ref_img_label.setMinimumHeight(80)
+        self._ref_img_label.setMinimumHeight(90)
+        self._ref_img_label.setMaximumHeight(105)
         self._ref_img_label.setStyleSheet("background: transparent;")
         self._ref_img_label.setScaledContents(False)
-        ref_img_inner.addWidget(self._ref_img_label)
+        ref_vbox.addWidget(self._ref_img_label)
+        media_row.addWidget(self._ref_img_frame, 1)
 
-        layout.addWidget(self._ref_img_frame)
+        layout.addLayout(media_row)
 
-        # Row 4 — step-by-step cards
+        # ── Row 3: Step-by-step instructions ──
         self._steps_container = QVBoxLayout()
         self._steps_container.setSpacing(3)
         self._step_labels = []
@@ -851,27 +860,27 @@ class SignCard(QFrame):
             step = QLabel()
             step.setWordWrap(True)
             step.setStyleSheet(f"""
-                font-size: 12px;
+                font-size: 11px;
                 color: {COLORS['text_primary']};
                 background: {COLORS['bg_card']};
-                padding: 5px 10px;
-                border-radius: 8px;
+                padding: 4px 10px;
+                border-radius: 7px;
                 border-left: 3px solid {COLORS['primary']};
             """)
             self._steps_container.addWidget(step)
             self._step_labels.append(step)
         layout.addLayout(self._steps_container)
 
-        # Row 5 — motion indicator (J, Z)
+        # ── Row 4: Motion hint (J, Z only) ──
         self._motion_lbl = QLabel()
         self._motion_lbl.setAlignment(Qt.AlignCenter)
         self._motion_lbl.setWordWrap(True)
         self._motion_lbl.setStyleSheet(f"""
-            font-size: 15px; font-weight: 700;
+            font-size: 11px; font-weight: 700;
             color: white;
             background: {COLORS['primary']};
-            padding: 10px 16px;
-            border-radius: 12px;
+            padding: 5px 10px;
+            border-radius: 8px;
         """)
         self._motion_lbl.hide()
         layout.addWidget(self._motion_lbl)
@@ -899,7 +908,7 @@ class SignCard(QFrame):
         self._letter_lbl.setText(self.letter)
         self._imagine_lbl.setText(f'💡 {info["imagine"]}')
 
-        # Load reference image from assets/alphabets/
+        # Load reference image — images live in assets/alphabets/
         self._load_ref_image(self.letter, 'alphabets')
 
         # Animate hand to the letter pose
@@ -923,20 +932,29 @@ class SignCard(QFrame):
             self._motion_lbl.hide()
 
     def _load_ref_image(self, name: str, folder: str):
-        """Load a reference image from assets/<folder>/ for the given name."""
-        base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__)))), 'assets', folder)
-        # Search for files matching the name (case-insensitive) with any extension
-        matches = glob.glob(os.path.join(base, f'{name}.*')) + \
-                  glob.glob(os.path.join(base, f'{name.lower()}.*'))
-        if matches:
-            pixmap = QPixmap(matches[0])
+        """Load a reference image from assets/<folder>/ (and fallback folders) for the given name."""
+        assets_root = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)))), 'assets')
+        # Search priority: requested folder first, then other folders as fallback
+        search_folders = [folder]
+        for fb in ('alphabets', 'numbers', 'asl_hands'):
+            if fb != folder:
+                search_folders.append(fb)
+        all_matches = []
+        seen = set()
+        for sf in search_folders:
+            base = os.path.join(assets_root, sf)
+            for pat in [f'{name}.*', f'{name.lower()}.*', f'{name.upper()}.*']:
+                for m in glob.glob(os.path.join(base, pat)):
+                    if m not in seen:
+                        seen.add(m)
+                        all_matches.append(m)
+        if all_matches:
+            pixmap = QPixmap(all_matches[0])
             if not pixmap.isNull():
-                # Scale to fit within available width, maintaining aspect ratio
-                avail_w = max(self._ref_img_label.width(), 260)
-                avail_h = 160
+                # Scale to the fixed 100px-tall display box
                 scaled = pixmap.scaled(
-                    avail_w, avail_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    180, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self._ref_img_label.setPixmap(scaled)
                 self._ref_img_frame.show()
                 return
@@ -1115,13 +1133,13 @@ class AlphabetLesson(QWidget):
         content_layout = QHBoxLayout()
         content_layout.setSpacing(12)
 
-        # === LEFT COLUMN: SignCard ===
+        # === LEFT COLUMN: SignCard (no scroll — compact layout fits) ===
         left_panel = QFrame()
         left_panel.setObjectName("card")
-        left_panel.setFixedWidth(320)
+        left_panel.setFixedWidth(400)
         left_inner = QVBoxLayout(left_panel)
         left_inner.setContentsMargins(6, 6, 6, 6)
-        left_inner.setSpacing(4)
+        left_inner.setSpacing(0)
 
         self.sign_card = SignCard()
         left_inner.addWidget(self.sign_card)
@@ -1755,52 +1773,49 @@ class _PhraseLesson(QWidget):
             background: {COLORS['primary']}12; padding: 6px 10px; border-radius: 6px;
         """)
         left_layout.addWidget(self._tip)
-
-        # Reference image from assets folder
-        self._ref_img_frame = QFrame()
-        self._ref_img_frame.setStyleSheet(f"""
-            QFrame {{
-                background: {COLORS['bg_card']};
-                border-radius: 12px;
-                border: 1px solid {COLORS['border']};
-            }}
-        """)
-        ref_inner = QVBoxLayout(self._ref_img_frame)
-        ref_inner.setContentsMargins(8, 6, 8, 6)
-        ref_inner.setAlignment(Qt.AlignCenter)
-
-        ref_title = QLabel("📸 Reference")
-        ref_title.setAlignment(Qt.AlignCenter)
-        ref_title.setStyleSheet(f"""
-            font-size: 11px; font-weight: 600;
-            color: {COLORS['text_muted']};
-            background: transparent;
-        """)
-        ref_inner.addWidget(ref_title)
-
-        self._phrase_ref_img = QLabel()
-        self._phrase_ref_img.setAlignment(Qt.AlignCenter)
-        self._phrase_ref_img.setMinimumHeight(60)
-        self._phrase_ref_img.setStyleSheet("background: transparent;")
-        self._phrase_ref_img.setScaledContents(False)
-        ref_inner.addWidget(self._phrase_ref_img)
-
-        left_layout.addWidget(self._ref_img_frame)
-        self._ref_img_frame.hide()  # hidden by default
-
         left_layout.addStretch()
         content_layout.addWidget(left_panel, 1)
 
-        # RIGHT: Spelling + SignCard
+        # RIGHT: Reference photo + Spelling + SignCard
         right_panel = QFrame()
         right_panel.setObjectName("card")
-        right_panel.setFixedWidth(300)
+        right_panel.setFixedWidth(340)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(10, 10, 10, 10)
         right_layout.setSpacing(6)
 
+        # Reference photo at the top of right panel — always clearly visible
+        self._ref_img_frame = QFrame()
+        self._ref_img_frame.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 {COLORS['bg_card']}, stop:1 {COLORS['bg_input']});
+                border-radius: 14px;
+                border: 1.5px solid {COLORS['primary']}50;
+            }}
+        """)
+        ref_inner = QVBoxLayout(self._ref_img_frame)
+        ref_inner.setContentsMargins(8, 8, 8, 8)
+        ref_inner.setSpacing(4)
+        ref_inner.setAlignment(Qt.AlignCenter)
+        ref_title = QLabel("📸  Reference Photo")
+        ref_title.setAlignment(Qt.AlignCenter)
+        ref_title.setStyleSheet(f"""
+            font-size: 12px; font-weight: 700;
+            color: {COLORS['primary']}; background: transparent;
+        """)
+        ref_inner.addWidget(ref_title)
+        self._phrase_ref_img = QLabel()
+        self._phrase_ref_img.setAlignment(Qt.AlignCenter)
+        self._phrase_ref_img.setFixedHeight(160)
+        self._phrase_ref_img.setStyleSheet("background: transparent;")
+        self._phrase_ref_img.setScaledContents(False)
+        ref_inner.addWidget(self._phrase_ref_img)
+        right_layout.addWidget(self._ref_img_frame)
+        self._ref_img_frame.hide()  # shown when an image is found
+
         spell_title = QLabel("🔤 Finger-Spell It")
-        spell_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
+        spell_title.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
         right_layout.addWidget(spell_title)
 
         self._spell_desc = QLabel()
@@ -2126,22 +2141,28 @@ class _PhraseLesson(QWidget):
                     """)
 
     def _load_phrase_ref_image(self, name: str):
-        """Load a reference image from assets/<ASSETS_FOLDER>/ for the given item name."""
-        if not self.ASSETS_FOLDER:
-            self._ref_img_frame.hide()
-            return
-        base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__)))), 'assets', self.ASSETS_FOLDER)
-        # Search for files matching the name with any extension
-        matches = glob.glob(os.path.join(base, f'{name}.*')) + \
-                  glob.glob(os.path.join(base, f'{name.lower()}.*'))
-        if matches:
-            pixmap = QPixmap(matches[0])
+        """Load a reference image from assets/<ASSETS_FOLDER>/ (and fallback folders) for the given item name."""
+        assets_root = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)))), 'assets')
+        search_folders = [self.ASSETS_FOLDER] if self.ASSETS_FOLDER else []
+        for fb in ('asl_hands', 'numbers', 'alphabets'):
+            if fb not in search_folders:
+                search_folders.append(fb)
+        all_matches = []
+        seen = set()
+        for sf in search_folders:
+            base = os.path.join(assets_root, sf)
+            for pat in [f'{name}.*', f'{name.lower()}.*', f'{name.upper()}.*']:
+                for m in glob.glob(os.path.join(base, pat)):
+                    if m not in seen:
+                        seen.add(m)
+                        all_matches.append(m)
+        if all_matches:
+            pixmap = QPixmap(all_matches[0])
             if not pixmap.isNull():
-                avail_w = max(self._phrase_ref_img.width(), 240)
-                avail_h = 150
+                # Scale to fit the fixed 160px tall display
                 scaled = pixmap.scaled(
-                    avail_w, avail_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    320, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self._phrase_ref_img.setPixmap(scaled)
                 self._ref_img_frame.show()
                 return

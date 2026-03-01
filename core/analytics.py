@@ -189,13 +189,20 @@ class AnalyticsManager:
     
     def _load_stats(self, filepath: str) -> UserStats:
         """Load stats from file."""
+        import dataclasses
+        # Derive user_id from filename so errors still return a usable object
+        base = os.path.splitext(os.path.basename(filepath))[0]
+        file_user_id = base[:-len('_stats')] if base.endswith('_stats') else base
         try:
             with open(filepath, 'r') as f:
                 data = json.load(f)
-            return UserStats(**data)
+            # Filter to known fields so schema changes never cause a TypeError
+            known = {f.name for f in dataclasses.fields(UserStats)}
+            filtered = {k: v for k, v in data.items() if k in known}
+            return UserStats(**filtered)
         except Exception as e:
             print(f"Error loading stats: {e}")
-            return UserStats(user_id="unknown")
+            return UserStats(user_id=file_user_id)
     
     def save_stats(self, user_id: str):
         """Save user stats to file."""
@@ -257,10 +264,11 @@ class AnalyticsManager:
             stats.session_dates.append(today)
         
         # Check time-based achievements
+        # early_bird: 4 AM – 6 AM  |  night_owl: midnight – 4 AM  (no overlap)
         hour = datetime.now().hour
-        if hour >= 0 and hour < 6:
+        if 4 <= hour < 6:
             self._check_achievement(user_id, "early_bird", 1)
-        if hour >= 0 and hour < 5:
+        elif hour < 4:   # 0, 1, 2, 3
             self._check_achievement(user_id, "night_owl", 1)
         
         self._check_streak_achievements(user_id)

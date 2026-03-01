@@ -672,10 +672,6 @@ class TrainingPage(QWidget):
         self._current_sequence = []     # current 30-frame recording buffer
         self._is_recording_dynamic = False
         
-        # Capture timer
-        self._capture_timer = QTimer()
-        self._capture_timer.timeout.connect(self._capture_sample)
-        
         self._setup_ui()
         self._connect_signals()
     
@@ -777,14 +773,10 @@ class TrainingPage(QWidget):
             self.training_controls.progress_bar.setValue(0)
         
         self.training_controls.set_capturing(True)
-        
-        # Capture every 100ms
-        self._capture_timer.start(100)
     
     def _stop_capture(self):
         """Stop capturing samples."""
         self._is_capturing = False
-        self._capture_timer.stop()
         self.training_controls.set_capturing(False)
         
         # If dynamic recording was active, save the sequence
@@ -842,10 +834,6 @@ class TrainingPage(QWidget):
             
             if self._capture_count >= self._target_count:
                 self._stop_capture()
-    
-    def _capture_sample(self):
-        """Timer callback for capture - features are handled by _on_features."""
-        pass
     
     def _train_model(self):
         """Train the model with collected data."""

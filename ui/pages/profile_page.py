@@ -404,7 +404,15 @@ class ProfilePage(QWidget):
         hero_layout.setSpacing(24)
         
         # Avatar
-        username = self.user.get("email", "User")
+        email = self.user.get("email", "")
+        raw_name = (
+            self.user.get("username")
+            or self.user.get("display_name")
+            or self.user.get("name")
+            or (email.split("@")[0] if "@" in email else email)
+            or "User"
+        )
+        username = raw_name.capitalize() if raw_name.islower() else raw_name
         initials = username[0].upper() if username else "U"
         
         avatar = QFrame()

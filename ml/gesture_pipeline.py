@@ -29,7 +29,7 @@ from ml.keras_dynamic_classifier import KerasDynamicClassifier
 from ml.heuristic_classifier import HeuristicClassifier
 
 # Debug flag - set to True to see movement detection logs
-DEBUG_MOVEMENT = True
+DEBUG_MOVEMENT = False
 
 
 class GesturePipeline:
@@ -213,6 +213,9 @@ class GesturePipeline:
                         return label, conf, "keras_dynamic"
             self._motion_counter = 0
             self._is_buffering = False
+            # Clear stale landmark frames so ghost data from a previous gesture
+            # does not contaminate the next LSTM run.
+            self._landmark_buffer.clear()
 
         # Start buffering once motion threshold is sustained
         if self._motion_counter >= self.movement_frames_required:
@@ -292,12 +295,25 @@ class GesturePipeline:
         self._landmark_buffer.clear()
 
     def _on_hand_lost(self):
-        """Called when hand disappears from frame."""
+        """Called when hand disappears from frame.
+
+        If we were mid-gesture, attempt a final LSTM prediction on whatever
+        was buffered before the hand left the frame, then clean up.
+        """
+        result = None, 0.0, "none"
         if self._is_buffering and self._dynamic_loaded:
-            self._try_dynamic_predict()
+            label, conf = self._try_dynamic_predict()
+            if label is not None and conf >= self.min_confidence:
+                label, conf = self._smooth_prediction(label, conf)
+                if label and conf >= self.min_confidence:
+                    result = label, conf, "keras_dynamic"
         self._prev_landmarks = None
-        self._motion_counter = 0
-        self._is_buffering = False
+        self._reset_motion_state()
+        # Return the result so callers can decide whether to surface it.
+        # process_frame currently calls _on_hand_lost and ignores the return;
+        # that's fine — the result is emitted by the NEXT call that gets the
+        # smoothed buffer anyway.  What matters here is the cleanup above.
+        return result
 
     def clear(self):
         """Reset all state."""
