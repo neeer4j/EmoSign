@@ -14,8 +14,9 @@ from PySide6.QtWidgets import (
     QFrame, QScrollArea, QGridLayout, QStackedWidget,
     QProgressBar, QSizePolicy, QGraphicsDropShadowEffect
 )
-from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QFont, QColor, QPixmap
+from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve, QObject
+from PySide6.QtGui import QFont, QColor, QPixmap, QImage
+import cv2
 
 import os
 import glob
@@ -732,6 +733,52 @@ SIGN_GUIDE = {
 
 
 # ─────────────────────────────────────────────────────────────
+# Looping reference video player (used for J, Z motion demos)
+# ─────────────────────────────────────────────────────────────
+
+class _RefVideoLooper(QObject):
+    """Loops a short video clip into a QLabel at the given display size."""
+
+    def __init__(self, path: str, label, w: int = 260, h: int = 200, parent=None):
+        super().__init__(parent)
+        self._label = label
+        self._w = w
+        self._h = h
+        self._cap = cv2.VideoCapture(path)
+        fps = self._cap.get(cv2.CAP_PROP_FPS)
+        if not fps or fps <= 0:
+            fps = 25.0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._next_frame)
+        self._timer.start(int(1000 / fps))
+
+    def _next_frame(self):
+        ok, frame = self._cap.read()
+        if not ok:
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ok, frame = self._cap.read()
+        if ok:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            fh, fw = frame.shape[:2]
+            scale = min(self._w / fw, self._h / fh)
+            nw, nh = max(1, int(fw * scale)), max(1, int(fh * scale))
+            frame = cv2.resize(frame, (nw, nh), interpolation=cv2.INTER_AREA)
+            img = QImage(frame.data, nw, nh, nw * 3, QImage.Format_RGB888)
+            self._label.setPixmap(QPixmap.fromImage(img))
+
+    def stop(self):
+        self._timer.stop()
+        if self._cap.isOpened():
+            self._cap.release()
+
+    def __del__(self):
+        try:
+            self.stop()
+        except Exception:
+            pass
+
+
+# ─────────────────────────────────────────────────────────────
 # SignCard widget — reusable finger bar-chart + analogy + steps
 # ─────────────────────────────────────────────────────────────
 
@@ -818,8 +865,8 @@ class SignCard(QFrame):
         hand_vbox.addWidget(hand_title)
         self._hand = AnimatedHandWidget()
         self._hand._desc_label.hide()  # desc shown in header
-        self._hand.setMinimumHeight(95)
-        self._hand.setMaximumHeight(105)
+        self._hand.setMinimumHeight(140)
+        self._hand.setMaximumHeight(220)
         hand_vbox.addWidget(self._hand)
         media_row.addWidget(hand_frame, 1)
 
@@ -843,11 +890,12 @@ class SignCard(QFrame):
         ref_vbox.addWidget(ref_title)
         self._ref_img_label = QLabel()
         self._ref_img_label.setAlignment(Qt.AlignCenter)
-        self._ref_img_label.setMinimumHeight(90)
-        self._ref_img_label.setMaximumHeight(105)
+        self._ref_img_label.setMinimumHeight(140)
+        self._ref_img_label.setMaximumHeight(220)
         self._ref_img_label.setStyleSheet("background: transparent;")
         self._ref_img_label.setScaledContents(False)
         ref_vbox.addWidget(self._ref_img_label)
+        self._ref_video_looper = None
         media_row.addWidget(self._ref_img_frame, 1)
 
         layout.addLayout(media_row)
@@ -932,37 +980,64 @@ class SignCard(QFrame):
             self._motion_lbl.hide()
 
     def _load_ref_image(self, name: str, folder: str):
-        """Load a reference image from assets/<folder>/ (and fallback folders) for the given name."""
+        """Load a reference image or looping video from assets/<folder>/."""
+        # Stop any previous video looper
+        if self._ref_video_looper is not None:
+            self._ref_video_looper.stop()
+            self._ref_video_looper = None
+
         assets_root = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__)))), 'assets')
-        # Search priority: requested folder first, then other folders as fallback
+        # Search priority: requested folder first, then fallbacks
         search_folders = [folder]
         for fb in ('alphabets', 'numbers', 'asl_hands'):
             if fb != folder:
                 search_folders.append(fb)
-        all_matches = []
+
+        VIDEO_EXTS = {'.mp4', '.webm', '.avi', '.mov'}
+        IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif', '.tif', '.tiff', '.svg'}
+
+        video_matches = []
+        image_matches = []
         seen = set()
         for sf in search_folders:
             base = os.path.join(assets_root, sf)
             for pat in [f'{name}.*', f'{name.lower()}.*', f'{name.upper()}.*']:
                 for m in glob.glob(os.path.join(base, pat)):
-                    if m not in seen:
-                        seen.add(m)
-                        all_matches.append(m)
-        if all_matches:
-            pixmap = QPixmap(all_matches[0])
+                    if m in seen:
+                        continue
+                    seen.add(m)
+                    ext = os.path.splitext(m)[1].lower()
+                    if ext in VIDEO_EXTS:
+                        video_matches.append(m)
+                    elif ext in IMAGE_EXTS:
+                        image_matches.append(m)
+
+        # Prefer video (looping motion demo) over static image
+        if video_matches:
+            self._ref_img_label.clear()
+            self._ref_video_looper = _RefVideoLooper(
+                video_matches[0], self._ref_img_label, 260, 200, self)
+            self._ref_img_frame.show()
+            return
+
+        if image_matches:
+            pixmap = QPixmap(image_matches[0])
             if not pixmap.isNull():
-                # Scale to the fixed 100px-tall display box
                 scaled = pixmap.scaled(
-                    180, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    260, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self._ref_img_label.setPixmap(scaled)
                 self._ref_img_frame.show()
                 return
-        # No image found — hide the frame
+
+        # Nothing found — hide the frame
         self._ref_img_label.clear()
         self._ref_img_frame.hide()
 
     def cleanup(self):
+        if self._ref_video_looper is not None:
+            self._ref_video_looper.stop()
+            self._ref_video_looper = None
         self._hand.cleanup()
 
 

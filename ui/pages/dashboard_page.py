@@ -197,36 +197,27 @@ class DashboardPage(QWidget):
         welcome_box = QVBoxLayout()
         welcome_box.setSpacing(2)
         
-        # Prefer an explicit display name; fall back to email local-part, then "User"
-        email = self.user.get("email", "")
-        raw_name = (
-            self.user.get("username")
-            or self.user.get("display_name")
-            or self.user.get("name")
-            or (email.split("@")[0] if "@" in email else email)
-            or "User"
-        )
-        username = raw_name.capitalize() if raw_name.islower() else raw_name
-        
+        username = self._get_username()
         greeting = self._get_greeting()
-        welcome_label = QLabel(f"{greeting}, {username}! 👋")
-        welcome_label.setObjectName("welcomeText")
+        self._welcome_label = QLabel(f"{greeting}, {username}! 👋")
+        self._welcome_label.setObjectName("welcomeText")
         
         subtitle = QLabel("Ready to practice sign language today?")
         subtitle.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
         
-        welcome_box.addWidget(welcome_label)
+        welcome_box.addWidget(self._welcome_label)
         welcome_box.addWidget(subtitle)
         
         header.addLayout(welcome_box)
         header.addStretch()
         
         # Quick action buttons in header
+        self._profile_btn = None
         if not self.user.get("guest"):
-            profile_btn = QPushButton(f"👤 {username[:8]}")
-            profile_btn.setObjectName("ghost")
-            profile_btn.clicked.connect(self.navigate_to_profile.emit)
-            header.addWidget(profile_btn)
+            self._profile_btn = QPushButton(f"👤 {username[:8]}")
+            self._profile_btn.setObjectName("ghost")
+            self._profile_btn.clicked.connect(self.navigate_to_profile.emit)
+            header.addWidget(self._profile_btn)
         
         main_layout.addLayout(header)
         
@@ -327,6 +318,18 @@ class DashboardPage(QWidget):
         main_layout.addWidget(tips_frame)
         main_layout.addStretch()
     
+    def _get_username(self) -> str:
+        """Derive display name from user data."""
+        email = self.user.get("email", "") if self.user else ""
+        raw = (
+            (self.user or {}).get("username")
+            or (self.user or {}).get("display_name")
+            or (self.user or {}).get("name")
+            or (email.split("@")[0] if "@" in email else email)
+            or "User"
+        )
+        return raw.capitalize() if raw.islower() else raw
+
     def _get_greeting(self):
         """Get time-appropriate greeting."""
         from datetime import datetime
@@ -365,8 +368,12 @@ class DashboardPage(QWidget):
             print(f"Failed to load stats: {e}")
     
     def update_user(self, user_data):
-        """Update user data and refresh stats."""
+        """Update user data and refresh greeting + stats."""
         self.user = user_data
+        username = self._get_username()
+        self._welcome_label.setText(f"{self._get_greeting()}, {username}! 👋")
+        if self._profile_btn is not None:
+            self._profile_btn.setText(f"👤 {username[:8]}")
         self._load_stats()
     
     def refresh_stats(self):
