@@ -4,8 +4,8 @@
   "total_signs_detected": 734,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 9,
-  "total_practice_time": 1.4172597166666667,
+  "total_sessions": 10,
+  "total_practice_time": 1.6353112666666667,
   "sign_counts": {
     "Y": 15,
     "S": 2,
@@ -81,7 +81,7 @@
   "total_predictions": 734,
   "current_streak": 1,
   "longest_streak": 1,
-  "last_active_date": "2026-02-23",
+  "last_active_date": "2026-03-04",
   "signs_learned": [
     "Y",
     "S",
@@ -177,6 +177,7 @@
     "2026-02-06",
     "2026-02-17",
     "2026-02-19",
-    "2026-02-23"
+    "2026-02-23",
+    "2026-03-04"
   ]
 }

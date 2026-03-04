@@ -32,6 +32,136 @@ from ml.heuristic_classifier import HeuristicClassifier
 DEBUG_MOVEMENT = False
 
 
+# ==================================================================
+# Z / J Trajectory Detector
+# ==================================================================
+
+class ZJDetector:
+    """Movement-based detector for ASL Z and J.
+
+    Z: hand in 'D' shape (only index finger extended) + significant movement
+    J: hand in 'I' shape (only pinky finger extended) + significant movement
+
+    • D held still  → static pipeline outputs 'D'  (ZJDetector stays silent)
+    • D + big move  → ZJDetector fires 'Z' immediately
+    • I held still  → static pipeline outputs 'I'  (ZJDetector stays silent)
+    • I + big move  → ZJDetector fires 'J' immediately
+    """
+
+    # Frames the tip must move above MOTION_THRESHOLD before we fire
+    MIN_MOTION_FRAMES = 5
+    # Per-frame fingertip displacement (normalized by palm scale) to count as "moving"
+    MOTION_THRESHOLD = 0.022
+    # Total accumulated displacement needed to confirm the gesture
+    MIN_TOTAL_DISP = 0.18
+    # Cooldown frames after firing — prevents immediate re-detection (~0.5 s @ 30 fps)
+    COOLDOWN_FRAMES = 15
+
+    def __init__(self):
+        self._mode: Optional[str] = None      # 'Z', 'J', or None
+        self._motion_frames: int = 0           # frames with tip displacement ≥ MOTION_THRESHOLD
+        self._total_disp: float = 0.0          # cumulative normalised tip displacement
+        self._prev_tip: Optional[np.ndarray] = None
+        self._cooldown: int = 0
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def update(self, landmarks) -> Tuple[Optional[str], float]:
+        """Feed one frame of 21 MediaPipe (x,y,z) landmarks.
+
+        Returns ``(label, confidence)`` as soon as Z or J is confirmed,
+        else ``(None, 0.0)``.
+        """
+        if self._cooldown > 0:
+            self._cooldown -= 1
+            return None, 0.0
+
+        if landmarks is None or len(landmarks) != 21:
+            self._reset()
+            return None, 0.0
+
+        lm = np.array(landmarks, dtype=np.float32)
+        mode = self._detect_mode(lm)
+
+        if mode is None:
+            # Hand shape changed — cancel any in-progress gesture
+            self._reset()
+            return None, 0.0
+
+        if mode != self._mode:
+            # Shape switched (e.g., D → I mid-air) — start fresh
+            self._reset()
+            self._mode = mode
+
+        # Track the relevant fingertip: index (8) for Z, pinky (20) for J
+        tip_idx = 8 if mode == 'Z' else 20
+        tip = lm[tip_idx, :2].copy()
+
+        # Normalise displacement by palm scale (wrist → middle MCP)
+        scale = float(np.linalg.norm(lm[9, :2] - lm[0, :2]))
+        if scale < 1e-6:
+            scale = 1.0
+
+        if self._prev_tip is not None:
+            disp = float(np.linalg.norm(tip - self._prev_tip)) / scale
+            if disp >= self.MOTION_THRESHOLD:
+                self._motion_frames += 1
+                self._total_disp += disp
+
+        self._prev_tip = tip
+
+        # Fire once enough sustained movement has accumulated
+        if (self._motion_frames >= self.MIN_MOTION_FRAMES
+                and self._total_disp >= self.MIN_TOTAL_DISP):
+            label = mode
+            self._reset()
+            self._cooldown = self.COOLDOWN_FRAMES
+            return label, 0.92
+
+        return None, 0.0
+
+    def clear(self):
+        """Full reset including cooldown."""
+        self._reset()
+        self._cooldown = 0
+
+    # ------------------------------------------------------------------
+    # Hand-shape detection
+    # ------------------------------------------------------------------
+
+    def _detect_mode(self, lm: np.ndarray) -> Optional[str]:
+        """Return 'Z' for D-shape (only index extended),
+        'J' for I-shape (only pinky extended), else None."""
+        wrist = lm[0]
+
+        def _ext(tip_i: int, pip_i: int) -> bool:
+            return (float(np.linalg.norm(lm[tip_i, :2] - wrist[:2])) >
+                    float(np.linalg.norm(lm[pip_i, :2] - wrist[:2])))
+
+        index_ext  = _ext(8,  6)
+        middle_ext = _ext(12, 10)
+        ring_ext   = _ext(16, 14)
+        pinky_ext  = _ext(20, 18)
+
+        if index_ext and not middle_ext and not ring_ext and not pinky_ext:
+            return 'Z'
+        if pinky_ext and not index_ext and not middle_ext and not ring_ext:
+            return 'J'
+        return None
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _reset(self):
+        self._mode = None
+        self._motion_frames = 0
+        self._total_disp = 0.0
+        self._prev_tip = None
+
+
 class GesturePipeline:
     """Movement-aware, smoothing, confidence-filtered gesture pipeline.
 
@@ -75,7 +205,10 @@ class GesturePipeline:
         # --- Prediction smoothing ---
         self._prediction_buffer: deque = deque(maxlen=smoothing_window)
         self._confidence_buffer: deque = deque(maxlen=smoothing_window)
-        
+
+        # --- Z / J trajectory detector (always-on heuristic) ---
+        self._zj_detector = ZJDetector()
+
         # --- Debug ---
         self._debug_frame_count: int = 0
 
@@ -170,7 +303,7 @@ class GesturePipeline:
 
         Returns:
             (label, confidence, model_used)
-            model_used is 'keras_static', 'keras_dynamic', 'heuristic', or 'none'.
+            model_used is 'keras_static', 'keras_dynamic', 'zj_heuristic', 'heuristic', or 'none'.
         """
         if landmarks is None or len(landmarks) != 21:
             self._on_hand_lost()
@@ -187,6 +320,19 @@ class GesturePipeline:
                   f"buffering={self._is_buffering} buf_len={len(self._landmark_buffer)}/{self.sequence_length} "
                   f"dynamic_loaded={self._dynamic_loaded}")
         self._debug_frame_count += 1
+
+        # ------------------------------------------------------------------
+        # Z / J trajectory detection — runs every frame, fires immediately
+        # when a stroke pattern is confidently recognised.
+        # This is a dedicated heuristic and does NOT depend on the LSTM.
+        # ------------------------------------------------------------------
+        zj_label, zj_conf = self._zj_detector.update(landmarks)
+        if zj_label is not None and zj_conf >= self.min_confidence:
+            if DEBUG_MOVEMENT:
+                print(f"[ZJ] ✓ Detected: {zj_label} ({zj_conf:.1%})")
+            # Reset motion state so we don't contaminate the next gesture
+            self._reset_motion_state()
+            return zj_label, zj_conf, "zj_heuristic"
 
         # Always buffer for potential LSTM use
         self._landmark_buffer.append(landmarks)
@@ -309,6 +455,7 @@ class GesturePipeline:
                     result = label, conf, "keras_dynamic"
         self._prev_landmarks = None
         self._reset_motion_state()
+        self._zj_detector.clear()   # discard partial Z/J trajectory on hand-loss
         # Return the result so callers can decide whether to surface it.
         # process_frame currently calls _on_hand_lost and ignores the return;
         # that's fine — the result is emitted by the NEXT call that gets the
@@ -323,6 +470,7 @@ class GesturePipeline:
         self._landmark_buffer.clear()
         self._prediction_buffer.clear()
         self._confidence_buffer.clear()
+        self._zj_detector.clear()
 
     def clear_buffer(self):
         """Clear the smoothing buffers (alias for Classifier API)."""
@@ -338,4 +486,7 @@ class GesturePipeline:
             "is_buffering": self._is_buffering,
             "buffer_size": len(self._landmark_buffer),
             "smoothing_size": len(self._prediction_buffer),
+            "zj_mode": self._zj_detector._mode,
+            "zj_motion_frames": self._zj_detector._motion_frames,
+            "zj_total_disp": round(self._zj_detector._total_disp, 3),
         }

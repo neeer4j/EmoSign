@@ -1040,24 +1040,49 @@ class LiveTranslationPage(QWidget):
         """
         if not self._is_translating:
             return
-        
+
+        # Z and J are dynamic letters detected by movement heuristic.
+        # Because the static MLP keeps voting for D / I during the same window,
+        # we must force-confirm Z / J immediately — no vote buffer needed.
+        if model_used == "zj_heuristic":
+            # Stop the current capture window (discards any D/I votes)
+            self.gesture_display.stop_capture()
+            # Directly confirm in the engine — same path as capture_complete
+            self.engine.force_confirm(gesture, confidence)
+            # Restart a fresh capture window after a short display pause
+            if self._is_translating:
+                QTimer.singleShot(700, self._restart_capture_window)
+            return
+
         # The pipeline already distinguishes between static/dynamic via model_used
         # For dynamic gestures (keras_dynamic), give them higher vote weight
         if model_used == "keras_dynamic":
-            # Dynamic letter detected from trained LSTM - give extra votes
+            # Dynamic letter detected (LSTM) - give extra votes
             for _ in range(3):  # Triple vote weight for dynamic predictions
                 self.gesture_display.add_vote(gesture, confidence)
         else:
             # Static prediction from Keras MLP or heuristic
             self.gesture_display.add_vote(gesture, confidence)
+
+    def _restart_capture_window(self):
+        """Restart the capture window if translation is still active."""
+        if self._is_translating and not self.gesture_display.is_capturing():
+            self.gesture_display.start_capture_window()
     
     @Slot(str, float, str)
     def _on_video_nn_gesture(self, gesture: str, confidence: float, model_used: str):
         """Handle gesture from GesturePipeline for video input."""
         if not self._is_translating or not self.video_widget.is_loaded():
             return
-        
-        # Same logic as camera
+
+        # Same logic as camera: force-confirm Z/J immediately
+        if model_used == "zj_heuristic":
+            self.gesture_display.stop_capture()
+            self.engine.force_confirm(gesture, confidence)
+            if self._is_translating:
+                QTimer.singleShot(700, self._restart_capture_window)
+            return
+
         if model_used == "keras_dynamic":
             for _ in range(3):
                 self.gesture_display.add_vote(gesture, confidence)

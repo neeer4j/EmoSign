@@ -18,7 +18,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 # Ensure project root is on path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _script_dir)
+sys.path.insert(0, os.path.dirname(_script_dir))  # project root
 
 from config import (
     DATA_DIR,

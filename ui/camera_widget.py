@@ -144,24 +144,6 @@ class CameraWidget(QFrame):
                 # Unified pipeline: Keras MLP/LSTM + heuristic fallback + smoothing
                 pipe_label, pipe_conf, model_used = self.gesture_pipeline.process_frame(landmarks)
 
-                # ── Trajectory override for J and Z ────────────────────────────
-                # Z: static MLP sees extended index finger → outputs "D".
-                #    If the index-fingertip trail already looks like a Z,
-                #    the drawn letter wins.
-                # J: static MLP sees extended pinky → outputs "I" (or "Y").
-                #    If the pinky trail already looks like a J,
-                #    the drawn letter wins.
-                if self.dynamic_gestures_enabled:
-                    if pipe_label and pipe_label.upper() in ("D",):
-                        traj_conf_z = self.dynamic_tracker._match_z_gesture()
-                        if traj_conf_z > 0.45:
-                            pipe_label, pipe_conf, model_used = "Z", traj_conf_z, "trajectory"
-                    if pipe_label and pipe_label.upper() in ("I", "Y"):
-                        traj_conf_j = self.dynamic_tracker._match_j_gesture()
-                        if traj_conf_j > 0.45:
-                            pipe_label, pipe_conf, model_used = "J", traj_conf_j, "trajectory"
-                # ───────────────────────────────────────────────────────────────
-
                 if pipe_label and pipe_conf > 0.0:
                     self.nn_gesture_detected.emit(pipe_label, pipe_conf, model_used)
         
