@@ -37,7 +37,7 @@ class CameraWidget(QFrame):
         self.camera = Camera()
         self.hand_tracker = HandTracker()
         self.feature_extractor = FeatureExtractor()
-        self.dynamic_tracker = DynamicGestureTracker(buffer_size=20, fps=20)
+        self.dynamic_tracker = DynamicGestureTracker(buffer_size=40, fps=20)
         self.face_detector = FaceDetector()
         self.heuristic_classifier = HeuristicClassifier()
         self.gesture_pipeline = GesturePipeline()
@@ -225,17 +225,23 @@ class CameraWidget(QFrame):
         if len(traj_buffer) > 1:
             positions = list(traj_buffer)
             h, w = frame.shape[:2]
-
-            for i in range(1, len(positions)):
-                x1 = int(positions[i-1][0] * w)
-                y1 = int(positions[i-1][1] * h)
-                x2 = int(positions[i][0] * w)
-                y2 = int(positions[i][1] * h)
-
-                alpha = i / len(positions)
-                color = (0, int(255 * alpha), int(255 * (1 - alpha)))
-                thickness = max(1, int(3 * alpha))
-                cv2.line(frame, (x1, y1), (x2, y2), color, thickness)
+            pts = np.array(
+                [[int(p[0] * w), int(p[1] * h)] for p in positions],
+                dtype=np.int32
+            )
+            npts = len(pts)
+            for i in range(1, npts):
+                alpha = i / npts  # 0 = old (faded), 1 = newest (bright)
+                # Cyan → green gradient with increasing width
+                blue  = int(255 * (1 - alpha))   # high at start, low at end
+                green = int(200 + 55 * alpha)     # always present
+                red   = 0
+                color = (blue, green, red)
+                thickness = max(1, int(1 + 4 * alpha))  # 1px old → 5px newest
+                cv2.line(frame,
+                         (pts[i-1][0], pts[i-1][1]),
+                         (pts[i][0],   pts[i][1]),
+                         color, thickness, cv2.LINE_AA)
 
         state = self.dynamic_tracker.state.value
         if state == "tracking":

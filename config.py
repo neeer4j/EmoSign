@@ -86,7 +86,7 @@ WORD_TIMEOUT = 1.5               # Seconds of inactivity to finalize a word
 LETTER_DEBOUNCE_TIME = 0.8       # Minimum time between same letter
 CONFIDENCE_THRESHOLD = 0.45      # Minimum confidence for gesture acceptance
 GESTURE_COOLDOWN_MS = 1500       # (legacy) Cooldown bar duration
-CAPTURE_WINDOW_MS = 2500         # Capture window duration (ms) — bar fills, then majority vote
+CAPTURE_WINDOW_MS = 2200         # Capture window duration (ms) — bar fills, then majority vote
 
 # Translation Modes
 TRANSLATION_MODE_INSTANT = "instant"      # Output each gesture immediately

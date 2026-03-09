@@ -108,6 +108,9 @@ WORD_GESTURES = {
     "WHEN": "When",
     "WHY": "Why",
     "WHO": "Who",
+    # --- Dynamic gestures ---
+    "WAVE": "Hello (wave)",
+    # CIRCLE intentionally omitted until detection is more reliable
 }
 
 # Gesture sequences that map to complete sentences

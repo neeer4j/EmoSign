@@ -1731,6 +1731,126 @@ class AlphabetLesson(QWidget):
 
 
 # ─────────────────────────────────────────────────────────────
+# Lightweight looping video player for gesture demo clips
+# ─────────────────────────────────────────────────────────────
+
+class _SignVideoPlayer(QFrame):
+    """Minimal looping video player embedded in tutorial cards."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cap = None
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._next_frame)
+        self._playing = False
+        self._setup_ui()
+
+    def _setup_ui(self):
+        self.setStyleSheet("""
+            QFrame {
+                background: #000;
+                border-radius: 10px;
+                border: 1.5px solid rgba(255,255,255,0.08);
+            }
+        """)
+        self.setFixedHeight(190)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self._lbl = QLabel()
+        self._lbl.setAlignment(Qt.AlignCenter)
+        self._lbl.setStyleSheet("background: transparent;")
+        layout.addWidget(self._lbl, 1)
+
+        # Minimal controls row
+        ctrl = QHBoxLayout()
+        ctrl.setContentsMargins(6, 0, 6, 4)
+
+        self._status_lbl = QLabel("🎬 Demo")
+        self._status_lbl.setStyleSheet("color: rgba(255,255,255,0.55); font-size: 10px; background: transparent;")
+        ctrl.addWidget(self._status_lbl)
+        ctrl.addStretch()
+
+        self._play_btn = QPushButton("⏸")
+        self._play_btn.setFixedSize(26, 22)
+        self._play_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(255,255,255,0.15);
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 11px;
+            }
+            QPushButton:hover { background: rgba(255,255,255,0.30); }
+        """)
+        self._play_btn.clicked.connect(self._toggle)
+        ctrl.addWidget(self._play_btn)
+        layout.addLayout(ctrl)
+
+    # ------------------------------------------------------------------
+
+    def load(self, path: str):
+        """Load *path* and auto-play.  Pass empty string to hide."""
+        self._stop_cap()
+        if path and os.path.exists(path):
+            self._cap = cv2.VideoCapture(path)
+            if self._cap.isOpened():
+                fps = self._cap.get(cv2.CAP_PROP_FPS) or 24
+                self._timer.start(max(16, int(1000 / fps)))
+                self._playing = True
+                self._play_btn.setText("⏸")
+                self._status_lbl.setText("🎬 Demo")
+                self.show()
+                return
+        # No valid video
+        self._cap = None
+        self.hide()
+
+    def cleanup(self):
+        self._stop_cap()
+
+    # ------------------------------------------------------------------
+
+    def _next_frame(self):
+        if not self._cap or not self._playing:
+            return
+        ret, frame = self._cap.read()
+        if not ret:
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret, frame = self._cap.read()
+            if not ret:
+                return
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, _ = rgb.shape
+        qi = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
+        pix = QPixmap.fromImage(qi).scaled(
+            self._lbl.width() or 310, 175,
+            Qt.KeepAspectRatio, Qt.SmoothTransformation,
+        )
+        self._lbl.setPixmap(pix)
+
+    def _toggle(self):
+        if self._playing:
+            self._playing = False
+            self._timer.stop()
+            self._play_btn.setText("▶")
+        else:
+            if self._cap:
+                self._playing = True
+                fps = self._cap.get(cv2.CAP_PROP_FPS) or 24
+                self._timer.start(max(16, int(1000 / fps)))
+                self._play_btn.setText("⏸")
+
+    def _stop_cap(self):
+        self._timer.stop()
+        self._playing = False
+        if self._cap:
+            self._cap.release()
+            self._cap = None
+
+
+# ─────────────────────────────────────────────────────────────
 # Generic phrase / word lesson — reusable for all non-alphabet
 # lessons: Numbers, Greetings, Basics, Questions, etc.
 # ─────────────────────────────────────────────────────────────
@@ -1858,6 +1978,11 @@ class _PhraseLesson(QWidget):
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(10, 10, 10, 10)
         right_layout.setSpacing(6)
+
+        # ── Video demo player (shown when a gesture video is available) ──
+        self._video_player = _SignVideoPlayer()
+        right_layout.addWidget(self._video_player)
+        self._video_player.hide()  # hidden until a video is loaded
 
         # Reference photo at the top of right panel — always clearly visible
         self._ref_img_frame = QFrame()
@@ -2106,6 +2231,9 @@ class _PhraseLesson(QWidget):
         # Load reference image if available
         self._load_phrase_ref_image(d['name'])
 
+        # Load gesture demo video if available
+        self._video_player.load(self._find_gesture_video(d['name']))
+
         # Spelling buttons
         # Clear old buttons
         while self._letter_btn_layout.count():
@@ -2244,6 +2372,22 @@ class _PhraseLesson(QWidget):
         self._phrase_ref_img.clear()
         self._ref_img_frame.hide()
 
+    def _find_gesture_video(self, name: str) -> str:
+        """Return path to assets/gestures/<name>.mp4 if it exists, else ''."""
+        gestures_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            'assets', 'gestures',
+        )
+        for variant in [
+            name.lower().replace(' ', ''),
+            name.lower().replace(' ', '_'),
+            name.lower(),
+        ]:
+            p = os.path.join(gestures_dir, f'{variant}.mp4')
+            if os.path.exists(p):
+                return p
+        return ''
+
     def _prev(self):
         if self._current > 0:
             self._current -= 1
@@ -2264,6 +2408,7 @@ class _PhraseLesson(QWidget):
 
     def cleanup(self):
         self._sign_card.cleanup()
+        self._video_player.cleanup()
         self._stop_phrase_camera()
 
     def _start_phrase_camera(self):
@@ -2291,13 +2436,16 @@ class _PhraseLesson(QWidget):
             self._camera_widget.stop()
 
     def showEvent(self, event):
-        """Auto-start camera when lesson is shown."""
+        """Auto-start camera and video demo when lesson is shown."""
         super().showEvent(event)
         self._start_phrase_camera()
+        if self.DATA:
+            self._video_player.load(self._find_gesture_video(self.DATA[self._current]['name']))
 
     def hideEvent(self, event):
         """Stop camera when lesson is hidden."""
         super().hideEvent(event)
+        self._video_player.cleanup()
         self._stop_phrase_camera()
 
 
@@ -2798,6 +2946,129 @@ class ActionsLesson(_PhraseLesson):
 
 
 # ─────────────────────────────────────────────────────────────
+# CommonSignsLesson — the 10 essential ASL signs
+# ─────────────────────────────────────────────────────────────
+
+class CommonSignsLesson(_PhraseLesson):
+    """The only lesson available: 10 essential everyday ASL signs."""
+    TITLE = "Essential Signs"
+    ICON  = "🤟"
+    ASSETS_FOLDER = "asl_hands"
+    DATA  = [
+        {
+            'name': 'Hello', 'emoji': '👋',
+            'desc': 'A flat-hand salute that starts at your forehead and moves forward.',
+            'steps': [
+                '1️⃣  Hold your dominant hand flat, fingers together',
+                '2️⃣  Bring your fingertips to the side of your forehead, like a salute',
+                '3️⃣  Move your hand forward and outward — like a friendly wave!',
+            ],
+            'tip': 'Same motion as a casual military salute.',
+            'video_path': None,
+        },
+        {
+            'name': 'Thank you', 'emoji': '🙏',
+            'desc': 'Flat hand touches your chin, then moves forward — like sending gratitude.',
+            'steps': [
+                '1️⃣  Hold your dominant hand flat, fingers together',
+                '2️⃣  Touch your fingertips lightly to your chin or lips',
+                '3️⃣  Move your hand forward and slightly downward, away from your face',
+            ],
+            'tip': "Like blowing a kiss of thanks toward the person.",
+            'video_path': None,
+        },
+        {
+            'name': 'Please', 'emoji': '🙏',
+            'desc': 'Flat hand rubbed in a circle on your chest — like polishing your heart.',
+            'steps': [
+                '1️⃣  Place your flat dominant hand on the center of your chest',
+                '2️⃣  Move it in a slow clockwise circle',
+                '3️⃣  Keep a warm, polite facial expression',
+            ],
+            'tip': "The circular motion shows sincerity — don't skip it!",
+            'video_path': None,
+        },
+        {
+            'name': 'I', 'emoji': '👆',
+            'desc': 'Point your index finger at yourself — simple and direct.',
+            'steps': [
+                '1️⃣  Extend your dominant index finger',
+                '2️⃣  Point it toward your own chest (not your face)',
+                '3️⃣  A small, clear point — no movement needed',
+            ],
+            'tip': 'In ASL, pointing at yourself means "I" or "me".',
+            'video_path': None,
+        },
+        {
+            'name': 'Yes', 'emoji': '✅',
+            'desc': 'A fist that nods up and down — like your hand is saying YES!',
+            'steps': [
+                '1️⃣  Make a fist (like the letter S)',
+                '2️⃣  Hold your arm comfortably in front of you',
+                '3️⃣  Bend your wrist down then up, once or twice — like nodding',
+            ],
+            'tip': 'Nod your head along — it reinforces the meaning!',
+            'video_path': None,
+        },
+        {
+            'name': 'No', 'emoji': '❌',
+            'desc': 'Index and middle fingers snap to the thumb — like a tiny beak saying NO.',
+            'steps': [
+                '1️⃣  Extend your index finger, middle finger, and thumb',
+                '2️⃣  Quickly snap your index + middle fingers DOWN to meet your thumb',
+                '3️⃣  Do this once or twice — like a beak opening and closing',
+            ],
+            'tip': 'Shake your head slightly — it adds emphasis in ASL!',
+            'video_path': None,
+        },
+        {
+            'name': 'Help', 'emoji': '🆘',
+            'desc': 'A thumbs-up on a flat palm, lifted upward — like someone being helped up.',
+            'steps': [
+                '1️⃣  Make a thumbs-up (A-hand) with your dominant hand',
+                '2️⃣  Rest it on top of your non-dominant flat palm',
+                '3️⃣  Lift both hands upward together — like raising someone up',
+            ],
+            'tip': 'This sign visually shows one person assisting another.',
+            'video_path': None,
+        },
+        {
+            'name': 'Fine', 'emoji': '👍',
+            'desc': 'Open hand (5 handshape), thumb touches chest — showing everything is fine.',
+            'steps': [
+                '1️⃣  Spread all five fingers open (5-hand)',
+                '2️⃣  Turn your palm so it faces to the side, toward your body',
+                '3️⃣  Touch your thumb lightly to the center of your chest once',
+            ],
+            'tip': 'A gentle thumb-to-chest touch — light and confident.',
+            'video_path': None,
+        },
+        {
+            'name': 'Bathroom', 'emoji': '🚻',
+            'desc': 'The letter T hand shakes side to side — a discreet way to ask.',
+            'steps': [
+                '1️⃣  Make a T handshape: tuck your thumb between your index and middle fingers into a fist',
+                '2️⃣  Hold your fist up at about chest or shoulder level',
+                '3️⃣  Shake it gently side to side (left–right) two or three times',
+            ],
+            'tip': 'T stands for Toilet — widely recognized across ASL users.',
+            'video_path': None,
+        },
+        {
+            'name': 'More', 'emoji': '➕',
+            'desc': 'Both flat-O hands tap fingertips together — asking for more.',
+            'steps': [
+                '1️⃣  Bring all fingers and thumb of each hand together into a flat-O (like pinching)',
+                '2️⃣  Hold both hands in front of you at chest height',
+                '3️⃣  Tap the fingertips of both hands together two or three times',
+            ],
+            'tip': 'Think of two pinches coming together — clean and clear!',
+            'video_path': None,
+        },
+    ]
+
+
+# ─────────────────────────────────────────────────────────────
 # TutorialPage — top-level page with lesson list + stacked views
 # ─────────────────────────────────────────────────────────────
 
@@ -2817,64 +3088,28 @@ class TutorialPage(QWidget):
 
         # Header
         header = QHBoxLayout()
-
         title = QLabel("📚 Learn Sign Language")
         title.setStyleSheet(f"font-size: 24px; font-weight: 700; color: {COLORS['text_primary']};")
         header.addWidget(title)
         header.addStretch()
         layout.addLayout(header)
 
-        # Stacked widget for lessons
+        # Stacked widget
         self.stack = QStackedWidget()
 
         # Main lesson list
         self.lesson_list = self._create_lesson_list()
         self.stack.addWidget(self.lesson_list)
 
-        # Alphabet lesson
-        self.alphabet_lesson = AlphabetLesson()
-        self.alphabet_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.alphabet_lesson)
-
-        # Numbers lesson
-        self.numbers_lesson = NumbersLesson()
-        self.numbers_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.numbers_lesson)
-
-        # Greetings lesson
-        self.greetings_lesson = GreetingsLesson()
-        self.greetings_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.greetings_lesson)
-
-        # Basic Words lesson
-        self.basics_lesson = BasicsLesson()
-        self.basics_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.basics_lesson)
-
-        # Question Words lesson
-        self.questions_lesson = QuestionsLesson()
-        self.questions_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.questions_lesson)
-
-        # Emotions lesson
-        self.emotions_lesson = EmotionsLesson()
-        self.emotions_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.emotions_lesson)
-
-        # Family lesson
-        self.family_lesson = FamilyLesson()
-        self.family_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.family_lesson)
-
-        # Actions lesson
-        self.actions_lesson = ActionsLesson()
-        self.actions_lesson.back_requested.connect(self._show_lesson_list)
-        self.stack.addWidget(self.actions_lesson)
+        # The only lesson: 10 Essential Signs
+        self.common_lesson = CommonSignsLesson()
+        self.common_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.common_lesson)
 
         layout.addWidget(self.stack)
 
     def _create_lesson_list(self) -> QWidget:
-        """Create the main lesson list — everything fits on one page, no scrolling."""
+        """Create the lesson home page."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -2890,70 +3125,29 @@ class TutorialPage(QWidget):
         welcome_title.setStyleSheet(f"font-size: 17px; font-weight: 600; color: {COLORS['text_primary']};")
         welcome_layout.addWidget(welcome_title)
 
-        welcome_text = QLabel("Interactive lessons with visual guides, analogies, and step-by-step instructions.")
+        welcome_text = QLabel("Learn 10 essential everyday signs with visual guides and step-by-step instructions.")
         welcome_text.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
         welcome_layout.addWidget(welcome_text, 1)
 
         layout.addWidget(welcome)
 
-        # Beginner section
-        beginner_label = QLabel("🌱 Beginner — Start Here")
-        beginner_label.setStyleSheet(f"font-size: 15px; font-weight: 600; color: {COLORS['text_primary']};")
-        layout.addWidget(beginner_label)
+        # Single lesson card
+        card = LessonCard(
+            "common_signs",
+            "Essential Signs",
+            "Hello · Thank you · Please · I · Yes · No · Help · Fine · Bathroom · More",
+            "🤟",
+            0,
+        )
+        card.clicked.connect(self._open_lesson)
+        self.lesson_cards = {"common_signs": card}
 
-        lessons_grid = QGridLayout()
-        lessons_grid.setSpacing(14)
+        card_row = QHBoxLayout()
+        card_row.addWidget(card)
+        card_row.addStretch()
+        layout.addLayout(card_row)
 
-        lessons = [
-            ("alphabet", "The ASL Alphabet",
-             "Learn A-Z with finger guides, analogies, and simple steps",
-             "🔤", 0),
-            ("numbers", "Numbers 0-9",
-             "Count from zero to nine in ASL", "🔢", 0),
-            ("greetings", "Greetings",
-             "Hello, goodbye, nice to meet you", "👋", 0),
-            ("basics", "Basic Words",
-             "Yes, no, please, thank you, sorry", "💬", 0),
-        ]
-
-        self.lesson_cards = {}
-        for i, (lid, ttl, desc, icon, progress) in enumerate(lessons):
-            card = LessonCard(lid, ttl, desc, icon, progress)
-            card.clicked.connect(self._open_lesson)
-            lessons_grid.addWidget(card, 0, i)  # Single row, 4 columns
-            self.lesson_cards[lid] = card
-
-        layout.addLayout(lessons_grid)
-
-        # Intermediate section
-        inter_label = QLabel("📈 Intermediate")
-        inter_label.setStyleSheet(f"font-size: 15px; font-weight: 600; color: {COLORS['text_primary']};")
-        layout.addWidget(inter_label)
-
-        inter_lessons = [
-            ("questions", "Question Words",
-             "What, where, when, why, how, who", "❓", 0),
-            ("emotions", "Emotions",
-             "Happy, sad, angry, scared, excited", "😊", 0),
-            ("family", "Family",
-             "Mom, dad, sister, brother, baby", "👨‍👩‍👧‍👦", 0),
-            ("actions", "Common Actions",
-             "Go, stop, help, want, need, like", "🏃", 0),
-        ]
-
-        inter_grid = QGridLayout()
-        inter_grid.setSpacing(14)
-
-        for i, (lid, ttl, desc, icon, progress) in enumerate(inter_lessons):
-            card = LessonCard(lid, ttl, desc, icon, progress)
-            card.clicked.connect(self._open_lesson)
-            inter_grid.addWidget(card, 0, i)  # Single row, 4 columns
-            self.lesson_cards[lid] = card
-
-        layout.addLayout(inter_grid)
-
-        # Compact tips (single line)
-        tips_lbl = QLabel("💡 Practice signs often · Use Live Translation to check · Pay attention to hand orientation · Learn similar letters together")
+        tips_lbl = QLabel("💡 Practice signs often · Use Live Translation to check · Pay attention to hand orientation")
         tips_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; padding: 6px 8px;")
         tips_lbl.setWordWrap(True)
         layout.addWidget(tips_lbl)
@@ -2962,40 +3156,18 @@ class TutorialPage(QWidget):
         return widget
 
     def _open_lesson(self, lesson_id: str):
-        """Open a specific lesson."""
-        if lesson_id == "alphabet":
-            self.alphabet_lesson.current_letter_index = 0
-            self.alphabet_lesson._update_display()
-            self.stack.setCurrentWidget(self.alphabet_lesson)
-        elif lesson_id == "numbers":
-            self.stack.setCurrentWidget(self.numbers_lesson)
-        elif lesson_id == "greetings":
-            self.stack.setCurrentWidget(self.greetings_lesson)
-        elif lesson_id == "basics":
-            self.stack.setCurrentWidget(self.basics_lesson)
-        elif lesson_id == "questions":
-            self.stack.setCurrentWidget(self.questions_lesson)
-        elif lesson_id == "emotions":
-            self.stack.setCurrentWidget(self.emotions_lesson)
-        elif lesson_id == "family":
-            self.stack.setCurrentWidget(self.family_lesson)
-        elif lesson_id == "actions":
-            self.stack.setCurrentWidget(self.actions_lesson)
+        """Open a lesson."""
+        if lesson_id == "common_signs":
+            self.common_lesson._current = 0
+            self.common_lesson._refresh()
+            self.stack.setCurrentWidget(self.common_lesson)
 
     def get_progress(self, lesson_id: str) -> int:
-        """Get progress percentage for a lesson."""
-        if lesson_id == "alphabet":
-            if hasattr(self, 'alphabet_lesson'):
-                completed = len(self.alphabet_lesson.completed_letters)
-                total = 26
-                return int((completed / total) * 100)
         return 0
 
     def _show_lesson_list(self):
-        """Return to the lesson list and update progress."""
-        # Update progress on cards
+        """Return to the lesson list."""
         if hasattr(self, 'lesson_cards'):
             for lid, card in self.lesson_cards.items():
                 card.update_progress(self.get_progress(lid))
-        
         self.stack.setCurrentWidget(self.lesson_list)

@@ -207,6 +207,30 @@ class SignVocabulary:
                 description="Thumbs up on flat hand, lift up"
             ),
             SignDefinition(
+                id="word_fine",
+                text="Fine",
+                category=SignCategory.WORD,
+                gesture_labels=["fine", "ok", "FINE"],
+                emoji="👍",
+                description="Open 5-hand, thumb touches chest once"
+            ),
+            SignDefinition(
+                id="word_bathroom",
+                text="Bathroom",
+                category=SignCategory.WORD,
+                gesture_labels=["bathroom", "toilet", "restroom", "BATHROOM"],
+                emoji="🚻",
+                description="T handshape shakes side to side"
+            ),
+            SignDefinition(
+                id="word_more",
+                text="More",
+                category=SignCategory.WORD,
+                gesture_labels=["more", "MORE"],
+                emoji="➕",
+                description="Flat-O hands tap fingertips together"
+            ),
+            SignDefinition(
                 id="word_stop",
                 text="Stop",
                 category=SignCategory.WORD,

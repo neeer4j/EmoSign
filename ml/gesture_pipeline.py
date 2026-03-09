@@ -49,13 +49,13 @@ class ZJDetector:
     """
 
     # Frames the tip must move above MOTION_THRESHOLD before we fire
-    MIN_MOTION_FRAMES = 5
+    MIN_MOTION_FRAMES = 12          # raised: needs a long, sustained stroke
     # Per-frame fingertip displacement (normalized by palm scale) to count as "moving"
-    MOTION_THRESHOLD = 0.022
+    MOTION_THRESHOLD = 0.035        # raised: only track real motion, not jitter
     # Total accumulated displacement needed to confirm the gesture
-    MIN_TOTAL_DISP = 0.18
-    # Cooldown frames after firing — prevents immediate re-detection (~0.5 s @ 30 fps)
-    COOLDOWN_FRAMES = 15
+    MIN_TOTAL_DISP = 0.40           # raised significantly: short strokes won't fire
+    # Cooldown frames after firing — prevents immediate re-detection (~1 s @ 30 fps)
+    COOLDOWN_FRAMES = 30            # raised: give time between detections
 
     def __init__(self):
         self._mode: Optional[str] = None      # 'Z', 'J', or None

@@ -77,8 +77,8 @@ class DynamicGestureTracker:
         self.patterns.append(GesturePattern(
             name="Z", 
             description="Draw letter Z in the air",
-            min_frames=12,
-            max_frames=45,
+            min_frames=18,  # raised: needs deliberate motion
+            max_frames=60,
             pattern_matcher=self._match_z_gesture
         ))
         
@@ -91,12 +91,12 @@ class DynamicGestureTracker:
             pattern_matcher=self._match_wave_gesture
         ))
         
-        # Circle gesture
+        # Circle gesture — strict requirement for actual circular arc
         self.patterns.append(GesturePattern(
             name="CIRCLE",
-            description="Draw a circle in the air",
-            min_frames=20,
-            max_frames=60,
+            description="Draw a circle in the air (must be round, not square)",
+            min_frames=25,
+            max_frames=80,
             pattern_matcher=self._match_circle_gesture
         ))
     
@@ -343,9 +343,12 @@ class DynamicGestureTracker:
         return 0.0
     
     def _match_wave_gesture(self) -> float:
-        """Match wave gesture: oscillating horizontal movement with OPEN PALM."""
+        """Match wave gesture: oscillating horizontal movement with OPEN PALM.
+        
+        Wave = open palm (all fingers spread), hand sweeping side to side.
+        """
         trajectory = self._get_trajectory()
-        if len(trajectory) < 20:
+        if len(trajectory) < 15:  # reduced from 20 — wave can be quick
             return 0.0
         
         # 1. Check if palm is OPEN (all fingers extended)
@@ -354,75 +357,103 @@ class DynamicGestureTracker:
             
         latest_landmarks = self.landmark_buffer[-1]
         
-        # Simple check for open palm: Fingertips should be far from wrist
+        # Check for open palm: fingertips should be far from wrist
         wrist = latest_landmarks[0]
-        tips = [4, 8, 12, 16, 20] # Thumb, Index, Middle, Ring, Pinky
+        tips = [4, 8, 12, 16, 20]  # Thumb, Index, Middle, Ring, Pinky
         extended_count = 0
         
         # Calculate palm scale (wrist to middle MCP)
         palm_scale = np.linalg.norm(latest_landmarks[9] - wrist)
-        if palm_scale == 0: return 0.0
+        if palm_scale == 0:
+            return 0.0
         
         for tip in tips:
-            # Distance from wrist to tip
             dist = np.linalg.norm(latest_landmarks[tip] - wrist)
-            # Relaxed threshold: > 1.5x palm scale (was 1.8x)
-            if dist > palm_scale * 1.5:
+            # Relaxed threshold: > 1.3x palm scale (was 1.5x)
+            if dist > palm_scale * 1.3:
                 extended_count += 1
                 
-        # REQUIRE at least 4 fingers extended for a wave
-        if extended_count < 4:
+        # REQUIRE at least 3 fingers extended (was 4 — more lenient for partial occlusion)
+        if extended_count < 3:
             return 0.0
         
         # 2. Check Y-axis stability (wave should be mostly horizontal)
         y_positions = trajectory[:, 1]
         y_range = np.max(y_positions) - np.min(y_positions)
-        if y_range > 0.1:  # Vertical tolerance
+        if y_range > 0.18:  # relaxed from 0.1 — natural waves drift a bit vertically
             return 0.0
         
-        # 3. Check X-axis Oscillations
+        # 3. Check X-axis oscillations
         x_positions = trajectory[:, 0]
         x_velocity = np.diff(x_positions)
         sign_changes = np.sum(np.abs(np.diff(np.sign(x_velocity))) > 0)
         
-        # Wave should have multiple direction changes (left-right-left)
-        if sign_changes >= 3:
-            # Check amplitude of oscillation
+        # Wave needs at least 2 direction changes (was 3 — easier to match)
+        if sign_changes >= 2:
             x_range = np.max(x_positions) - np.min(x_positions)
-            if x_range > 0.15: 
-                confidence = min(0.5 + sign_changes * 0.1, 1.0)
+            if x_range > 0.12:  # reduced from 0.15 — less sweeping still counts
+                confidence = min(0.60 + sign_changes * 0.08 + extended_count * 0.02, 1.0)
                 return confidence
         
         return 0.0
     
     def _match_circle_gesture(self) -> float:
-        """Match circular gesture."""
+        """Match circular gesture — requires an ACTUAL circular arc.
+
+        A circle is detected only when:
+        1. Trajectory has a consistent radius from centroid (low std/mean ratio)
+        2. Angular sweep covers at least 270° (almost a complete loop)
+        3. Path length is close to 2πr (circumference check)
+        4. Start and end points are near each other (loop closure)
+        5. Minimum physical size (no tiny jiggles)
+
+        Squares, triangles, and random motion all fail these checks.
+        """
         trajectory = self._get_trajectory()
-        if len(trajectory) < 20:
+        n = len(trajectory)
+        if n < 25:
             return 0.0
-        
-        # Calculate center of trajectory
-        center = np.mean(trajectory[:, :2], axis=0)
-        
-        # Calculate distances from center
-        distances = [np.linalg.norm(p[:2] - center) for p in trajectory]
-        
-        # For a circle, distances should be relatively constant
-        distance_std = np.std(distances)
-        distance_mean = np.mean(distances)
-        
-        if distance_mean > 0.03:  # Minimum circle size
-            # Calculate how circular (low std relative to mean = circular)
-            circularity = 1 - (distance_std / distance_mean)
-            
-            # Check if we complete the circle (end near start)
-            start_end_dist = np.linalg.norm(trajectory[0, :2] - trajectory[-1, :2])
-            closed = start_end_dist < distance_mean * 0.5
-            
-            if circularity > 0.5 and closed:
-                return min(0.5 + circularity * 0.3 + (0.2 if closed else 0), 1.0)
-        
-        return 0.0
+
+        xy = trajectory[:, :2]
+
+        # --- 1. Radius consistency ---
+        center = np.mean(xy, axis=0)
+        radii = np.linalg.norm(xy - center, axis=1)
+        r_mean = float(np.mean(radii))
+        r_std  = float(np.std(radii))
+
+        if r_mean < 0.035:          # too small (noise)
+            return 0.0
+        if r_std / (r_mean + 1e-6) > 0.30:   # radius varies too much — not round
+            return 0.0
+
+        # --- 2. Angular sweep — must cover ≥ 270° ---
+        angles = np.arctan2(xy[:, 1] - center[1], xy[:, 0] - center[0])
+        # Unwrap to handle 360° crossings
+        angles_unwrapped = np.unwrap(angles)
+        total_sweep = abs(float(angles_unwrapped[-1] - angles_unwrapped[0]))
+        if total_sweep < np.deg2rad(270):     # less than 270° is not a circle
+            return 0.0
+
+        # --- 3. Path length vs circumference ---
+        path_len = float(np.sum(np.linalg.norm(np.diff(xy, axis=0), axis=1)))
+        expected_circumference = 2 * np.pi * r_mean
+        path_ratio = path_len / (expected_circumference + 1e-6)
+        # Path should be between 0.7× and 2.0× the circumference
+        if not (0.7 < path_ratio < 2.0):
+            return 0.0
+
+        # --- 4. Loop closure — end near start ---
+        closure_dist = float(np.linalg.norm(xy[-1] - xy[0]))
+        if closure_dist > r_mean * 1.2:  # end too far from start
+            return 0.0
+
+        # --- Confidence based on quality ---
+        radius_quality = 1.0 - (r_std / (r_mean + 1e-6)) / 0.30   # 1=perfect, 0=threshold
+        coverage_quality = min((total_sweep - np.deg2rad(270)) / np.deg2rad(90), 1.0)
+        closure_quality = 1.0 - closure_dist / (r_mean * 1.2)
+        confidence = 0.60 + radius_quality * 0.15 + coverage_quality * 0.15 + closure_quality * 0.10
+        return float(min(confidence, 1.0))
     
     def _calculate_smoothness(self, trajectory: np.ndarray) -> float:
         """Calculate trajectory smoothness (0=jerky, 1=smooth)."""

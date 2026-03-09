@@ -66,6 +66,7 @@ class HandTracker:
             running_mode=running_mode,
             num_hands=MAX_HANDS,
             min_hand_detection_confidence=det_confidence,
+            min_hand_presence_confidence=0.6,   # reject fleeting detections
             min_tracking_confidence=MIN_TRACKING_CONFIDENCE
         )
         
@@ -79,8 +80,9 @@ class HandTracker:
         self._frame_count = 0
 
         # EMA landmark smoothing — reduces per-frame jitter
-        # alpha=1.0 means no smoothing (raw), 0.5 gives heavy smoothing
-        self._smoothing_alpha: float = 0.55
+        # alpha=1.0 means no smoothing (raw), lower = smoother but more lag
+        # 0.40 gives a good balance: smooth trail without noticeable input lag
+        self._smoothing_alpha: float = 0.40
         self._smoothed_landmarks = None   # [(x, y, z), ...] or None
     
     def process(self, frame_rgb, timestamp_ms: int = None):

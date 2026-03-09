@@ -830,7 +830,13 @@ class LiveTranslationPage(QWidget):
         """Handle dynamic gesture from video widget."""
         if not self._is_translating or not self.video_widget.is_loaded():
             return
-        gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
+        g = gesture.upper()
+        if g in WORD_GESTURES:
+            gesture_name = g
+        elif not g.startswith("WORD_"):
+            gesture_name = f"WORD_{g}"
+        else:
+            gesture_name = g
         self.gesture_display.add_vote(gesture_name, confidence)
     
     # === Source Handling ===
@@ -1027,10 +1033,22 @@ class LiveTranslationPage(QWidget):
         if not self._is_translating:
             return
         
-        # Dynamic gestures are word-level - prefix with WORD_
-        gesture_name = f"WORD_{gesture.upper()}" if not gesture.startswith("WORD_") else gesture
-        # Feed to capture-window vote buffer
-        self.gesture_display.add_vote(gesture_name, confidence)
+        g = gesture.upper()
+        # If the gesture is already a known WORD_GESTURE (e.g. WAVE, CIRCLE)
+        # pass it through as-is. Otherwise prefix with WORD_ so the capture
+        # window resolves it correctly.
+        if g in WORD_GESTURES:
+            gesture_name = g
+        elif not g.startswith("WORD_"):
+            gesture_name = f"WORD_{g}"
+        else:
+            gesture_name = g
+        # Feed to capture-window vote buffer — force-confirm immediately
+        # for clear dynamic gestures to avoid waiting for the full window
+        self.gesture_display.stop_capture()
+        self.engine.force_confirm(gesture_name, confidence)
+        if self._is_translating:
+            QTimer.singleShot(700, self._restart_capture_window)
     
     @Slot(str, float, str)
     def _on_nn_gesture(self, gesture: str, confidence: float, model_used: str):
