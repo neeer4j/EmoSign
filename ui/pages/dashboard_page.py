@@ -176,6 +176,11 @@ class DashboardPage(QWidget):
     navigate_to_history = Signal()
     navigate_to_profile = Signal()
     navigate_to_training = Signal()
+    navigate_to_tutorial = Signal()
+    navigate_to_game = Signal()
+    navigate_to_analytics = Signal()
+    navigate_to_study = Signal()
+    navigate_to_quiz = Signal()
     
     def __init__(self, user_data=None, db_service=None, parent=None):
         super().__init__(parent)
@@ -202,7 +207,7 @@ class DashboardPage(QWidget):
         self._welcome_label = QLabel(f"{greeting}, {username}! 👋")
         self._welcome_label.setObjectName("welcomeText")
         
-        subtitle = QLabel("Ready to practice sign language today?")
+        subtitle = QLabel("Choose a learning mode and keep your streak alive.")
         subtitle.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
         
         welcome_box.addWidget(self._welcome_label)
@@ -221,74 +226,94 @@ class DashboardPage(QWidget):
         
         main_layout.addLayout(header)
         
-        # === STATS ROW ===
-        stats_label = QLabel("📊 Your Statistics")
+        # === LEARNING STATS ROW ===
+        stats_label = QLabel("📈 Learning Progress Snapshot")
         stats_label.setObjectName("sectionTitle")
         main_layout.addWidget(stats_label)
         
         stats_layout = QHBoxLayout()
         stats_layout.setSpacing(16)
         
-        self.total_card = StatCard("📝", "0", "Total Translations", COLORS['primary'])
-        self.today_card = StatCard("📅", "0", "Today's Sessions", COLORS['accent'])
-        self.unique_card = StatCard("✨", "0", "Unique Signs", COLORS['success'])
-        self.streak_card = StatCard("🔥", "0", "Day Streak", "#f59e0b")
+        self.signs_learned_card = StatCard("🔤", "0", "Signs Learned", COLORS['primary'])
+        self.accuracy_card = StatCard("🎯", "0%", "Recognition Accuracy", COLORS['accent'])
+        self.streak_card = StatCard("🔥", "0", "Day Streak", COLORS['warning'])
+        self.points_card = StatCard("🏆", "0", "Learning Points", COLORS['success'])
         
-        stats_layout.addWidget(self.total_card)
-        stats_layout.addWidget(self.today_card)
-        stats_layout.addWidget(self.unique_card)
+        stats_layout.addWidget(self.signs_learned_card)
+        stats_layout.addWidget(self.accuracy_card)
         stats_layout.addWidget(self.streak_card)
+        stats_layout.addWidget(self.points_card)
         
         main_layout.addLayout(stats_layout)
         
-        # === QUICK ACTIONS ===
-        actions_label = QLabel("🚀 Quick Actions")
+        # === LEARNING MODES ===
+        actions_label = QLabel("🎓 Learning Modes")
         actions_label.setObjectName("sectionTitle")
         main_layout.addWidget(actions_label)
         
         actions_layout = QGridLayout()
         actions_layout.setSpacing(16)
         
-        # Live Translation Card
-        live_card = QuickActionCard(
-            "🔴",
-            "Live Translation",
-            "Start real-time recognition",
+        # Guided lessons (no camera required)
+        tutorial_card = QuickActionCard(
+            "📚",
+            "Guided Lessons",
+            "Learn signs step-by-step with visual guidance",
             COLORS['primary']
         )
-        live_card.clicked.connect(self.navigate_to_live.emit)
-        
-        # History Card
-        history_card = QuickActionCard(
-            "📜",
-            "History",
-            "View past sessions",
-            COLORS['accent']
-        )
-        history_card.clicked.connect(self.navigate_to_history.emit)
-        
-        # Training Card
-        train_card = QuickActionCard(
-            "🧠",
-            "Train Model",
-            "Teach new custom gestures",
+        tutorial_card.clicked.connect(self.navigate_to_tutorial.emit)
+
+        # Self-study flashcards (no camera required)
+        study_card = QuickActionCard(
+            "🧾",
+            "Self Study",
+            "Review sign cards and finger patterns offline",
             COLORS['success']
         )
-        train_card.clicked.connect(self.navigate_to_training.emit)
-        
-        # Profile Card
-        profile_card = QuickActionCard(
-            "⚙️",
-            "Settings",
-            "Manage account & prefs",
-            "#64748b"
+        study_card.clicked.connect(self.navigate_to_study.emit)
+
+        # Quiz mode (no camera required)
+        quiz_card = QuickActionCard(
+            "❓",
+            "Quiz Mode",
+            "Test recall with multiple-choice drills",
+            COLORS['warning']
         )
-        profile_card.clicked.connect(self.navigate_to_profile.emit)
-        
-        actions_layout.addWidget(live_card, 0, 0)
-        actions_layout.addWidget(history_card, 0, 1)
-        actions_layout.addWidget(train_card, 1, 0)
-        actions_layout.addWidget(profile_card, 1, 1)
+        quiz_card.clicked.connect(self.navigate_to_quiz.emit)
+
+        # Practice lab (camera optional, lower confidence in weak conditions)
+        practice_card = QuickActionCard(
+            "🔴",
+            "Practice Lab",
+            "Use live recognition to rehearse signs",
+            COLORS['accent']
+        )
+        practice_card.clicked.connect(self.navigate_to_live.emit)
+
+        # Challenge mode
+        game_card = QuickActionCard(
+            "🎮",
+            "Challenge Mode",
+            "Boost speed and confidence with mini challenges",
+            COLORS['success']
+        )
+        game_card.clicked.connect(self.navigate_to_game.emit)
+
+        # Progress and goals
+        progress_card = QuickActionCard(
+            "📊",
+            "Progress & Goals",
+            "Track streaks, accuracy, and achievements",
+            COLORS['warning']
+        )
+        progress_card.clicked.connect(self.navigate_to_analytics.emit)
+
+        actions_layout.addWidget(tutorial_card, 0, 0)
+        actions_layout.addWidget(study_card, 0, 1)
+        actions_layout.addWidget(quiz_card, 1, 0)
+        actions_layout.addWidget(practice_card, 1, 1)
+        actions_layout.addWidget(game_card, 2, 0)
+        actions_layout.addWidget(progress_card, 2, 1)
         
         main_layout.addLayout(actions_layout)
         
@@ -308,7 +333,7 @@ class DashboardPage(QWidget):
         tip_icon = QLabel("💡")
         tip_icon.setStyleSheet("font-size: 16px; background: transparent; border: none;")
         
-        tip_text = QLabel("Tip: Ensure good lighting for better hand recognition accuracy.")
+        tip_text = QLabel("Tip: Short daily sessions improve retention and streaks faster than long occasional sessions.")
         tip_text.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px; font-weight: 500; background: transparent; border: none;")
         
         tips_layout.addWidget(tip_icon)
@@ -343,27 +368,35 @@ class DashboardPage(QWidget):
             return "Good evening"
     
     def _load_stats(self):
-        """Load user statistics from database."""
-        if not self.db or self.user.get("guest"):
+        """Load user statistics with learning-first metrics."""
+        if self.user.get("guest"):
             return
         
         try:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            stats = loop.run_until_complete(
-                self.db.get_translation_stats(self.user.get("id", ""))
-            )
-            loop.close()
-            
-            self.total_card.update_value(stats.get("total", 0))
-            self.today_card.update_value(stats.get("today", 0))
-            self.unique_card.update_value(stats.get("unique_signs", 0))
-            
-            # Get streak from analytics
+            user_id = self.user.get('id', 'guest')
+
+            # Prefer analytics for learning platform stats
             if analytics:
-                user_id = self.user.get('id', 'guest')
                 progress = analytics.get_learning_progress(user_id)
+                self.signs_learned_card.update_value(progress.get('signs_learned', 0))
+                self.accuracy_card.update_value(f"{progress.get('accuracy', 0):.0f}%")
                 self.streak_card.update_value(progress.get('current_streak', 0))
+                self.points_card.update_value(progress.get('total_points', 0))
+                return
+
+            # Fallback to DB translation stats if analytics is unavailable
+            if self.db:
+                import asyncio
+                loop = asyncio.new_event_loop()
+                stats = loop.run_until_complete(
+                    self.db.get_translation_stats(self.user.get("id", ""))
+                )
+                loop.close()
+
+                self.signs_learned_card.update_value(stats.get("unique_signs", 0))
+                self.accuracy_card.update_value("0%")
+                self.streak_card.update_value(0)
+                self.points_card.update_value(stats.get("total", 0))
         except Exception as e:
             print(f"Failed to load stats: {e}")
     

@@ -33,6 +33,8 @@ from ui.pages.analytics_page import AnalyticsPage
 from ui.pages.conversation_page import ConversationPage
 from ui.pages.training_page import TrainingPage
 from ui.pages.game_page import GamePage
+from ui.pages.study_mode_page import StudyModePage
+from ui.pages.quiz_mode_page import QuizModePage
 
 from ml.classifier import Classifier
 from ml.data_collector import DataCollector
@@ -139,10 +141,10 @@ class Sidebar(QFrame):
         self.nav_buttons = {}
         
         nav_items = [
-            ("dashboard", "🏠", "Dashboard"),
-            ("live", "🔴", "Live Translation"),
-            ("conversation", "💬", "Conversation"),
-            ("history", "📜", "History"),
+            ("dashboard", "🏠", "Learning Hub"),
+            ("live", "🔴", "Practice Lab"),
+            ("conversation", "💬", "Conversation Drill"),
+            ("history", "📜", "Practice History"),
         ]
         
         for page_id, icon, text in nav_items:
@@ -167,7 +169,8 @@ class Sidebar(QFrame):
         
         learn_items = [
             ("tutorial", "📚", "Tutorials"),
-            ("training", "🎯", "Train Gestures"),
+            ("study", "🧾", "Self Study"),
+            ("quiz", "❓", "Quiz Mode"),
             ("game", "🎮", "Sign Game"),
         ]
         
@@ -176,6 +179,13 @@ class Sidebar(QFrame):
             btn.clicked.connect(lambda checked, p=page_id: self._on_nav_click(p))
             self.nav_buttons[page_id] = btn
             layout.addWidget(btn)
+
+        # Admin-only training button
+        self.training_btn = NavButton("🎯", "Train Gestures")
+        self.training_btn.clicked.connect(lambda: self._on_nav_click("training"))
+        self.training_btn.hide()
+        self.nav_buttons["training"] = self.training_btn
+        layout.addWidget(self.training_btn)
         
         # Divider
         layout.addSpacing(8)
@@ -249,6 +259,12 @@ class Sidebar(QFrame):
         else:
             self.admin_btn.hide()
 
+    def show_training_link(self, show=True):
+        if show:
+            self.training_btn.show()
+        else:
+            self.training_btn.hide()
+
 
 class MainWindow(QMainWindow):
     """Main application window with multi-page navigation."""
@@ -271,6 +287,17 @@ class MainWindow(QMainWindow):
         
         # Start with login page
         self._show_login()
+
+    def _is_admin_user(self, user_data=None) -> bool:
+        """Return True if the provided/current user has admin access."""
+        user = user_data if user_data is not None else self.user
+        if not user:
+            return False
+        if user.get("is_admin") is True:
+            return True
+        if str(user.get("role", "")).lower() == "admin":
+            return True
+        return user.get("email") == "admin"
     
     def _setup_ui(self):
         """Setup the main UI."""
@@ -331,6 +358,14 @@ class MainWindow(QMainWindow):
         # Tutorial page
         self.tutorial_page = TutorialPage()
         self.page_stack.addWidget(self.tutorial_page)
+
+        # Camera-free study mode
+        self.study_page = StudyModePage()
+        self.page_stack.addWidget(self.study_page)
+
+        # Camera-free quiz mode
+        self.quiz_page = QuizModePage()
+        self.page_stack.addWidget(self.quiz_page)
         
         # Training page for predefined gestures
         self.training_page = TrainingPage()
@@ -370,6 +405,11 @@ class MainWindow(QMainWindow):
         self.dashboard_page.navigate_to_history.connect(lambda: self._navigate_to("history"))
         self.dashboard_page.navigate_to_profile.connect(lambda: self._navigate_to("profile"))
         self.dashboard_page.navigate_to_training.connect(lambda: self._navigate_to("training"))
+        self.dashboard_page.navigate_to_tutorial.connect(lambda: self._navigate_to("tutorial"))
+        self.dashboard_page.navigate_to_study.connect(lambda: self._navigate_to("study"))
+        self.dashboard_page.navigate_to_quiz.connect(lambda: self._navigate_to("quiz"))
+        self.dashboard_page.navigate_to_game.connect(lambda: self._navigate_to("game"))
+        self.dashboard_page.navigate_to_analytics.connect(lambda: self._navigate_to("analytics"))
         
         # Page back buttons - REMOVED (Sidebar is the primary navigation)
         # self.live_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
@@ -425,7 +465,8 @@ class MainWindow(QMainWindow):
         page_map = {
             'dashboard_page': 'dashboard', 'live_page': 'live',
             'conversation_page': 'conversation', 'history_page': 'history',
-            'tutorial_page': 'tutorial', 'training_page': 'training',
+            'tutorial_page': 'tutorial', 'study_page': 'study',
+            'quiz_page': 'quiz', 'training_page': 'training',
             'game_page': 'game', 'analytics_page': 'analytics',
             'profile_page': 'profile', 'settings_page': 'settings',
             'admin_page': 'admin', 'login_page': 'login',
@@ -490,8 +531,9 @@ class MainWindow(QMainWindow):
             self.history_page.update_user(saved_user)
             self.profile_page.update_user(saved_user)
             self.analytics_page.update_user(saved_user.get('id', 'guest'))
-            is_admin = saved_user.get("email") == "admin"
+            is_admin = self._is_admin_user(saved_user)
             self.sidebar.show_admin_link(is_admin)
+            self.sidebar.show_training_link(is_admin)
             self.sidebar.show()
 
             # Navigate back to same page
@@ -575,8 +617,9 @@ class MainWindow(QMainWindow):
         self.analytics_page.update_user(user_data.get('id', 'guest'))
         
         # Check if admin
-        is_admin = user_data.get("email") == "admin"
+        is_admin = self._is_admin_user(user_data)
         self.sidebar.show_admin_link(is_admin)
+        self.sidebar.show_training_link(is_admin)
         
         # Show main app
         self.sidebar.show()
@@ -611,6 +654,7 @@ class MainWindow(QMainWindow):
         
         # Hide admin link
         self.sidebar.show_admin_link(False)
+        self.sidebar.show_training_link(False)
         
         # Clear the login form for fresh state
         self.login_page.clear_form()
@@ -620,6 +664,13 @@ class MainWindow(QMainWindow):
     
     def _navigate_to(self, page_id):
         """Navigate to a page."""
+        # Route guards
+        if page_id in {"admin", "training"} and not self._is_admin_user():
+            self.sidebar.set_active("dashboard")
+            self.page_stack.setCurrentWidget(self.dashboard_page)
+            QMessageBox.warning(self, "Access Denied", "This page is available to admin users only.")
+            return
+
         self.sidebar.set_active(page_id)
         
         # Stop cameras on pages we're leaving to save resources
@@ -637,6 +688,10 @@ class MainWindow(QMainWindow):
             self.page_stack.setCurrentWidget(self.history_page)
         elif page_id == "tutorial":
             self.page_stack.setCurrentWidget(self.tutorial_page)
+        elif page_id == "study":
+            self.page_stack.setCurrentWidget(self.study_page)
+        elif page_id == "quiz":
+            self.page_stack.setCurrentWidget(self.quiz_page)
         elif page_id == "training":
             self.page_stack.setCurrentWidget(self.training_page)
         elif page_id == "game":
