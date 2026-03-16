@@ -8,10 +8,11 @@ from PySide6.QtWidgets import (
     QSpacerItem, QSizePolicy, QGraphicsBlurEffect
 )
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QTimer, Property, QRectF, QPointF
-from PySide6.QtGui import QFont, QColor, QPainter, QLinearGradient, QBrush, QPen, QPixmap, QPainterPath
+from PySide6.QtGui import QFont, QColor, QPainter, QLinearGradient, QRadialGradient, QBrush, QPen, QPixmap, QPainterPath, QImageReader
 import math
 import random
 import os
+import re
 
 from ui.styles import COLORS, ThemeManager
 
@@ -23,19 +24,30 @@ class NeuralNetworkBackground(QWidget):
         def __init__(self, x, y, max_w, max_h):
             self.x = x
             self.y = y
-            self.dx = random.uniform(-0.3, 0.3)
-            self.dy = random.uniform(-0.3, 0.3)
+            self.dx = random.uniform(-0.34, 0.34)
+            self.dy = random.uniform(-0.34, 0.34)
             self.max_w = max_w
             self.max_h = max_h
-            self.size = random.uniform(2, 4.5)
+            self.base_size = random.uniform(1.9, 4.2)
+            self.phase = random.uniform(0, math.tau)
+            self.pulse_speed = random.uniform(0.018, 0.042)
+            self.energy = random.uniform(0.65, 1.15)
+            self.size = self.base_size
             
         def update(self):
             self.x += self.dx
             self.y += self.dy
+
+            self.phase += self.pulse_speed
+            self.size = self.base_size * (0.9 + 0.22 * (math.sin(self.phase) + 1.0) * 0.5)
             
             # Bounce off edges
-            if self.x < 0 or self.x > self.max_w: self.dx *= -1
-            if self.y < 0 or self.y > self.max_h: self.dy *= -1
+            if self.x < 0 or self.x > self.max_w:
+                self.dx *= -1
+                self.x = max(0, min(self.x, self.max_w))
+            if self.y < 0 or self.y > self.max_h:
+                self.dy *= -1
+                self.y = max(0, min(self.y, self.max_h))
             
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,10 +75,10 @@ class NeuralNetworkBackground(QWidget):
             self.timer.timeout.connect(self._next_slide)
             self.timer.start(8000)
             
-        # Network animation timer (~20 FPS for smoothness without CPU burn)
+        # Network animation timer (~30 FPS for smoother motion)
         self.anim_timer = QTimer(self)
         self.anim_timer.timeout.connect(self._update_network)
-        self.anim_timer.start(50)
+        self.anim_timer.start(33)
         
     def _init_nodes(self):
         self.nodes = [
@@ -90,12 +102,18 @@ class NeuralNetworkBackground(QWidget):
     def _load_images(self):
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         slide_dir = os.path.join(base_dir, "assets", "slidepic")
-        
-        valid_exts = {".jpg", ".jpeg", ".png", ".webp"}
+
+        def natural_sort_key(value):
+            return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", value)]
+
+        valid_exts = {
+            f".{fmt.data().decode('ascii', errors='ignore').lower()}"
+            for fmt in QImageReader.supportedImageFormats()
+        }
         if os.path.exists(slide_dir):
-            for f in sorted(os.listdir(slide_dir)):
-                if os.path.splitext(f)[1].lower() in valid_exts:
-                    pm = QPixmap(os.path.join(slide_dir, f))
+            for file_name in sorted(os.listdir(slide_dir), key=natural_sort_key):
+                if os.path.splitext(file_name)[1].lower() in valid_exts:
+                    pm = QPixmap(os.path.join(slide_dir, file_name))
                     if not pm.isNull():
                         self.pixmaps.append(pm)
                         
@@ -143,44 +161,81 @@ class NeuralNetworkBackground(QWidget):
         overlay_color = QColor(12, 8, 24, 130) if is_dark else QColor(170, 140, 210, 160)
         painter.fillRect(self.rect(), overlay_color)
         
-        # 3. Violet tint overlay
-        painter.setOpacity(0.18 if is_dark else 0.35)
-        glow = QLinearGradient(0, 0, w, h)
-        glow.setColorAt(0.0, QColor(88, 28, 135))
-        glow.setColorAt(0.4, QColor(139, 92, 246))
-        glow.setColorAt(0.8, QColor(67, 56, 202))
-        glow.setColorAt(1.0, QColor(30, 27, 75))
-        painter.fillRect(self.rect(), glow)
-        
-        # 4. Draw Neural Network Overlay — bright cyan/blue dots
+        # 3. Multi-layer cinematic gradient wash
+        painter.setOpacity(0.17 if is_dark else 0.28)
+        base_glow = QLinearGradient(0, 0, w, h)
+        base_glow.setColorAt(0.0, QColor(67, 56, 202))
+        base_glow.setColorAt(0.45, QColor(139, 92, 246))
+        base_glow.setColorAt(1.0, QColor(30, 27, 75))
+        painter.fillRect(self.rect(), base_glow)
+
+        drift_x_1 = w * (0.18 + 0.08 * math.sin(self._phase * 0.7))
+        drift_y_1 = h * (0.28 + 0.09 * math.cos(self._phase * 0.55))
+        bloom_1 = QRadialGradient(QPointF(drift_x_1, drift_y_1), max(w, h) * 0.5)
+        bloom_1.setColorAt(0.0, QColor(56, 189, 248, 64 if is_dark else 46))
+        bloom_1.setColorAt(0.55, QColor(139, 92, 246, 36 if is_dark else 30))
+        bloom_1.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(self.rect(), bloom_1)
+
+        drift_x_2 = w * (0.72 + 0.06 * math.cos(self._phase * 0.45))
+        drift_y_2 = h * (0.68 + 0.1 * math.sin(self._phase * 0.5))
+        bloom_2 = QRadialGradient(QPointF(drift_x_2, drift_y_2), max(w, h) * 0.45)
+        bloom_2.setColorAt(0.0, QColor(59, 130, 246, 56 if is_dark else 40))
+        bloom_2.setColorAt(0.6, QColor(168, 85, 247, 30 if is_dark else 24))
+        bloom_2.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.fillRect(self.rect(), bloom_2)
+
+        # 4. Draw Neural Network Overlay — luminous and depth-aware
         painter.setOpacity(1.0)
-        node_color = QColor(56, 189, 248, 180) if is_dark else QColor(56, 189, 248, 100)
-        line_alpha_base = 50 if is_dark else 30
+        node_core = QColor(125, 211, 252, 215 if is_dark else 148)
+        line_alpha_base = 66 if is_dark else 38
         
-        painter.setBrush(QBrush(node_color))
+        painter.setBrush(QBrush(node_core))
         
         # Draw connections first (behind nodes)
         for i, node1 in enumerate(self.nodes):
             for node2 in self.nodes[i+1:]:
                 dist = math.hypot(node1.x - node2.x, node1.y - node2.y)
-                if dist < 120:
-                    alpha = int((1 - dist/120) * line_alpha_base)
-                    pen = QPen(QColor(100, 160, 255, alpha))
-                    pen.setWidthF(0.5)
+                if dist < 150:
+                    normalized = 1 - (dist / 150)
+                    shimmer = 0.65 + 0.35 * math.sin(self._phase * 2.4 + node1.phase + node2.phase)
+                    alpha = int(normalized * shimmer * line_alpha_base)
+                    width = 0.45 + normalized * 0.95
+                    pen = QPen(QColor(110, 190, 255, alpha))
+                    pen.setWidthF(width)
                     painter.setPen(pen)
                     painter.drawLine(QPointF(node1.x, node1.y), QPointF(node2.x, node2.y))
+
+                    if normalized > 0.72:
+                        mid_x = (node1.x + node2.x) * 0.5
+                        mid_y = (node1.y + node2.y) * 0.5
+                        spark_r = 0.8 + normalized * 1.8
+                        painter.setPen(Qt.NoPen)
+                        painter.setBrush(QColor(147, 197, 253, min(100, alpha + 24)))
+                        painter.drawEllipse(QPointF(mid_x, mid_y), spark_r, spark_r)
         
-        # Draw nodes on top
+        # Draw nodes on top with soft aura + bright core
         painter.setPen(Qt.NoPen)
         for node in self.nodes:
-            # Soft glow around each node
-            glow_color = QColor(56, 189, 248, 30)
-            painter.setBrush(QBrush(glow_color))
-            painter.drawEllipse(QPointF(node.x, node.y), node.size * 2.5, node.size * 2.5)
+            pulse = 0.72 + 0.28 * (math.sin(self._phase * 1.7 + node.phase) + 1.0) * 0.5
+
+            # Outer aura
+            aura_color = QColor(56, 189, 248, int((32 if is_dark else 22) * pulse * node.energy))
+            painter.setBrush(QBrush(aura_color))
+            painter.drawEllipse(QPointF(node.x, node.y), node.size * 3.4, node.size * 3.4)
+
+            # Inner glow
+            inner_glow = QColor(96, 165, 250, int((62 if is_dark else 40) * pulse * node.energy))
+            painter.setBrush(QBrush(inner_glow))
+            painter.drawEllipse(QPointF(node.x, node.y), node.size * 1.9, node.size * 1.9)
             
-            # Solid bright node
-            painter.setBrush(QBrush(node_color))
+            # Core node
+            painter.setBrush(QBrush(node_core))
             painter.drawEllipse(QPointF(node.x, node.y), node.size, node.size)
+
+            # Crisp nucleus for clarity
+            painter.setBrush(QBrush(QColor(224, 242, 254, 220 if is_dark else 160)))
+            painter.drawEllipse(QPointF(node.x, node.y), node.size * 0.35, node.size * 0.35)
 
 
 class PremiumInput(QLineEdit):
@@ -347,7 +402,7 @@ class LoginPage(QWidget):
         else:
             logo_label.setStyleSheet("background: transparent; border: none;")
         
-        tagline = QLabel("Emotion & Sign Language Translator")
+        tagline = QLabel("Emotion & Sign Language Learning Hub")
         tagline.setStyleSheet(f"""
             font-size: 16px;
             color: {subtext_color};
@@ -361,10 +416,10 @@ class LoginPage(QWidget):
         features_layout.setSpacing(18)
         
         feature_items = [
-            ("🤟", "Hand Gesture Recognition", "ASL alphabet A-Z detection", "#f59e0b"),
-            ("😊", "Emotion Detection", "Real-time facial analysis", "#f97316"),
-            ("🎬", "Video Processing", "Upload and translate videos", "#a855f7"),
-            ("📜", "Translation History", "Save and review translations", "#c084fc"),
+            ("🤟", "Gesture Learning", "Practice ASL alphabet A-Z with guided feedback", "#f59e0b"),
+            ("😊", "Emotion Awareness", "Build context with real-time facial cues", "#f97316"),
+            ("🎬", "Guided Video Lessons", "Learn signs through structured video practice", "#a855f7"),
+            ("📈", "Learning Progress", "Track sessions and review your improvement", "#c084fc"),
         ]
         
         for icon, title, desc, icon_color in feature_items:

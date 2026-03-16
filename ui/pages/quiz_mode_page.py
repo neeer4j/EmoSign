@@ -8,7 +8,7 @@ from collections import deque
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFrame, QProgressBar
+    QPushButton, QFrame, QProgressBar, QComboBox
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap
@@ -37,6 +37,9 @@ class QuizModePage(QWidget):
         self._attempts = 0
         self._streak = 0
         self._target_rounds = 10
+        self._quiz_finished = False
+        self._session_saved = False
+        self._session_topic_stats = {}
         self._current_item = None
         self._thumb_cache = {}
         self._recent_correct_categories = deque(maxlen=3)
@@ -49,7 +52,7 @@ class QuizModePage(QWidget):
         self._ref_video_path = None
         self._camera_widget = None
         self._setup_ui()
-        self._next_question()
+        self._start_new_quiz()
 
     def _build_quiz_items(self):
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
@@ -250,6 +253,55 @@ class QuizModePage(QWidget):
         self.subtitle.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
         root.addWidget(self.subtitle)
 
+        settings_row = QFrame()
+        settings_row.setStyleSheet(f"background: transparent;")
+        settings_layout = QHBoxLayout(settings_row)
+        settings_layout.setContentsMargins(0, 0, 0, 0)
+        settings_layout.setSpacing(10)
+
+        rounds_lbl = QLabel("Questions")
+        rounds_lbl.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 12px; font-weight: 700;")
+        settings_layout.addWidget(rounds_lbl)
+
+        self.round_count_combo = QComboBox()
+        for count in (5, 10, 15, 20, 25, 30):
+            self.round_count_combo.addItem(str(count), count)
+        default_idx = self.round_count_combo.findData(self._target_rounds)
+        self.round_count_combo.setCurrentIndex(default_idx if default_idx >= 0 else 1)
+        self.round_count_combo.setStyleSheet(f"""
+            QComboBox {{
+                background: {COLORS['bg_input']};
+                color: {COLORS['text_primary']};
+                border: none;
+                border-radius: 8px;
+                padding: 6px 10px;
+                font-weight: 700;
+                min-width: 86px;
+            }}
+        """)
+        settings_layout.addWidget(self.round_count_combo)
+
+        self.start_new_btn = QPushButton("🔁 Start New Quiz")
+        self.start_new_btn.setCursor(Qt.PointingHandCursor)
+        self.start_new_btn.clicked.connect(self._start_new_quiz)
+        self.start_new_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {COLORS['bg_input']};
+                color: {COLORS['text_primary']};
+                border: none;
+                border-radius: 8px;
+                padding: 7px 12px;
+                font-size: 12px;
+                font-weight: 700;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['bg_card_hover']};
+            }}
+        """)
+        settings_layout.addWidget(self.start_new_btn)
+        settings_layout.addStretch()
+        root.addWidget(settings_row)
+
         stats_frame = QFrame()
         stats_frame.setStyleSheet(f"""
             QFrame {{
@@ -365,7 +417,7 @@ class QuizModePage(QWidget):
         self.hint_btn.clicked.connect(self._show_hint)
         self.next_btn = QPushButton("Next Question")
         self.next_btn.setCursor(Qt.PointingHandCursor)
-        self.next_btn.clicked.connect(self._next_question)
+        self.next_btn.clicked.connect(self._handle_next_action)
         for btn in (self.hint_btn, self.next_btn):
             btn.setStyleSheet(f"""
                 QPushButton {{
@@ -564,9 +616,114 @@ class QuizModePage(QWidget):
             if item_id in self._item_by_id:
                 self._review_queue.append(item_id)
 
+    def _handle_next_action(self):
+        if self._quiz_finished:
+            self._start_new_quiz()
+            return
+        self._next_question()
+
+    def _set_verdict(self, accuracy: int) -> str:
+        if accuracy >= 90:
+            return "Excellent"
+        if accuracy >= 75:
+            return "Strong"
+        if accuracy >= 60:
+            return "Fair"
+        return "Needs More Practice"
+
+    def _start_new_quiz(self):
+        selected_rounds = self.round_count_combo.currentData() if hasattr(self, "round_count_combo") else self._target_rounds
+        try:
+            self._target_rounds = max(1, int(selected_rounds))
+        except Exception:
+            self._target_rounds = 10
+
+        self._score = 0
+        self._correct_answers = 0
+        self._attempts = 0
+        self._streak = 0
+        self._quiz_finished = False
+        self._session_saved = False
+        self._session_topic_stats = {}
+        self._recent_correct_categories.clear()
+        self._hint_used = False
+        self.progress.setRange(0, self._target_rounds)
+        self.progress.setValue(0)
+        self.progress.setFormat("Round %v / %m")
+        self._refresh_review_queue()
+        self._update_stats()
+
+        self.next_btn.setText("Next Question")
+        self.next_btn.setEnabled(False)
+        self.hint_btn.setEnabled(True)
+
+        self.prompt.setText("Starting quiz...")
+        self.feedback.setText("")
+        self.expected_label.setText("Target Answer: Hidden")
+        self.verify_feedback.setText("Verification idle")
+        self.verify_feedback.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; font-weight: 600;")
+
+        for btn in self.option_buttons:
+            btn.setEnabled(True)
+
+        self._next_question()
+
+    def _finish_quiz(self):
+        if self._quiz_finished:
+            return
+
+        self._quiz_finished = True
+        accuracy = int((self._correct_answers / self._attempts) * 100) if self._attempts else 0
+        verdict = self._set_verdict(accuracy)
+
+        self.prompt.setText("🎉 Quiz complete")
+        self.hint.setText(
+            f"Final: {self._correct_answers}/{self._target_rounds} correct • Accuracy {accuracy}%"
+        )
+        self.feedback.setText(
+            f"Verdict: {verdict} • Score {self._score} pts. Select a question count and start a new quiz anytime."
+        )
+        self.feedback.setStyleSheet(f"color: {COLORS['success']}; font-size: 13px; font-weight: 700;")
+        self.expected_label.setText("Target Answer: Quiz ended")
+        self.verify_feedback.setText("Quiz finished")
+        self.verify_feedback.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; font-weight: 600;")
+
+        if self._camera_widget and self._camera_widget.is_running:
+            self._stop_camera()
+
+        self.start_cam_btn.setEnabled(False)
+        self.stop_cam_btn.setEnabled(False)
+        self.hint_btn.setEnabled(False)
+        self.next_btn.setText("Start New Quiz")
+        self.next_btn.setEnabled(True)
+
+        for btn in self.option_buttons:
+            btn.setEnabled(False)
+
+        if analytics and not self._session_saved:
+            try:
+                analytics.record_quiz_session(
+                    self._user_id,
+                    self._target_rounds,
+                    self._correct_answers,
+                    self._score,
+                    verdict,
+                    topic_stats=self._session_topic_stats,
+                )
+                analytics.save_stats(self._user_id)
+                self._session_saved = True
+            except Exception:
+                pass
+
+        self._update_stats()
+
     def _next_question(self):
         if len(self._quiz_items) < 4:
             self.prompt.setText("Not enough sign data to generate quiz.")
+            return
+
+        if self._attempts >= self._target_rounds:
+            self._finish_quiz()
             return
 
         if not self._review_queue:
@@ -591,6 +748,8 @@ class QuizModePage(QWidget):
         self.expected_label.setText("Target Answer: Hidden")
         self.verify_feedback.setText("Verification idle")
         self.verify_feedback.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; font-weight: 600;")
+        self.hint_btn.setEnabled(True)
+        self.next_btn.setEnabled(False)
 
         supports_camera = bool(self._current_item.get("camera_target"))
         if self._camera_widget and self._camera_widget.is_running:
@@ -617,13 +776,17 @@ class QuizModePage(QWidget):
         self._attempts += 1
         self.expected_label.setText(f"Target Answer: {self._current_item['display']} (revealed)")
         is_correct = answer == self._current_item["answer"]
+        category = self._current_item.get("category", "General")
+        bucket = self._session_topic_stats.setdefault(category, {"attempts": 0, "correct": 0})
+        bucket["attempts"] += 1
+
         if is_correct:
             self._correct_answers += 1
             self._streak += 1
             bonus = 0
             self._score += 1
+            bucket["correct"] += 1
 
-            category = self._current_item["category"]
             self._recent_correct_categories.append(category)
             if len(self._recent_correct_categories) == 3 and len(set(self._recent_correct_categories)) == 3:
                 bonus = 2
@@ -663,6 +826,12 @@ class QuizModePage(QWidget):
 
         for btn in self.option_buttons:
             btn.setEnabled(False)
+
+        self.hint_btn.setEnabled(False)
+        if self._attempts >= self._target_rounds:
+            self._finish_quiz()
+        else:
+            self.next_btn.setEnabled(True)
 
     def hideEvent(self, event):
         self._stop_reference_video()

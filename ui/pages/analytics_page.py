@@ -73,8 +73,10 @@ class AnalyticsPage(QWidget):
         layout.setSpacing(14)
 
         progress = {}
+        quiz_insights = {}
         if analytics:
             progress = analytics.get_learning_progress(self.user_id)
+            quiz_insights = analytics.get_quiz_insights(self.user_id, history_limit=12)
 
         header = QFrame()
         header.setStyleSheet(f"""
@@ -240,6 +242,122 @@ class AnalyticsPage(QWidget):
         points = QLabel(f"⭐ Total Points: {progress.get('total_points', 0)}")
         points.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['warning']};")
         layout.addWidget(points)
+
+        quiz_title = QLabel("Quiz Statistics")
+        quiz_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['text_primary']};")
+        layout.addWidget(quiz_title)
+
+        quiz_summary = QFrame()
+        quiz_summary.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border: none;
+                border-radius: 12px;
+            }}
+        """)
+        quiz_summary_layout = QGridLayout(quiz_summary)
+        quiz_summary_layout.setContentsMargins(16, 14, 16, 14)
+        quiz_summary_layout.setHorizontalSpacing(12)
+        quiz_summary_layout.setVerticalSpacing(10)
+
+        quiz_stats_meta = [
+            ("Quiz Sessions", str(quiz_insights.get('total_sessions', 0))),
+            ("Avg Accuracy", f"{quiz_insights.get('average_accuracy', 0):.0f}%"),
+            ("Best Accuracy", f"{quiz_insights.get('best_accuracy', 0):.0f}%"),
+            ("Latest Verdict", str(quiz_insights.get('latest_verdict', '-'))),
+        ]
+
+        for i, (label, value) in enumerate(quiz_stats_meta):
+            tile = QFrame()
+            tile.setStyleSheet(f"""
+                QFrame {{
+                    background: {COLORS['bg_input']};
+                    border: none;
+                    border-radius: 10px;
+                }}
+            """)
+            tile_layout = QVBoxLayout(tile)
+            tile_layout.setContentsMargins(12, 10, 12, 10)
+            tile_layout.setSpacing(3)
+
+            label_widget = QLabel(label)
+            label_widget.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; background: transparent;")
+            value_widget = QLabel(value)
+            value_widget.setStyleSheet(f"color: {COLORS['text_primary']}; font-size: 16px; font-weight: 800; background: transparent;")
+
+            tile_layout.addWidget(label_widget)
+            tile_layout.addWidget(value_widget)
+            quiz_summary_layout.addWidget(tile, i // 2, i % 2)
+
+        layout.addWidget(quiz_summary)
+
+        weak_title = QLabel("Weaker Topics")
+        weak_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['text_primary']};")
+        layout.addWidget(weak_title)
+
+        weak_frame = QFrame()
+        weak_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border: none;
+                border-radius: 12px;
+            }}
+        """)
+        weak_layout = QVBoxLayout(weak_frame)
+        weak_layout.setContentsMargins(16, 14, 16, 14)
+        weak_layout.setSpacing(8)
+
+        weak_topics = quiz_insights.get('weak_topics', []) if quiz_insights else []
+        if weak_topics:
+            for item in weak_topics:
+                topic = str(item.get('topic', 'General'))
+                attempts = int(item.get('attempts', 0) or 0)
+                accuracy = float(item.get('accuracy', 0.0) or 0.0)
+                weak_lbl = QLabel(f"• {topic}: {accuracy:.0f}% accuracy across {attempts} attempt(s)")
+                weak_lbl.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px; background: transparent;")
+                weak_layout.addWidget(weak_lbl)
+        else:
+            weak_empty = QLabel("No weak-topic signal yet. Complete more quizzes to get targeted insights.")
+            weak_empty.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 13px; background: transparent;")
+            weak_layout.addWidget(weak_empty)
+
+        layout.addWidget(weak_frame)
+
+        history_title = QLabel("Recent Quiz History")
+        history_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['text_primary']};")
+        layout.addWidget(history_title)
+
+        history_frame = QFrame()
+        history_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border: none;
+                border-radius: 12px;
+            }}
+        """)
+        history_layout = QVBoxLayout(history_frame)
+        history_layout.setContentsMargins(16, 14, 16, 14)
+        history_layout.setSpacing(8)
+
+        quiz_history = quiz_insights.get('history', []) if quiz_insights else []
+        if quiz_history:
+            for row in quiz_history:
+                raw_time = str(row.get('timestamp', ''))
+                when = raw_time.replace('T', ' ')[:16] if raw_time else "-"
+                total_q = int(row.get('total_questions', 0) or 0)
+                correct = int(row.get('correct_answers', 0) or 0)
+                accuracy = float(row.get('accuracy', 0.0) or 0.0)
+                verdict = str(row.get('verdict', '-'))
+                entry = QLabel(f"• {when} — {correct}/{total_q} correct ({accuracy:.0f}%) • Verdict: {verdict}")
+                entry.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px; background: transparent;")
+                entry.setWordWrap(True)
+                history_layout.addWidget(entry)
+        else:
+            history_empty = QLabel("No completed quiz sessions yet.")
+            history_empty.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 13px; background: transparent;")
+            history_layout.addWidget(history_empty)
+
+        layout.addWidget(history_frame)
 
         sec_label4 = QLabel("Recommendations")
         sec_label4.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['text_primary']};")

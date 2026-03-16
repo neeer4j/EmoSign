@@ -77,6 +77,10 @@ class UserStats:
     # Spaced-repetition review state
     review_schedule: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
+    # Quiz tracking
+    quiz_history: List[Dict[str, Any]] = field(default_factory=list)
+    quiz_topic_performance: Dict[str, Dict[str, int]] = field(default_factory=dict)
+
 
 # Define all achievements
 ACHIEVEMENTS: Dict[str, Achievement] = {
@@ -237,6 +241,8 @@ class AnalyticsManager:
             'total_points': stats.total_points,
             'session_dates': stats.session_dates,
             'review_schedule': stats.review_schedule,
+            'quiz_history': stats.quiz_history,
+            'quiz_topic_performance': stats.quiz_topic_performance,
         }
         
         with open(filepath, 'w') as f:
@@ -481,6 +487,90 @@ class AnalyticsManager:
         result = scheduler.record_result(item_id, correct)
         stats.review_schedule = scheduler.export_state()
         return result
+
+    def record_quiz_session(
+        self,
+        user_id: str,
+        total_questions: int,
+        correct_answers: int,
+        score: int,
+        verdict: str,
+        topic_stats: Optional[Dict[str, Dict[str, int]]] = None,
+    ) -> Dict[str, Any]:
+        """Record a completed quiz session and aggregate topic performance."""
+        stats = self.get_user_stats(user_id)
+        total_questions = max(0, int(total_questions))
+        correct_answers = max(0, min(int(correct_answers), total_questions if total_questions else int(correct_answers)))
+        accuracy = (correct_answers / total_questions * 100.0) if total_questions > 0 else 0.0
+
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'total_questions': total_questions,
+            'correct_answers': correct_answers,
+            'wrong_answers': max(0, total_questions - correct_answers),
+            'score': int(score),
+            'accuracy': round(accuracy, 2),
+            'verdict': verdict,
+        }
+        stats.quiz_history.append(entry)
+        stats.quiz_history = stats.quiz_history[-100:]
+
+        if topic_stats:
+            for topic, perf in topic_stats.items():
+                attempts = int(perf.get('attempts', 0) or 0)
+                correct = int(perf.get('correct', 0) or 0)
+                if attempts <= 0:
+                    continue
+                topic_key = str(topic)
+                agg = stats.quiz_topic_performance.setdefault(topic_key, {'attempts': 0, 'correct': 0})
+                agg['attempts'] = int(agg.get('attempts', 0)) + attempts
+                agg['correct'] = int(agg.get('correct', 0)) + max(0, min(correct, attempts))
+
+        return entry
+
+    def get_quiz_insights(self, user_id: str, history_limit: int = 12) -> Dict[str, Any]:
+        """Return quiz history and aggregate weakness insights."""
+        stats = self.get_user_stats(user_id)
+        history = list(stats.quiz_history or [])
+        recent_history = history[-max(1, int(history_limit)):] if history else []
+
+        total_sessions = len(history)
+        avg_accuracy = 0.0
+        best_accuracy = 0.0
+        if history:
+            accuracies = [float(item.get('accuracy', 0.0) or 0.0) for item in history]
+            avg_accuracy = sum(accuracies) / len(accuracies)
+            best_accuracy = max(accuracies)
+
+        topic_rows = []
+        for topic, perf in (stats.quiz_topic_performance or {}).items():
+            attempts = int(perf.get('attempts', 0) or 0)
+            correct = int(perf.get('correct', 0) or 0)
+            if attempts <= 0:
+                continue
+            accuracy = (correct / attempts) * 100.0
+            topic_rows.append({
+                'topic': topic,
+                'attempts': attempts,
+                'correct': correct,
+                'accuracy': round(accuracy, 2),
+            })
+
+        topic_rows.sort(key=lambda item: (item['accuracy'], item['attempts']))
+        weak_topics = topic_rows[:3]
+
+        latest_verdict = "-"
+        if history:
+            latest_verdict = str(history[-1].get('verdict', '-') or '-')
+
+        return {
+            'total_sessions': total_sessions,
+            'average_accuracy': round(avg_accuracy, 2),
+            'best_accuracy': round(best_accuracy, 2),
+            'latest_verdict': latest_verdict,
+            'weak_topics': weak_topics,
+            'history': list(reversed(recent_history)),
+        }
 
 
 # Singleton instance

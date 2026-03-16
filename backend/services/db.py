@@ -282,6 +282,30 @@ class DatabaseService:
             
             with self._get_connection() as conn:
                 cursor = conn.cursor()
+
+                # Guard against burst duplicates (same value emitted repeatedly
+                # by high-frequency UI loops).
+                cooldown_seconds = 2.5
+                cursor.execute("""
+                    SELECT id, created_at
+                    FROM translations
+                    WHERE user_id = ?
+                      AND sign_label = ?
+                      AND gesture_type = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (user_id, sign_label, gesture_type))
+                latest = cursor.fetchone()
+                if latest and latest["created_at"]:
+                    try:
+                        last_created = datetime.fromisoformat(str(latest["created_at"]).replace("Z", "+00:00"))
+                        now_dt = datetime.now(last_created.tzinfo) if last_created.tzinfo else datetime.now()
+                        if (now_dt - last_created).total_seconds() < cooldown_seconds:
+                            return {"success": True, "id": latest["id"], "skipped_duplicate": True}
+                    except Exception:
+                        # If timestamp parsing fails, continue with normal insert.
+                        pass
+
                 cursor.execute("""
                     INSERT INTO translations (id, user_id, sign_label, confidence, gesture_type)
                     VALUES (?, ?, ?, ?, ?)

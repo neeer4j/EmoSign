@@ -55,6 +55,7 @@ from core.pipeline import SignLanguagePipeline, PipelineMode, PipelineConfig
 from core.gesture_sequence import GestureType, RecognizedGesture, TranslationResult
 
 import config
+import time
 
 
 class TranslationDisplay(QFrame):
@@ -552,6 +553,9 @@ class LiveTranslationPage(QWidget):
         self._last_emotion_text = "🙂 Emotion: --"
         # Text committed by pressing ␣ Space — new gestures append after it
         self._committed_text: str = ""
+        self._last_saved_signature = None
+        self._last_saved_at = 0.0
+        self._save_cooldown_seconds = 3.0
         
         # Auto-check timer for timeout-based translation
         self._check_timer = QTimer()
@@ -818,11 +822,29 @@ class LiveTranslationPage(QWidget):
         """Save translation result to history."""
         if not self.db or self.user.get("guest"):
             return
+
+        text = (result.text or "").strip()
+        if not text:
+            return
+
+        gesture_type = result.output_type.value
+        signature = (text, gesture_type)
+        now = time.monotonic()
+
+        # Prevent timer-driven duplicate writes of the same completed result.
+        if (
+            signature == self._last_saved_signature
+            and (now - self._last_saved_at) < self._save_cooldown_seconds
+        ):
+            return
+
+        self._last_saved_signature = signature
+        self._last_saved_at = now
         
         self.translation_made.emit(
-            result.text,
+            text,
             result.confidence,
-            result.output_type.value
+            gesture_type
         )
     
     # === Video-specific signal handlers ===
