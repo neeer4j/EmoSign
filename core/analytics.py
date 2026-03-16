@@ -15,6 +15,7 @@ from collections import Counter, defaultdict
 from enum import Enum
 
 from config import BASE_DIR
+from core.practice_scheduler import PracticeScheduler
 
 
 class AchievementCategory(Enum):
@@ -72,6 +73,9 @@ class UserStats:
     
     # Session history
     session_dates: List[str] = field(default_factory=list)
+
+    # Spaced-repetition review state
+    review_schedule: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
 
 # Define all achievements
@@ -232,6 +236,7 @@ class AnalyticsManager:
             'achievement_dates': stats.achievement_dates,
             'total_points': stats.total_points,
             'session_dates': stats.session_dates,
+            'review_schedule': stats.review_schedule,
         }
         
         with open(filepath, 'w') as f:
@@ -416,6 +421,13 @@ class AnalyticsManager:
         """Get personalized learning recommendations."""
         stats = self.get_user_stats(user_id)
         recommendations = []
+
+        scheduler = PracticeScheduler(stats.review_schedule)
+        schedule_summary = scheduler.summary(stats.sign_counts.keys())
+        if schedule_summary['due_items'] > 0:
+            recommendations.append(
+                f"You have {schedule_summary['due_items']} review sign(s) due now."
+            )
         
         # Check which letters haven't been practiced
         all_letters = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -449,6 +461,26 @@ class AnalyticsManager:
             recommendations.append(f"Next achievement: {closest.name} - {closest.description}")
         
         return recommendations
+
+    def get_due_review_items(self, user_id: str, item_ids: List[str], limit: int = 12) -> List[str]:
+        """Return prioritized due/new items for a review session."""
+        stats = self.get_user_stats(user_id)
+        scheduler = PracticeScheduler(stats.review_schedule)
+        return scheduler.due_items(item_ids, limit=limit)
+
+    def get_review_summary(self, user_id: str, item_ids: List[str]) -> Dict[str, int]:
+        """Return review scheduling summary for UI labels."""
+        stats = self.get_user_stats(user_id)
+        scheduler = PracticeScheduler(stats.review_schedule)
+        return scheduler.summary(item_ids)
+
+    def record_review_result(self, user_id: str, item_id: str, correct: bool) -> Dict[str, Any]:
+        """Update spaced-repetition state for one practiced item."""
+        stats = self.get_user_stats(user_id)
+        scheduler = PracticeScheduler(stats.review_schedule)
+        result = scheduler.record_result(item_id, correct)
+        stats.review_schedule = scheduler.export_state()
+        return result
 
 
 # Singleton instance

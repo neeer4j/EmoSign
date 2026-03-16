@@ -23,7 +23,6 @@ from ui.pages.login_page import LoginPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.pages.live_translation_page import LiveTranslationPage
 from ui.pages.history_page import HistoryPage
-from ui.pages.profile_page import ProfilePage
 from ui.pages.admin_page import AdminPage
 
 # New feature pages
@@ -35,6 +34,7 @@ from ui.pages.training_page import TrainingPage
 from ui.pages.game_page import GamePage
 from ui.pages.study_mode_page import StudyModePage
 from ui.pages.quiz_mode_page import QuizModePage
+from ui.pages.features_page import FeaturesPage
 
 from ml.classifier import Classifier
 from ml.data_collector import DataCollector
@@ -203,8 +203,8 @@ class Sidebar(QFrame):
         
         account_items = [
             ("analytics", "📊", "Analytics"),
-            ("profile", "👤", "Profile"),
             ("settings", "⚙️", "Settings"),
+            ("features", "✨", "Features"),
         ]
         
         for page_id, icon, text in account_items:
@@ -365,6 +365,8 @@ class MainWindow(QMainWindow):
 
         # Camera-free quiz mode
         self.quiz_page = QuizModePage()
+        if self.user:
+            self.quiz_page.update_user(self.user.get('id', 'guest'))
         self.page_stack.addWidget(self.quiz_page)
         
         # Training page for predefined gestures
@@ -379,13 +381,13 @@ class MainWindow(QMainWindow):
         self.analytics_page = AnalyticsPage()
         self.page_stack.addWidget(self.analytics_page)
         
-        # Profile
-        self.profile_page = ProfilePage(self.user, self.db)
-        self.page_stack.addWidget(self.profile_page)
-        
         # Settings page
-        self.settings_page = SettingsPage()
+        self.settings_page = SettingsPage(self.user, self.db)
         self.page_stack.addWidget(self.settings_page)
+
+        # Features page
+        self.features_page = FeaturesPage()
+        self.page_stack.addWidget(self.features_page)
         
         # Admin Page
         self.admin_page = AdminPage(self.db)
@@ -403,7 +405,7 @@ class MainWindow(QMainWindow):
         # Dashboard navigation
         self.dashboard_page.navigate_to_live.connect(lambda: self._navigate_to("live"))
         self.dashboard_page.navigate_to_history.connect(lambda: self._navigate_to("history"))
-        self.dashboard_page.navigate_to_profile.connect(lambda: self._navigate_to("profile"))
+        self.dashboard_page.navigate_to_profile.connect(lambda: self._navigate_to("settings"))
         self.dashboard_page.navigate_to_training.connect(lambda: self._navigate_to("training"))
         self.dashboard_page.navigate_to_tutorial.connect(lambda: self._navigate_to("tutorial"))
         self.dashboard_page.navigate_to_study.connect(lambda: self._navigate_to("study"))
@@ -414,7 +416,6 @@ class MainWindow(QMainWindow):
         # Page back buttons - REMOVED (Sidebar is the primary navigation)
         # self.live_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         # self.history_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
-        # self.profile_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         # self.tutorial_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         # self.training_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
         # self.game_page.back_requested.connect(lambda: self._navigate_to("dashboard"))
@@ -435,9 +436,7 @@ class MainWindow(QMainWindow):
         self.settings_page.voice_settings_changed.connect(self._apply_voice_settings)
         self.settings_page.accessibility_changed.connect(self._apply_accessibility)
         self.settings_page.detection_settings_changed.connect(self._apply_detection_settings)
-        
-        # Profile signals
-        self.profile_page.logout_requested.connect(self._on_logout)
+        self.settings_page.logout_requested.connect(self._on_logout)
     
     def _apply_theme(self, theme: str):
         """Apply theme — deferred rebuild for responsive button animation."""
@@ -468,7 +467,7 @@ class MainWindow(QMainWindow):
             'tutorial_page': 'tutorial', 'study_page': 'study',
             'quiz_page': 'quiz', 'training_page': 'training',
             'game_page': 'game', 'analytics_page': 'analytics',
-            'profile_page': 'profile', 'settings_page': 'settings',
+            'settings_page': 'settings', 'features_page': 'features',
             'admin_page': 'admin', 'login_page': 'login',
         }
         for attr, name in page_map.items():
@@ -529,8 +528,9 @@ class MainWindow(QMainWindow):
             self.dashboard_page.update_user(saved_user)
             self.live_page.user = saved_user
             self.history_page.update_user(saved_user)
-            self.profile_page.update_user(saved_user)
+            self.settings_page.update_user(saved_user)
             self.analytics_page.update_user(saved_user.get('id', 'guest'))
+            self.quiz_page.update_user(saved_user.get('id', 'guest'))
             is_admin = self._is_admin_user(saved_user)
             self.sidebar.show_admin_link(is_admin)
             self.sidebar.show_training_link(is_admin)
@@ -613,8 +613,9 @@ class MainWindow(QMainWindow):
         self.dashboard_page.update_user(user_data)
         self.live_page.user = user_data
         self.history_page.update_user(user_data)
-        self.profile_page.update_user(user_data)
+        self.settings_page.update_user(user_data)
         self.analytics_page.update_user(user_data.get('id', 'guest'))
+        self.quiz_page.update_user(user_data.get('id', 'guest'))
         
         # Check if admin
         is_admin = self._is_admin_user(user_data)
@@ -650,7 +651,8 @@ class MainWindow(QMainWindow):
         self.live_page.user = None
         self.dashboard_page.update_user({})
         self.history_page.update_user({})
-        self.profile_page.update_user({})
+        self.settings_page.update_user({})
+        self.quiz_page.update_user('guest')
         
         # Hide admin link
         self.sidebar.show_admin_link(False)
@@ -664,6 +666,9 @@ class MainWindow(QMainWindow):
     
     def _navigate_to(self, page_id):
         """Navigate to a page."""
+        if page_id == "profile":
+            page_id = "settings"
+
         # Route guards
         if page_id in {"admin", "training"} and not self._is_admin_user():
             self.sidebar.set_active("dashboard")
@@ -701,11 +706,13 @@ class MainWindow(QMainWindow):
                 self.analytics_page.update_user(self.user.get('id', 'guest'))
             self.analytics_page.refresh()
             self.page_stack.setCurrentWidget(self.analytics_page)
-        elif page_id == "profile":
-            self.profile_page.refresh()
-            self.page_stack.setCurrentWidget(self.profile_page)
         elif page_id == "settings":
+            if self.user:
+                self.settings_page.update_user(self.user)
+            self.settings_page.refresh()
             self.page_stack.setCurrentWidget(self.settings_page)
+        elif page_id == "features":
+            self.page_stack.setCurrentWidget(self.features_page)
         elif page_id == "admin":
             self.admin_page.refresh_all()
             self.page_stack.setCurrentWidget(self.admin_page)

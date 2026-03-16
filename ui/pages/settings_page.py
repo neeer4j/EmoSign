@@ -6,13 +6,32 @@ Provides settings for:
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QScrollArea, QComboBox
+    QFrame, QScrollArea, QComboBox, QMessageBox, QFileDialog
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
+import os
+from datetime import datetime
 
 from ui.styles import COLORS, ACCENT_PRESETS, ThemeManager
 from ui.page_header import make_page_header
+
+try:
+    from ui.pages.profile_page import (
+        ChangePasswordDialog,
+        NotificationSettingsDialog,
+        HelpSupportDialog,
+    )
+except Exception:
+    ChangePasswordDialog = None
+    NotificationSettingsDialog = None
+    HelpSupportDialog = None
+
+try:
+    from core.export_manager import ExportManager, ExportFormat, TranslationRecord
+    EXPORT_AVAILABLE = True
+except Exception:
+    EXPORT_AVAILABLE = False
 
 
 class ColorButton(QPushButton):
@@ -120,7 +139,7 @@ class SettingCard(QFrame):
 
 
 class SettingsPage(QWidget):
-    """Application settings page — Appearance only."""
+    """Application settings page — account + appearance."""
     
     back_requested = Signal()
     theme_changed = Signal(str)
@@ -129,9 +148,12 @@ class SettingsPage(QWidget):
     language_changed = Signal(str)
     accessibility_changed = Signal(dict)
     detection_settings_changed = Signal(dict)
+    logout_requested = Signal()
     
-    def __init__(self, parent=None):
+    def __init__(self, user_data=None, db_service=None, parent=None):
         super().__init__(parent)
+        self.user = user_data or {}
+        self.db = db_service
         self.color_buttons = []
         self._setup_ui()
         self._load_settings()
@@ -156,6 +178,69 @@ class SettingsPage(QWidget):
         content_layout.setSpacing(28)
         content_layout.setContentsMargins(0, 0, 16, 0)
         
+        # ========== ACCOUNT CARD ==========
+        account_card = SettingCard("Account", "👤")
+
+        self.user_name_label = QLabel("User")
+        self.user_name_label.setStyleSheet(
+            f"font-size: 16px; font-weight: 700; color: {COLORS['text_primary']};"
+        )
+        account_card.add_widget(self.user_name_label)
+
+        self.user_email_label = QLabel("-")
+        self.user_email_label.setStyleSheet(
+            f"font-size: 12px; color: {COLORS['text_secondary']};"
+        )
+        account_card.add_widget(self.user_email_label)
+
+        action_row = QHBoxLayout()
+        action_row.setSpacing(8)
+        for label, handler in [
+            ("Change Password", self._change_password),
+            ("Notifications", self._show_notifications),
+            ("Export Data", self._export_data),
+            ("Help", self._show_help),
+        ]:
+            btn = QPushButton(label)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(handler)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {COLORS['bg_input']};
+                    color: {COLORS['text_primary']};
+                    border: none;
+                    border-radius: 8px;
+                    padding: 8px 12px;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{
+                    background: {COLORS['bg_card_hover']};
+                }}
+            """)
+            action_row.addWidget(btn)
+
+        signout_btn = QPushButton("Sign Out")
+        signout_btn.setCursor(Qt.PointingHandCursor)
+        signout_btn.clicked.connect(self._handle_logout)
+        signout_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {COLORS['bg_input']};
+                color: {COLORS['danger']};
+                border: none;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-weight: 700;
+            }}
+            QPushButton:hover {{
+                background: {COLORS['danger']}20;
+            }}
+        """)
+        action_row.addWidget(signout_btn)
+        action_row.addStretch()
+        account_card.content_layout.addLayout(action_row)
+
+        content_layout.addWidget(account_card)
+
         # ========== APPEARANCE CARD ==========
         appearance_card = SettingCard("Appearance", "🎨")
         
@@ -196,6 +281,7 @@ class SettingsPage(QWidget):
         
         scroll.setWidget(content)
         layout.addWidget(scroll)
+        self.update_user(self.user)
     
     def _load_settings(self):
         """Load current settings."""
@@ -245,7 +331,6 @@ class SettingsPage(QWidget):
     def load_saved_settings(self):
         """Load previously saved settings from file."""
         import json
-        import os
         
         config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "user_settings.json")
         
@@ -265,4 +350,104 @@ class SettingsPage(QWidget):
             
         except Exception as e:
             print(f"Failed to load settings: {e}")
+
+    def update_user(self, user_data):
+        self.user = user_data or {}
+        email = self.user.get("email", "")
+        raw_name = (
+            self.user.get("username")
+            or self.user.get("display_name")
+            or self.user.get("name")
+            or (email.split("@")[0] if "@" in email else "User")
+        )
+        name = raw_name.capitalize() if isinstance(raw_name, str) and raw_name.islower() else str(raw_name)
+        self.user_name_label.setText(name or "User")
+        self.user_email_label.setText(email or "Guest / Offline")
+
+    def refresh(self):
+        self.update_user(self.user)
+
+    def _handle_logout(self):
+        reply = QMessageBox.question(
+            self,
+            "Sign Out",
+            "Are you sure you want to sign out?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            self.logout_requested.emit()
+
+    def _change_password(self):
+        if self.user.get("guest") or self.user.get("offline"):
+            QMessageBox.information(self, "Not Available", "Password change is not available in guest/offline mode.")
+            return
+        if not ChangePasswordDialog:
+            QMessageBox.warning(self, "Not Available", "Password dialog is unavailable.")
+            return
+        dialog = ChangePasswordDialog(self.db, self.user.get("id", ""), self)
+        dialog.exec()
+
+    def _show_notifications(self):
+        if not NotificationSettingsDialog:
+            QMessageBox.warning(self, "Not Available", "Notification settings are unavailable.")
+            return
+        dialog = NotificationSettingsDialog(self)
+        dialog.exec()
+
+    def _show_help(self):
+        if not HelpSupportDialog:
+            QMessageBox.warning(self, "Not Available", "Help dialog is unavailable.")
+            return
+        dialog = HelpSupportDialog(self)
+        dialog.exec()
+
+    def _export_data(self):
+        if not EXPORT_AVAILABLE:
+            QMessageBox.warning(self, "Export Error", "Export functionality is not available.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Translation Data",
+            os.path.expanduser("~/Documents/emosign_export.json"),
+            "JSON Files (*.json);;CSV Files (*.csv);;Text Files (*.txt)",
+        )
+        if not file_path:
+            return
+
+        try:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == ".csv":
+                fmt = ExportFormat.CSV
+            elif ext == ".txt":
+                fmt = ExportFormat.TXT
+            else:
+                fmt = ExportFormat.JSON
+
+            exporter = ExportManager(os.path.dirname(file_path))
+            translations = []
+            if self.db and self.user.get("id"):
+                try:
+                    history = self.db.get_translation_history_sync(self.user.get("id"), 1000)
+                    for item in history:
+                        translations.append(
+                            TranslationRecord(
+                                text=item.get("sign_label", ""),
+                                timestamp=datetime.fromisoformat(
+                                    item.get("created_at", datetime.now().isoformat()).replace("Z", "")
+                                ),
+                                confidence=item.get("confidence", 0),
+                                gesture_type=item.get("gesture_type", "static"),
+                            )
+                        )
+                except Exception as e:
+                    print(f"Failed to load translation history for export: {e}")
+
+            if translations:
+                result_path = exporter.export_translations(translations, fmt, os.path.basename(file_path))
+                QMessageBox.information(self, "Export Complete", f"Data exported successfully!\n\nFile: {result_path}")
+            else:
+                QMessageBox.information(self, "No Data", "No translation data to export.")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Error", f"Failed to export data: {e}")
 

@@ -46,7 +46,7 @@ class StudyModePage(QWidget):
         stats_frame.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 12px;
             }}
         """)
@@ -70,7 +70,7 @@ class StudyModePage(QWidget):
         self.card.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 12px;
             }}
         """)
@@ -108,7 +108,7 @@ class StudyModePage(QWidget):
             bar.setStyleSheet(f"""
                 QProgressBar {{
                     background: {COLORS['bg_input']};
-                    border: 1px solid {COLORS['border']};
+                    border: none;
                     border-radius: 4px;
                 }}
                 QProgressBar::chunk {{
@@ -136,7 +136,7 @@ class StudyModePage(QWidget):
         verify_frame.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 12px;
             }}
         """)
@@ -157,7 +157,7 @@ class StudyModePage(QWidget):
         self.camera_container.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_input']};
-                border: 1px dashed {COLORS['border']};
+                border: none;
                 border-radius: 10px;
             }}
         """)
@@ -185,13 +185,13 @@ class StudyModePage(QWidget):
                 QPushButton {{
                     background: {COLORS['bg_input']};
                     color: {COLORS['text_primary']};
-                    border: 1px solid {COLORS['border']};
+                    border: none;
                     border-radius: 8px;
                     padding: 7px 10px;
                     font-weight: 600;
                 }}
                 QPushButton:hover {{
-                    border-color: {COLORS['accent']}77;
+                    background: {COLORS['bg_card_hover']};
                 }}
             """)
         cam_buttons.addWidget(self.start_cam_btn)
@@ -218,13 +218,13 @@ class StudyModePage(QWidget):
                 QPushButton {{
                     background: {COLORS['bg_input']};
                     color: {COLORS['text_primary']};
-                    border: 1px solid {COLORS['border']};
+                    border: none;
                     border-radius: 8px;
                     padding: 8px 14px;
                     font-weight: 600;
                 }}
                 QPushButton:hover {{
-                    border-color: {COLORS['primary']}77;
+                    background: {COLORS['bg_card_hover']};
                 }}
             """)
 

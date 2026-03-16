@@ -118,6 +118,8 @@ KEY FEATURES
 💬 CONVERSATION - Two-way chat mode
 🎨 THEMES - Light and dark mode
 ⚙️ SETTINGS - Customize everything
+✨ FEATURES TAB - In-app guide for all major features and usage tips
+🧠 PRACTICE SCHEDULER - Spaced repetition in Quiz mode (due/weak sign prioritization)
 
 
 =====================================================
@@ -200,6 +202,12 @@ core/export_manager.py
 
 core/analytics.py
     Tracks how much you use the app and gives achievement badges.
+
+core/practice_scheduler.py
+    Spaced-repetition scheduler for Quiz mode.
+    - Stores per-item review state
+    - Prioritizes due and weak items
+    - Updates next due date after each attempt
 
 
 DETECTOR FOLDER (detector/) - The Eyes
@@ -318,9 +326,6 @@ ui/pages/live_translation_page.py
 ui/pages/history_page.py
     Shows all your past translations.
 
-ui/pages/profile_page.py
-    Your user profile and account settings.
-
 ui/pages/admin_page.py
     Admin controls for managing users (admin only).
 
@@ -334,7 +339,13 @@ ui/pages/gesture_library_page.py
     Searchable dictionary of all signs.
 
 ui/pages/settings_page.py
-    Customize voice, theme, accessibility, and more.
+    Unified Settings page: account + appearance.
+    - User/account actions (password, notifications, export, help, sign out)
+    - Theme and accent customization
+
+ui/pages/features_page.py
+    In-app feature guide.
+    Explains what each mode does and how to use it.
 
 ui/pages/analytics_page.py
     Your statistics, streaks, and achievement badges.

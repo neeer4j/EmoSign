@@ -306,8 +306,8 @@ class HelpSupportDialog(QDialog):
         <h3>📚 Learning ASL</h3>
         <p>Use the <b>Tutorials</b> page to learn ASL alphabet and common signs.</p>
         
-        <h3>⚙️ Settings</h3>
-        <p>Customize your experience in Settings:</p>
+        <h3>🎨 Appearance</h3>
+        <p>Customize your look and feel in the Appearance tab:</p>
         <ul>
             <li><b>Theme:</b> Switch between dark and light mode</li>
             <li><b>Voice:</b> Enable text-to-speech for translations</li>
@@ -548,8 +548,8 @@ class ProfilePage(QWidget):
         
         content_layout.addWidget(stats_frame)
         
-        # ── SETTINGS GRID (2-column) ────────────────────────────
-        settings_label = QLabel("⚙️  ACCOUNT SETTINGS")
+        # ── QUICK ACTIONS (single-column) ───────────────────────
+        settings_label = QLabel("⚙️  PROFILE ACTIONS")
         settings_label.setStyleSheet(f"""
             font-size: 11px; font-weight: 700;
             color: {COLORS['text_muted']};
@@ -557,24 +557,32 @@ class ProfilePage(QWidget):
             padding-top: 8px;
         """)
         content_layout.addWidget(settings_label)
-        
-        grid = QGridLayout()
-        grid.setSpacing(12)
-        
+
+        actions_wrap = QFrame()
+        actions_wrap.setStyleSheet(f"""
+            QFrame {{
+                background: {COLORS['bg_card']};
+                border: none;
+                border-radius: 12px;
+            }}
+        """)
+        grid = QVBoxLayout(actions_wrap)
+        grid.setSpacing(10)
+        grid.setContentsMargins(12, 12, 12, 12)
+
         settings_items = [
             ("🔑", "Change Password", "Update your account password", self._change_password),
             ("🔔", "Notifications", "Manage alert preferences", self._show_notifications),
-            ("🎨", "Appearance", "Theme and display settings", self._go_to_appearance),
             ("📤", "Export Data", "Download your translation history", self._export_data),
             ("❓", "Help & Support", "Get help and view guides", self._show_help),
         ]
-        
+
         for i, (icon, title, desc, action) in enumerate(settings_items):
             card = QFrame()
             card.setCursor(Qt.PointingHandCursor)
             card.setStyleSheet(f"""
                 QFrame {{
-                    background: {COLORS['bg_card']};
+                    background: {COLORS['bg_input']};
                     border: none;
                     border-radius: 12px;
                 }}
@@ -627,11 +635,10 @@ class ProfilePage(QWidget):
             
             # Make frame clickable via mouse event
             card.mousePressEvent = lambda e, a=action: a()
-            
-            row, col = divmod(i, 2)
-            grid.addWidget(card, row, col)
-        
-        content_layout.addLayout(grid)
+
+            grid.addWidget(card)
+
+        content_layout.addWidget(actions_wrap)
         
         # ── APP INFO FOOTER ───────────────────────────────────────
         footer = QFrame()

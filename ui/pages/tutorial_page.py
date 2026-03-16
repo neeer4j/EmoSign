@@ -1919,23 +1919,23 @@ class _PhraseLesson(QWidget):
         prog_row.addWidget(self._prog_lbl)
         layout.addLayout(prog_row)
 
-        # Two-column layout (no scroll)
+        # Two-column content area
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(10)
+        content_layout.setSpacing(20)
 
-        # LEFT: Info + Steps
+        # LEFT: Sign name + description + steps + tip
         left_panel = QFrame()
         left_panel.setObjectName("card")
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(12, 10, 12, 10)
-        left_layout.setSpacing(4)
+        left_layout.setContentsMargins(24, 20, 24, 20)
+        left_layout.setSpacing(14)
 
         top = QHBoxLayout()
         self._emoji = QLabel()
-        self._emoji.setStyleSheet("font-size: 32px; background: transparent;")
+        self._emoji.setStyleSheet("font-size: 44px; background: transparent;")
         top.addWidget(self._emoji)
         self._name = QLabel()
-        self._name.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {COLORS['text_primary']}; background: transparent;")
+        self._name.setStyleSheet(f"font-size: 28px; font-weight: 800; color: {COLORS['text_primary']}; background: transparent;")
         top.addWidget(self._name)
         top.addStretch()
         left_layout.addLayout(top)
@@ -1943,8 +1943,8 @@ class _PhraseLesson(QWidget):
         self._desc = QLabel()
         self._desc.setWordWrap(True)
         self._desc.setStyleSheet(f"""
-            font-size: 12px; color: {COLORS['text_secondary']};
-            background: {COLORS['bg_input']}; padding: 6px 10px; border-radius: 8px;
+            font-size: 14px; color: {COLORS['text_secondary']};
+            background: {COLORS['bg_input']}; padding: 12px 16px; border-radius: 10px;
         """)
         left_layout.addWidget(self._desc)
 
@@ -1953,10 +1953,10 @@ class _PhraseLesson(QWidget):
             s = QLabel()
             s.setWordWrap(True)
             s.setStyleSheet(f"""
-                font-size: 11px; color: {COLORS['text_primary']};
+                font-size: 14px; color: {COLORS['text_primary']};
                 background: {COLORS['bg_card']};
-                padding: 4px 8px; border-radius: 6px;
-                border-left: 3px solid {COLORS['primary']};
+                padding: 10px 14px; border-radius: 8px;
+                border-left: 4px solid {COLORS['primary']};
             """)
             left_layout.addWidget(s)
             self._step_labels.append(s)
@@ -1964,27 +1964,26 @@ class _PhraseLesson(QWidget):
         self._tip = QLabel()
         self._tip.setWordWrap(True)
         self._tip.setStyleSheet(f"""
-            font-size: 11px; font-weight: 600; color: {COLORS['primary']};
-            background: {COLORS['primary']}12; padding: 6px 10px; border-radius: 6px;
+            font-size: 13px; font-weight: 600; color: {COLORS['primary']};
+            background: {COLORS['primary']}15; padding: 10px 16px; border-radius: 8px;
         """)
         left_layout.addWidget(self._tip)
         left_layout.addStretch()
-        content_layout.addWidget(left_panel, 1)
+        content_layout.addWidget(left_panel, 3)
 
-        # RIGHT: Reference photo + Spelling + SignCard
+        # RIGHT: Video demo + Reference photo
         right_panel = QFrame()
         right_panel.setObjectName("card")
-        right_panel.setFixedWidth(340)
+        right_panel.setMinimumWidth(260)
+        right_panel.setMaximumWidth(380)
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(10, 10, 10, 10)
-        right_layout.setSpacing(6)
+        right_layout.setContentsMargins(14, 14, 14, 14)
+        right_layout.setSpacing(12)
 
-        # ── Video demo player (shown when a gesture video is available) ──
         self._video_player = _SignVideoPlayer()
         right_layout.addWidget(self._video_player)
-        self._video_player.hide()  # hidden until a video is loaded
+        self._video_player.hide()
 
-        # Reference photo at the top of right panel — always clearly visible
         self._ref_img_frame = QFrame()
         self._ref_img_frame.setStyleSheet(f"""
             QFrame {{
@@ -2000,70 +1999,34 @@ class _PhraseLesson(QWidget):
         ref_inner.setAlignment(Qt.AlignCenter)
         ref_title = QLabel("📸  Reference Photo")
         ref_title.setAlignment(Qt.AlignCenter)
-        ref_title.setStyleSheet(f"""
-            font-size: 12px; font-weight: 700;
-            color: {COLORS['primary']}; background: transparent;
-        """)
+        ref_title.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {COLORS['primary']}; background: transparent;")
         ref_inner.addWidget(ref_title)
         self._phrase_ref_img = QLabel()
         self._phrase_ref_img.setAlignment(Qt.AlignCenter)
-        self._phrase_ref_img.setFixedHeight(160)
+        self._phrase_ref_img.setFixedHeight(200)
         self._phrase_ref_img.setStyleSheet("background: transparent;")
         self._phrase_ref_img.setScaledContents(False)
         ref_inner.addWidget(self._phrase_ref_img)
         right_layout.addWidget(self._ref_img_frame)
-        self._ref_img_frame.hide()  # shown when an image is found
+        self._ref_img_frame.hide()
 
-        spell_title = QLabel("🔤 Finger-Spell It")
-        spell_title.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
-        right_layout.addWidget(spell_title)
-
-        self._spell_desc = QLabel()
-        self._spell_desc.setStyleSheet(f"font-size: 10px; color: {COLORS['text_muted']}; background: transparent;")
-        self._spell_desc.setWordWrap(True)
-        right_layout.addWidget(self._spell_desc)
-
-        self._letter_btn_container = QWidget()
-        self._letter_btn_layout = QHBoxLayout(self._letter_btn_container)
-        self._letter_btn_layout.setContentsMargins(0, 0, 0, 0)
-        self._letter_btn_layout.setSpacing(3)
-        right_layout.addWidget(self._letter_btn_container)
-
-        self._sign_card = SignCard("")
-        right_layout.addWidget(self._sign_card)
-        right_layout.addStretch()
-        content_layout.addWidget(right_panel)
-
-        # CAMERA COLUMN: Live practice camera
-        cam_panel = QFrame()
-        cam_panel.setObjectName("card")
-        cam_panel.setMinimumWidth(380)
-        cam_layout = QVBoxLayout(cam_panel)
-        cam_layout.setContentsMargins(10, 10, 10, 10)
-        cam_layout.setSpacing(6)
-
+        # Camera practice section
         cam_title = QLabel("📷 Practice with Camera")
-        cam_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']}; background: transparent;")
-        cam_layout.addWidget(cam_title)
+        cam_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['primary']}; background: transparent;")
+        right_layout.addWidget(cam_title)
 
         self._cam_container = QFrame()
-        self._cam_container.setStyleSheet(f"""
-            background: #000;
-            border-radius: 10px;
-            min-height: 280px;
-        """)
-        self._cam_container.setMinimumHeight(300)
+        self._cam_container.setStyleSheet("background: #000; border-radius: 10px;")
+        self._cam_container.setMinimumHeight(260)
         cam_inner = QVBoxLayout(self._cam_container)
         cam_inner.setContentsMargins(0, 0, 0, 0)
-
-        self._cam_placeholder = QLabel("Camera loading...")
+        self._cam_placeholder = QLabel("Click 'Start Camera' to practice")
         self._cam_placeholder.setAlignment(Qt.AlignCenter)
         self._cam_placeholder.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
         cam_inner.addWidget(self._cam_placeholder)
+        right_layout.addWidget(self._cam_container)
 
-        cam_layout.addWidget(self._cam_container)
-
-        self._cam_feedback = QLabel("👆 Show the sign to practice")
+        self._cam_feedback = QLabel("👆 Show the sign to camera")
         self._cam_feedback.setAlignment(Qt.AlignCenter)
         self._cam_feedback.setStyleSheet(f"""
             font-size: 13px; font-weight: 600;
@@ -2071,10 +2034,23 @@ class _PhraseLesson(QWidget):
             background: {COLORS['bg_input']};
             padding: 8px; border-radius: 8px;
         """)
-        cam_layout.addWidget(self._cam_feedback)
-        cam_layout.addStretch()
+        right_layout.addWidget(self._cam_feedback)
 
-        content_layout.addWidget(cam_panel)
+        cam_btns = QHBoxLayout()
+        self._start_cam_btn = QPushButton("▶ Start Camera")
+        self._start_cam_btn.setObjectName("primaryButton")
+        self._start_cam_btn.clicked.connect(self._start_phrase_camera)
+        cam_btns.addWidget(self._start_cam_btn)
+
+        self._stop_cam_btn = QPushButton("⏹ Stop")
+        self._stop_cam_btn.setObjectName("secondaryButton")
+        self._stop_cam_btn.clicked.connect(self._stop_phrase_camera)
+        self._stop_cam_btn.setEnabled(False)
+        cam_btns.addWidget(self._stop_cam_btn)
+        right_layout.addLayout(cam_btns)
+
+        right_layout.addStretch()
+        content_layout.addWidget(right_panel, 2)
 
         layout.addLayout(content_layout, 1)
 
@@ -2125,8 +2101,7 @@ class _PhraseLesson(QWidget):
             font-size: 13px; font-weight: 700;
             color: {COLORS['text_secondary']};
             background: {COLORS['bg_input']};
-            padding: 4px 16px;
-            border-radius: 8px;
+            padding: 4px 16px; border-radius: 8px;
         """)
         nav_inner.addWidget(self._nav_indicator)
 
@@ -2153,52 +2128,6 @@ class _PhraseLesson(QWidget):
         nav_inner.addWidget(self._next_btn)
 
         layout.addWidget(nav_frame)
-
-        # Item jump buttons row (for quick navigation between items)
-        self._item_jump_frame = QFrame()
-        self._item_jump_frame.setObjectName("itemJumpFrame")
-        self._item_jump_frame.setStyleSheet(f"""
-            QFrame#itemJumpFrame {{
-                background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 10px;
-            }}
-        """)
-        jump_layout = QVBoxLayout(self._item_jump_frame)
-        jump_layout.setContentsMargins(10, 6, 10, 8)
-        jump_layout.setSpacing(4)
-
-        jump_title = QLabel("📍 Jump to Item")
-        jump_title.setAlignment(Qt.AlignCenter)
-        jump_title.setStyleSheet(f"""
-            font-size: 11px; font-weight: 600;
-            color: {COLORS['text_muted']};
-            background: transparent;
-        """)
-        jump_layout.addWidget(jump_title)
-
-        self._item_btn_container = QWidget()
-        self._item_btn_row = QHBoxLayout(self._item_btn_container)
-        self._item_btn_row.setContentsMargins(0, 0, 0, 0)
-        self._item_btn_row.setSpacing(4)
-        self._item_jump_btns = []
-
-        for idx, item in enumerate(self.DATA):
-            label = item.get('name', str(idx))
-            btn = QPushButton(label)
-            btn.setFixedHeight(30)
-            btn.setMinimumWidth(36)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setToolTip(f"Jump to {label}")
-            btn.clicked.connect(lambda checked, i=idx: self._jump_to_item(i))
-            self._item_btn_row.addWidget(btn)
-            self._item_jump_btns.append(btn)
-        self._item_btn_row.addStretch()
-
-        jump_layout.addWidget(self._item_btn_container, 0, Qt.AlignCenter)
-
-        if len(self.DATA) > 1:
-            layout.addWidget(self._item_jump_frame)
 
         self._refresh()
 
@@ -2233,44 +2162,6 @@ class _PhraseLesson(QWidget):
 
         # Load gesture demo video if available
         self._video_player.load(self._find_gesture_video(d['name']))
-
-        # Spelling buttons
-        # Clear old buttons
-        while self._letter_btn_layout.count():
-            item = self._letter_btn_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        spell_word = d['name'].upper()
-        letters_only = [c for c in spell_word if c.isalpha()]
-        self._spell_desc.setText(f'Tap a letter to see its sign — spell "{d["name"]}"')
-        for ch in spell_word:
-            if ch.isalpha():
-                btn = QPushButton(ch)
-                btn.setFixedSize(28, 28)
-                btn.setCursor(Qt.PointingHandCursor)
-                btn.setStyleSheet(f"""
-                    QPushButton {{
-                        background: {COLORS['bg_input']};
-                        color: {COLORS['text_primary']};
-                        border: 1px solid {COLORS['border']};
-                        border-radius: 5px; font-size: 11px; font-weight: 700;
-                    }}
-                    QPushButton:hover {{
-                        background: {COLORS['primary']}; color: white;
-                    }}
-                """)
-                btn.clicked.connect(lambda checked, c=ch: self._sign_card.set_letter(c))
-                self._letter_btn_layout.addWidget(btn)
-            else:
-                spacer = QLabel("  ")
-                spacer.setStyleSheet("background: transparent; font-size: 14px;")
-                self._letter_btn_layout.addWidget(spacer)
-        self._letter_btn_layout.addStretch()
-
-        # Show first letter by default
-        if letters_only:
-            self._sign_card.set_letter(letters_only[0])
 
         self._prev_btn.setEnabled(self._current > 0)
         if self._current >= len(self.DATA) - 1:
@@ -2309,39 +2200,6 @@ class _PhraseLesson(QWidget):
         # Update nav indicator
         if hasattr(self, '_nav_indicator'):
             self._nav_indicator.setText(f"Step {self._current + 1} of {len(self.DATA)}")
-
-        # Update item jump buttons
-        if hasattr(self, '_item_jump_btns'):
-            for idx, btn in enumerate(self._item_jump_btns):
-                if idx == self._current:
-                    btn.setStyleSheet(f"""
-                        QPushButton {{
-                            background: {COLORS['primary']};
-                            color: white;
-                            border: 2px solid {COLORS['primary_light']};
-                            border-radius: 6px;
-                            font-size: 12px; font-weight: bold;
-                            padding: 2px 8px;
-                            min-height: 24px;
-                        }}
-                    """)
-                else:
-                    btn.setStyleSheet(f"""
-                        QPushButton {{
-                            background: {COLORS['bg_card']};
-                            color: {COLORS['text_primary']};
-                            border: 1px solid {COLORS['border_light']};
-                            border-radius: 6px;
-                            font-size: 12px; font-weight: bold;
-                            padding: 2px 8px;
-                            min-height: 24px;
-                        }}
-                        QPushButton:hover {{
-                            background: {COLORS['primary']}30;
-                            color: {COLORS['primary_light']};
-                            border-color: {COLORS['primary']};
-                        }}
-                    """)
 
     def _load_phrase_ref_image(self, name: str):
         """Load a reference image from assets/<ASSETS_FOLDER>/ (and fallback folders) for the given item name."""
@@ -2407,7 +2265,6 @@ class _PhraseLesson(QWidget):
             self._refresh()
 
     def cleanup(self):
-        self._sign_card.cleanup()
         self._video_player.cleanup()
         self._stop_phrase_camera()
 
@@ -2416,34 +2273,40 @@ class _PhraseLesson(QWidget):
         try:
             from ui.camera_widget import CameraWidget
         except ImportError:
+            self._cam_feedback.setText("❌ Camera not available")
             return
 
         if self._camera_widget is None:
             self._camera_widget = CameraWidget()
-            self._camera_widget.setMinimumSize(360, 280)
-            self._camera_widget.video_label.setMinimumSize(360, 280)
+            self._camera_widget.setMinimumSize(360, 260)
+            self._camera_widget.video_label.setMinimumSize(360, 260)
             self._camera_widget.heuristic_threshold = 0.35
 
             self._cam_placeholder.hide()
             self._cam_container.layout().addWidget(self._camera_widget)
 
-        self._camera_widget.start()
-        self._cam_feedback.setText("👀 Show the sign to the camera...")
+        if self._camera_widget.start():
+            self._start_cam_btn.setEnabled(False)
+            self._stop_cam_btn.setEnabled(True)
+            self._cam_feedback.setText("👀 Show the sign to the camera...")
+        else:
+            self._cam_feedback.setText("❌ Could not start camera")
 
     def _stop_phrase_camera(self):
         """Stop the camera."""
         if self._camera_widget:
             self._camera_widget.stop()
+        if hasattr(self, '_start_cam_btn'):
+            self._start_cam_btn.setEnabled(True)
+            self._stop_cam_btn.setEnabled(False)
+        self._cam_feedback.setText("👆 Show the sign to camera")
 
     def showEvent(self, event):
-        """Auto-start camera and video demo when lesson is shown."""
         super().showEvent(event)
-        self._start_phrase_camera()
         if self.DATA:
             self._video_player.load(self._find_gesture_video(self.DATA[self._current]['name']))
 
     def hideEvent(self, event):
-        """Stop camera when lesson is hidden."""
         super().hideEvent(event)
         self._video_player.cleanup()
         self._stop_phrase_camera()
@@ -3101,7 +2964,17 @@ class TutorialPage(QWidget):
         self.lesson_list = self._create_lesson_list()
         self.stack.addWidget(self.lesson_list)
 
-        # The only lesson: 10 Essential Signs
+        # Alphabet
+        self.alphabet_lesson = AlphabetLesson()
+        self.alphabet_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.alphabet_lesson)
+
+        # Numbers
+        self.numbers_lesson = NumbersLesson()
+        self.numbers_lesson.back_requested.connect(self._show_lesson_list)
+        self.stack.addWidget(self.numbers_lesson)
+
+        # Essential Signs
         self.common_lesson = CommonSignsLesson()
         self.common_lesson.back_requested.connect(self._show_lesson_list)
         self.stack.addWidget(self.common_lesson)
@@ -3109,45 +2982,47 @@ class TutorialPage(QWidget):
         layout.addWidget(self.stack)
 
     def _create_lesson_list(self) -> QWidget:
-        """Create the lesson home page."""
+        """Create the lesson home page with Alphabet, Numbers and Gestures."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(14)
+        layout.setSpacing(16)
 
         # Welcome banner
         welcome = QFrame()
         welcome.setObjectName("card")
         welcome_layout = QHBoxLayout(welcome)
-        welcome_layout.setContentsMargins(20, 12, 20, 12)
+        welcome_layout.setContentsMargins(20, 14, 20, 14)
 
         welcome_title = QLabel("👋 Welcome to ASL Learning!")
-        welcome_title.setStyleSheet(f"font-size: 17px; font-weight: 600; color: {COLORS['text_primary']};")
+        welcome_title.setStyleSheet(f"font-size: 18px; font-weight: 600; color: {COLORS['text_primary']};")
         welcome_layout.addWidget(welcome_title)
 
-        welcome_text = QLabel("Learn 10 essential everyday signs with visual guides and step-by-step instructions.")
+        welcome_text = QLabel("Pick a lesson below. Each one walks you through signs step by step with a video demo.")
         welcome_text.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
         welcome_layout.addWidget(welcome_text, 1)
-
         layout.addWidget(welcome)
 
-        # Single lesson card
-        card = LessonCard(
-            "common_signs",
-            "Essential Signs",
-            "Hello · Thank you · Please · I · Yes · No · Help · Fine · Bathroom · More",
-            "🤟",
-            0,
-        )
-        card.clicked.connect(self._open_lesson)
-        self.lesson_cards = {"common_signs": card}
+        lessons = [
+            ("alphabet", "The Alphabet",
+             "Learn all 26 letters — A to Z", "🔤", 0),
+            ("numbers", "Numbers 0–9",
+             "Count from zero to nine in ASL", "🔢", 0),
+            ("common_signs", "Essential Signs",
+             "Hello · Thank you · Yes · No · Help · and more", "🤟", 0),
+        ]
 
-        card_row = QHBoxLayout()
-        card_row.addWidget(card)
-        card_row.addStretch()
-        layout.addLayout(card_row)
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(16)
+        self.lesson_cards = {}
+        for lid, ttl, desc, icon, progress in lessons:
+            card = LessonCard(lid, ttl, desc, icon, progress)
+            card.clicked.connect(self._open_lesson)
+            cards_row.addWidget(card)
+            self.lesson_cards[lid] = card
+        layout.addLayout(cards_row)
 
-        tips_lbl = QLabel("💡 Practice signs often · Use Live Translation to check · Pay attention to hand orientation")
+        tips_lbl = QLabel("💡 Practice signs often · Use Live Translation to check your signs · Pay attention to hand orientation")
         tips_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; padding: 6px 8px;")
         tips_lbl.setWordWrap(True)
         layout.addWidget(tips_lbl)
@@ -3157,12 +3032,23 @@ class TutorialPage(QWidget):
 
     def _open_lesson(self, lesson_id: str):
         """Open a lesson."""
-        if lesson_id == "common_signs":
+        if lesson_id == "alphabet":
+            self.alphabet_lesson.current_letter_index = 0
+            self.alphabet_lesson._update_display()
+            self.stack.setCurrentWidget(self.alphabet_lesson)
+        elif lesson_id == "numbers":
+            self.numbers_lesson._current = 0
+            self.numbers_lesson._refresh()
+            self.stack.setCurrentWidget(self.numbers_lesson)
+        elif lesson_id == "common_signs":
             self.common_lesson._current = 0
             self.common_lesson._refresh()
             self.stack.setCurrentWidget(self.common_lesson)
 
     def get_progress(self, lesson_id: str) -> int:
+        if lesson_id == "alphabet" and hasattr(self, 'alphabet_lesson'):
+            completed = len(self.alphabet_lesson.completed_letters)
+            return int((completed / 26) * 100)
         return 0
 
     def _show_lesson_list(self):

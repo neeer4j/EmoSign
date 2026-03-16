@@ -528,11 +528,11 @@ class DifficultySelector(QFrame):
         card.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 16px;
             }}
             QFrame:hover {{
-                border-color: {accent};
+                background: {COLORS['bg_card_hover']};
             }}
         """)
         layout = QVBoxLayout(card)

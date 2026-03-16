@@ -1,17 +1,26 @@
 """
 Quiz Mode - richer sign learning quiz with optional camera verification.
 """
+import glob
+import os
 import random
+from collections import deque
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QProgressBar
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QImage, QPixmap
 
 from ui.styles import COLORS
 from ui.page_header import make_page_header
 from ui.pages.tutorial_page import SIGN_GUIDE
+
+try:
+    from core.analytics import analytics
+except Exception:
+    analytics = None
 
 
 class QuizModePage(QWidget):
@@ -19,18 +28,215 @@ class QuizModePage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._letters = sorted([
-            key for key in SIGN_GUIDE.keys()
-            if len(key) == 1 and key.isalpha()
-        ])
+        self._quiz_items = self._build_quiz_items()
+        self._item_by_id = {
+            item["item_id"]: item for item in self._quiz_items if item.get("item_id")
+        }
         self._score = 0
+        self._correct_answers = 0
         self._attempts = 0
         self._streak = 0
         self._target_rounds = 10
-        self._current_answer = None
+        self._current_item = None
+        self._thumb_cache = {}
+        self._recent_correct_categories = deque(maxlen=3)
+        self._hint_used = False
+        self._user_id = "guest"
+        self._review_queue = deque()
+        self._ref_video_timer = QTimer(self)
+        self._ref_video_timer.timeout.connect(self._update_reference_video_frame)
+        self._ref_video_cap = None
+        self._ref_video_path = None
         self._camera_widget = None
         self._setup_ui()
         self._next_question()
+
+    def _build_quiz_items(self):
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+        items = []
+
+        # Alphabet image cards
+        alpha_dir = os.path.join(base_dir, "alphabets")
+        for path in sorted(glob.glob(os.path.join(alpha_dir, "*"))):
+            if not os.path.isfile(path):
+                continue
+            stem = os.path.splitext(os.path.basename(path))[0]
+            key = stem[0].upper() if stem else ""
+            if len(key) == 1 and key.isalpha():
+                guide = SIGN_GUIDE.get(key, {})
+                items.append({
+                    "item_id": f"alphabet:{key}",
+                    "answer": key,
+                    "display": key,
+                    "category": "Alphabet",
+                    "image_path": path,
+                    "video_path": None,
+                    "hint": guide.get("imagine", ""),
+                    "camera_target": key,
+                })
+
+        # Number image cards
+        num_dir = os.path.join(base_dir, "numbers")
+        for path in sorted(glob.glob(os.path.join(num_dir, "*"))):
+            if not os.path.isfile(path):
+                continue
+            stem = os.path.splitext(os.path.basename(path))[0]
+            digit = stem[0] if stem else ""
+            if len(digit) == 1 and digit.isdigit():
+                items.append({
+                    "item_id": f"number:{digit}",
+                    "answer": digit,
+                    "display": digit,
+                    "category": "Number",
+                    "image_path": path,
+                    "video_path": None,
+                    "hint": f"This is number sign {digit}.",
+                    "camera_target": None,
+                })
+
+        # Gesture video cards (play clip in reference panel)
+        gesture_dir = os.path.join(base_dir, "gestures")
+        for path in sorted(glob.glob(os.path.join(gesture_dir, "*.mp4"))):
+            if not os.path.isfile(path):
+                continue
+            stem = os.path.splitext(os.path.basename(path))[0]
+            normalized_stem = stem.strip().lower()
+            display = stem.upper()
+            if len(display) == 1 and display.isalpha():
+                display = f"{display} (Gesture)"
+            items.append({
+                "item_id": f"gesture:{normalized_stem}",
+                "answer": display,
+                "display": display,
+                "category": "Gesture",
+                "image_path": None,
+                "video_path": path,
+                "hint": f"Common gesture: {stem.replace('_', ' ')}.",
+                "camera_target": None,
+            })
+
+        return items
+
+    def _video_thumbnail(self, video_path: str) -> QPixmap:
+        cached = self._thumb_cache.get(video_path)
+        if cached is not None:
+            return cached
+
+        pixmap = QPixmap()
+        try:
+            import cv2
+
+            cap = cv2.VideoCapture(video_path)
+            ok, frame = cap.read()
+            tries = 0
+            while ok and frame is not None and tries < 20:
+                # Skip black/blank intro frames
+                if float(frame.mean()) > 10.0:
+                    break
+                ok, frame = cap.read()
+                tries += 1
+            cap.release()
+            if ok and frame is not None:
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = frame_rgb.shape
+                qimg = QImage(frame_rgb.data, w, h, ch * w, QImage.Format_RGB888).copy()
+                pixmap = QPixmap.fromImage(qimg)
+        except Exception:
+            pixmap = QPixmap()
+
+        self._thumb_cache[video_path] = pixmap
+        return pixmap
+
+    def _stop_reference_video(self):
+        if self._ref_video_timer.isActive():
+            self._ref_video_timer.stop()
+        if self._ref_video_cap is not None:
+            try:
+                self._ref_video_cap.release()
+            except Exception:
+                pass
+        self._ref_video_cap = None
+        self._ref_video_path = None
+
+    def _start_reference_video(self, video_path: str):
+        self._stop_reference_video()
+        try:
+            import cv2
+
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                return False
+
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            if not fps or fps <= 1:
+                fps = 24
+            interval = max(25, int(1000 / fps))
+
+            self._ref_video_cap = cap
+            self._ref_video_path = video_path
+            self._ref_video_timer.start(interval)
+            self._update_reference_video_frame()
+            return True
+        except Exception:
+            self._stop_reference_video()
+            return False
+
+    def _update_reference_video_frame(self):
+        if self._ref_video_cap is None:
+            return
+        try:
+            import cv2
+
+            ok, frame = self._ref_video_cap.read()
+            if not ok or frame is None:
+                self._ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, frame = self._ref_video_cap.read()
+                if not ok or frame is None:
+                    return
+
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = frame_rgb.shape
+            qimg = QImage(frame_rgb.data, w, h, ch * w, QImage.Format_RGB888).copy()
+            pixmap = QPixmap.fromImage(qimg)
+            scaled = pixmap.scaled(
+                self.reference_image.size(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+            self.reference_image.setPixmap(scaled)
+            self.reference_image.setText("")
+            self.reference_image.setAlignment(Qt.AlignCenter)
+        except Exception:
+            self._stop_reference_video()
+
+    def _set_reference_image(self, item: dict):
+        self._stop_reference_video()
+        pixmap = QPixmap()
+        if item.get("image_path"):
+            pixmap = QPixmap(item["image_path"])
+        elif item.get("video_path"):
+            if self._start_reference_video(item["video_path"]):
+                return
+            pixmap = self._video_thumbnail(item["video_path"])
+
+        if pixmap and not pixmap.isNull():
+            scaled = pixmap.scaled(
+                self.reference_image.size(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+            self.reference_image.setPixmap(scaled)
+            self.reference_image.setText("")
+            self.reference_image.setAlignment(Qt.AlignCenter)
+        else:
+            self.reference_image.setPixmap(QPixmap())
+            self.reference_image.setText("Preview unavailable for this sign")
+            self.reference_image.setAlignment(Qt.AlignCenter)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._current_item:
+            self._set_reference_image(self._current_item)
 
     def _setup_ui(self):
         root = QVBoxLayout(self)
@@ -48,7 +254,7 @@ class QuizModePage(QWidget):
         stats_frame.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 12px;
             }}
         """)
@@ -56,10 +262,11 @@ class QuizModePage(QWidget):
         stats_layout.setContentsMargins(14, 10, 14, 10)
         stats_layout.setSpacing(16)
 
-        self.score_label = QLabel("Score: 0/0")
+        self.score_label = QLabel("Score: 0 pts")
         self.accuracy_label = QLabel("Accuracy: 0%")
         self.streak_label = QLabel("Streak: 0")
-        for lbl in (self.score_label, self.accuracy_label, self.streak_label):
+        self.review_due_label = QLabel("Review Due: -")
+        for lbl in (self.score_label, self.accuracy_label, self.streak_label, self.review_due_label):
             lbl.setStyleSheet(f"color: {COLORS['text_primary']}; font-size: 12px; font-weight: 700;")
             stats_layout.addWidget(lbl)
         stats_layout.addStretch()
@@ -73,7 +280,7 @@ class QuizModePage(QWidget):
         self.progress.setStyleSheet(f"""
             QProgressBar {{
                 background: {COLORS['bg_input']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 8px;
                 color: {COLORS['text_primary']};
                 font-size: 11px;
@@ -93,7 +300,7 @@ class QuizModePage(QWidget):
         self.question_card.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 12px;
             }}
         """)
@@ -105,6 +312,19 @@ class QuizModePage(QWidget):
         self.prompt.setWordWrap(True)
         self.prompt.setStyleSheet(f"color: {COLORS['text_primary']}; font-size: 15px; font-weight: 600;")
 
+        self.reference_image = QLabel("Loading reference...")
+        self.reference_image.setMinimumHeight(230)
+        self.reference_image.setStyleSheet(f"""
+            QLabel {{
+                background: {COLORS['bg_input']};
+                border: none;
+                border-radius: 10px;
+                color: {COLORS['text_muted']};
+                font-size: 12px;
+            }}
+        """)
+        self.reference_image.setAlignment(Qt.AlignCenter)
+
         self.hint = QLabel("")
         self.hint.setWordWrap(True)
         self.hint.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
@@ -113,6 +333,7 @@ class QuizModePage(QWidget):
         self.feedback.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 13px; font-weight: 600;")
 
         ql.addWidget(self.prompt)
+        ql.addWidget(self.reference_image)
         ql.addWidget(self.hint)
         ql.addWidget(self.feedback)
 
@@ -125,14 +346,14 @@ class QuizModePage(QWidget):
                 QPushButton {{
                     background: {COLORS['bg_input']};
                     color: {COLORS['text_primary']};
-                    border: 1px solid {COLORS['border']};
+                    border: none;
                     border-radius: 8px;
                     padding: 10px 14px;
                     text-align: left;
                     font-weight: 600;
                 }}
                 QPushButton:hover {{
-                    border-color: {COLORS['primary']}77;
+                    background: {COLORS['bg_card_hover']};
                 }}
             """)
             ql.addWidget(btn)
@@ -150,13 +371,13 @@ class QuizModePage(QWidget):
                 QPushButton {{
                     background: {COLORS['bg_input']};
                     color: {COLORS['text_primary']};
-                    border: 1px solid {COLORS['border']};
+                    border: none;
                     border-radius: 8px;
                     padding: 8px 12px;
                     font-weight: 700;
                 }}
                 QPushButton:hover {{
-                    border-color: {COLORS['accent']}88;
+                    background: {COLORS['bg_card_hover']};
                 }}
             """)
         controls.addWidget(self.hint_btn)
@@ -169,7 +390,7 @@ class QuizModePage(QWidget):
         verify_frame.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
-                border: 1px solid {COLORS['border']};
+                border: none;
                 border-radius: 12px;
             }}
         """)
@@ -190,7 +411,7 @@ class QuizModePage(QWidget):
         self.camera_container.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_input']};
-                border: 1px dashed {COLORS['border']};
+                border: none;
                 border-radius: 10px;
             }}
         """)
@@ -218,13 +439,13 @@ class QuizModePage(QWidget):
                 QPushButton {{
                     background: {COLORS['bg_input']};
                     color: {COLORS['text_primary']};
-                    border: 1px solid {COLORS['border']};
+                    border: none;
                     border-radius: 8px;
                     padding: 7px 10px;
                     font-weight: 600;
                 }}
                 QPushButton:hover {{
-                    border-color: {COLORS['accent']}77;
+                    background: {COLORS['bg_card_hover']};
                 }}
             """)
         cam_buttons.addWidget(self.start_cam_btn)
@@ -235,6 +456,11 @@ class QuizModePage(QWidget):
         root.addLayout(body, 1)
 
     def _start_camera(self):
+        if not self._current_item or not self._current_item.get("camera_target"):
+            self.verify_feedback.setText("ℹ️ Camera verify is enabled only for alphabet cards in this quiz")
+            self.verify_feedback.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px; font-weight: 700;")
+            return
+
         try:
             from ui.camera_widget import CameraWidget
         except Exception:
@@ -276,57 +502,107 @@ class QuizModePage(QWidget):
         self._handle_prediction(label, confidence)
 
     def _handle_prediction(self, label: str, confidence: float):
-        if not label or not self._current_answer:
+        if not label or not self._current_item:
+            return
+        target = self._current_item.get("camera_target")
+        if not target:
             return
         guess = label.upper().strip()
-        if guess == self._current_answer:
+        if guess == target:
             self.verify_feedback.setText(f"✅ Verified by camera: {guess} ({confidence:.0%})")
             self.verify_feedback.setStyleSheet(f"color: {COLORS['success']}; font-size: 12px; font-weight: 700;")
         else:
-            self.verify_feedback.setText(f"Try again: saw {guess}, expected {self._current_answer}")
+            self.verify_feedback.setText(f"Try again: saw {guess}, expected {target}")
             self.verify_feedback.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px; font-weight: 700;")
 
     def _show_hint(self):
-        if not self._current_answer:
+        if not self._current_item:
             return
-        info = SIGN_GUIDE.get(self._current_answer, {})
-        steps = info.get("do_this", [])
-        extra = steps[1] if len(steps) > 1 else "Keep hand shape stable and clear."
-        self.feedback.setText(f"💡 Hint: {extra}")
+        self._hint_used = True
+        category = self._current_item.get("category", "Sign")
+        item_hint = self._current_item.get("hint", "Focus on finger shape and palm orientation.")
+        self.hint.setText(f"Category: {category} • 💡 Hint: {item_hint}")
+        self.feedback.setText("Hint revealed. Choose the best matching option.")
         self.feedback.setStyleSheet(f"color: {COLORS['accent']}; font-size: 13px; font-weight: 700;")
 
     def _update_stats(self):
-        accuracy = int((self._score / self._attempts) * 100) if self._attempts else 0
-        self.score_label.setText(f"Score: {self._score}/{self._attempts}")
+        accuracy = int((self._correct_answers / self._attempts) * 100) if self._attempts else 0
+        self.score_label.setText(f"Score: {self._score} pts")
         self.accuracy_label.setText(f"Accuracy: {accuracy}%")
         self.streak_label.setText(f"Streak: {self._streak}")
         self.progress.setValue(min(self._attempts, self._target_rounds))
 
+        due_count = len(self._review_queue)
+        if analytics:
+            try:
+                summary = analytics.get_review_summary(self._user_id, list(self._item_by_id.keys()))
+                due_count = int(summary.get("due_items", due_count))
+            except Exception:
+                pass
+        self.review_due_label.setText(f"Review Due: {due_count}")
+
+    def update_user(self, user_id: str):
+        """Set active user for personalized review scheduling."""
+        self._user_id = user_id or "guest"
+        self._refresh_review_queue()
+        self._update_stats()
+
+    def _refresh_review_queue(self):
+        self._review_queue.clear()
+        if not analytics:
+            return
+        try:
+            due_items = analytics.get_due_review_items(
+                self._user_id,
+                list(self._item_by_id.keys()),
+                limit=24,
+            )
+        except Exception:
+            due_items = []
+
+        for item_id in due_items:
+            if item_id in self._item_by_id:
+                self._review_queue.append(item_id)
+
     def _next_question(self):
-        if len(self._letters) < 4:
+        if len(self._quiz_items) < 4:
             self.prompt.setText("Not enough sign data to generate quiz.")
             return
 
-        self._current_answer = random.choice(self._letters)
-        info = SIGN_GUIDE.get(self._current_answer, {})
+        if not self._review_queue:
+            self._refresh_review_queue()
 
-        clue = info.get("imagine", "")
-        step = ""
-        do_this = info.get("do_this", [])
-        if do_this:
-            step = do_this[0]
+        self._current_item = None
+        if self._review_queue:
+            while self._review_queue and self._current_item is None:
+                next_id = self._review_queue.popleft()
+                self._current_item = self._item_by_id.get(next_id)
 
-        self.prompt.setText("Which letter matches this clue?")
-        self.hint.setText(f"{clue}\n{step}")
+        if self._current_item is None:
+            self._current_item = random.choice(self._quiz_items)
+
+        self._hint_used = False
+        self.prompt.setText("Which sign matches this reference image?")
+        self.hint.setText(f"Category: {self._current_item['category']} • Tap Hint if needed")
+        self._set_reference_image(self._current_item)
+
         self.feedback.setText("")
         self.feedback.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 13px; font-weight: 600;")
-        self.expected_label.setText(f"Target Answer: {self._current_answer}")
+        self.expected_label.setText("Target Answer: Hidden")
         self.verify_feedback.setText("Verification idle")
         self.verify_feedback.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; font-weight: 600;")
 
-        choices = {self._current_answer}
+        supports_camera = bool(self._current_item.get("camera_target"))
+        if self._camera_widget and self._camera_widget.is_running:
+            self._stop_camera()
+        self.start_cam_btn.setEnabled(supports_camera)
+        self.stop_cam_btn.setEnabled(False)
+        if not supports_camera:
+            self.verify_feedback.setText("Camera verify disabled for this category")
+
+        choices = {self._current_item["answer"]}
         while len(choices) < 4:
-            choices.add(random.choice(self._letters))
+            choices.add(random.choice(self._quiz_items)["answer"])
 
         shuffled = list(choices)
         random.shuffle(shuffled)
@@ -335,19 +611,53 @@ class QuizModePage(QWidget):
             btn.setEnabled(True)
 
     def _submit_answer(self, answer: str):
-        if not self._current_answer:
+        if not self._current_item:
             return
 
         self._attempts += 1
-        if answer == self._current_answer:
-            self._score += 1
+        self.expected_label.setText(f"Target Answer: {self._current_item['display']} (revealed)")
+        is_correct = answer == self._current_item["answer"]
+        if is_correct:
+            self._correct_answers += 1
             self._streak += 1
-            self.feedback.setText(f"✅ Correct! The answer is {self._current_answer}.")
+            bonus = 0
+            self._score += 1
+
+            category = self._current_item["category"]
+            self._recent_correct_categories.append(category)
+            if len(self._recent_correct_categories) == 3 and len(set(self._recent_correct_categories)) == 3:
+                bonus = 2
+                self._score += bonus
+
+            if bonus:
+                self.feedback.setText(
+                    f"✅ Correct! {self._current_item['display']} (+1) • 🔥 Category Combo Bonus +{bonus}"
+                )
+            else:
+                self.feedback.setText(f"✅ Correct! The answer is {self._current_item['display']}.")
             self.feedback.setStyleSheet(f"color: {COLORS['success']}; font-size: 13px; font-weight: 700;")
         else:
             self._streak = 0
-            self.feedback.setText(f"❌ Not quite. Correct answer: {self._current_answer}.")
+            self._recent_correct_categories.clear()
+            self.feedback.setText(f"❌ Not quite. Correct answer: {self._current_item['display']}.")
             self.feedback.setStyleSheet(f"color: {COLORS['danger']}; font-size: 13px; font-weight: 700;")
+
+        if analytics and self._current_item.get("item_id"):
+            try:
+                analytics.record_review_result(
+                    self._user_id,
+                    self._current_item["item_id"],
+                    is_correct,
+                )
+                analytics.save_stats(self._user_id)
+            except Exception:
+                pass
+
+        if not is_correct and self._current_item.get("item_id"):
+            self._review_queue.append(self._current_item["item_id"])
+
+        if not self._hint_used:
+            self.hint.setText(f"Category: {self._current_item['category']}")
 
         self._update_stats()
 
@@ -355,9 +665,11 @@ class QuizModePage(QWidget):
             btn.setEnabled(False)
 
     def hideEvent(self, event):
+        self._stop_reference_video()
         self._stop_camera()
         super().hideEvent(event)
 
     def closeEvent(self, event):
+        self._stop_reference_video()
         self._stop_camera()
         super().closeEvent(event)

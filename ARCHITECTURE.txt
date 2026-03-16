@@ -146,12 +146,12 @@ When you open the app:
     │  3. CHOOSE MODE │ ← Pick what you want to do
     └────────┬────────┘
              ↓
-    ┌────────┴────────┬─────────────┬──────────────┐
-    ↓                 ↓             ↓              ↓
-┌────────┐      ┌──────────┐  ┌──────────┐  ┌───────────┐
-│ LIVE   │      │ TUTORIAL │  │ LIBRARY  │  │ SETTINGS  │
-│ CAMERA │      │ LEARN    │  │ BROWSE   │  │ CUSTOMIZE │
-└────────┘      └──────────┘  └──────────┘  └───────────┘
+   ┌────────┴────────┬─────────────┬──────────────┬────────────┐
+   ↓                 ↓             ↓              ↓            ↓
+┌────────┐      ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌──────────┐
+│ LIVE   │      │ TUTORIAL │  │ QUIZ/    │  │ SETTINGS  │  │ FEATURES │
+│ CAMERA │      │ LEARN    │  │ STUDY    │  │ ACCOUNT+UI│  │ GUIDE    │
+└────────┘      └──────────┘  └──────────┘  └───────────┘  └──────────┘
 
 
 When you use LIVE CAMERA mode:
@@ -254,6 +254,11 @@ SPECIAL FEATURES EXPLAINED
    How: Complete challenges like "Sign 100 words"
    Why: Makes learning fun!
 
+🧠 PRACTICE SCHEDULER (SPACED REPETITION)
+   What: Smart review planner for quiz practice
+   How: Tracks each item performance and sets due dates
+   Why: Weak signs come back sooner, mastered signs less often
+
 🎓 TUTORIAL
    What: Lessons to learn sign language
    How: Step-by-step guides with pictures
@@ -288,7 +293,8 @@ signlanguage/
 │   ├── sign_visualizer.py ......... Text → sign visualization
 │   ├── pipeline.py ............... Legacy pipeline (compatibility)
 │   ├── voice_output.py ........... Voice synthesis
-│   └── analytics.py .............. Progress tracking
+│   ├── analytics.py .............. Progress tracking
+│   └── practice_scheduler.py ..... Spaced-repetition review scheduling
 │
 ├── detector/ ............. The eyes of the app
 │   ├── camera.py ......... Uses your webcam

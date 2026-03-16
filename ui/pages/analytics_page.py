@@ -70,189 +70,104 @@ class AnalyticsPage(QWidget):
         content.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(content)
         layout.setContentsMargins(32, 28, 32, 28)
-        layout.setSpacing(20)
+        layout.setSpacing(14)
 
-        # ── Get Data ──────────────────────────────────────────────
         progress = {}
         if analytics:
             progress = analytics.get_learning_progress(self.user_id)
 
-        # ── HEADER ────────────────────────────────────────────────
         header = QFrame()
         header.setStyleSheet(f"""
             QFrame {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {COLORS['primary']}15, stop:1 {COLORS['accent']}10);
+                background: {COLORS['bg_card']};
                 border: none;
-                border-radius: 16px;
+                border-radius: 12px;
             }}
         """)
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(28, 22, 28, 22)
+        header_layout.setContentsMargins(18, 14, 18, 14)
         header_layout.setSpacing(16)
 
-        title_col = QVBoxLayout()
-        title_col.setSpacing(4)
         title = QLabel("📊 Analytics & Progress")
         title.setStyleSheet(f"""
-            font-size: 24px; font-weight: 800;
+            font-size: 20px; font-weight: 800;
             color: {COLORS['text_primary']};
             background: transparent;
         """)
-        subtitle = QLabel("Track your sign language learning journey")
-        subtitle.setStyleSheet(f"""
-            font-size: 13px; color: {COLORS['text_muted']};
-            background: transparent;
-        """)
-        title_col.addWidget(title)
-        title_col.addWidget(subtitle)
-        header_layout.addLayout(title_col, 1)
+        header_layout.addWidget(title)
+        header_layout.addStretch()
 
         refresh_btn = QPushButton("🔄  Refresh")
         refresh_btn.setCursor(Qt.PointingHandCursor)
         refresh_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {COLORS['primary']};
-                color: white;
+                background: {COLORS['bg_input']};
+                color: {COLORS['text_primary']};
                 border: none;
-                border-radius: 10px;
-                padding: 10px 24px;
-                font-size: 13px; font-weight: 700;
+                border-radius: 8px;
+                padding: 8px 14px;
+                font-size: 12px; font-weight: 700;
             }}
             QPushButton:hover {{
-                background: {COLORS['primary_hover']};
+                background: {COLORS['bg_card_hover']};
             }}
         """)
         refresh_btn.clicked.connect(self.refresh)
         header_layout.addWidget(refresh_btn, alignment=Qt.AlignVCenter)
         layout.addWidget(header)
 
-        # ── STATS ROW ─────────────────────────────────────────────
-        stats_row = QHBoxLayout()
-        stats_row.setSpacing(14)
-
-        stats_meta = [
-            ("✋", "Total Signs", str(progress.get('total_signs_detected', 0)), COLORS['primary']),
-            ("📝", "Words Formed", str(progress.get('total_words', 0)), COLORS['accent']),
-            ("🔥", "Day Streak", f"{progress.get('current_streak', 0)}", COLORS['warning']),
-            ("⏱️", "Practice Time", f"{progress.get('total_practice_time', 0):.0f}m", COLORS['success']),
-        ]
-
-        for icon, label, value, color in stats_meta:
-            card = QFrame()
-            card.setStyleSheet(f"""
-                QFrame {{
-                    background: {COLORS['bg_card']};
-                    border: none;
-                    border-radius: 14px;
-                }}
-            """)
-            cl = QVBoxLayout(card)
-            cl.setContentsMargins(18, 16, 18, 16)
-            cl.setSpacing(8)
-
-            top = QHBoxLayout()
-            ic = QLabel(icon)
-            ic.setStyleSheet("font-size: 18px; background: transparent;")
-            tl = QLabel(label.upper())
-            tl.setStyleSheet(f"""
-                font-size: 10px; font-weight: 700;
-                color: {COLORS['text_muted']};
-                letter-spacing: 1px; background: transparent;
-            """)
-            top.addWidget(ic)
-            top.addWidget(tl)
-            top.addStretch()
-            cl.addLayout(top)
-
-            vl = QLabel(value)
-            vl.setStyleSheet(f"""
-                font-size: 26px; font-weight: 800;
-                color: {color};
-                background: transparent;
-            """)
-            cl.addWidget(vl)
-            stats_row.addWidget(card, 1)
-
-        layout.addLayout(stats_row)
-
-        # ── LEARNING PROGRESS ─────────────────────────────────────
-        sec_label = QLabel("🎯  LEARNING PROGRESS")
-        sec_label.setStyleSheet(f"""
-            font-size: 11px; font-weight: 700;
-            color: {COLORS['text_muted']};
-            letter-spacing: 1.5px; padding-top: 4px;
-        """)
-        layout.addWidget(sec_label)
-
-        progress_frame = QFrame()
-        progress_frame.setStyleSheet(f"""
+        summary = QFrame()
+        summary.setStyleSheet(f"""
             QFrame {{
                 background: {COLORS['bg_card']};
                 border: none;
-                border-radius: 14px;
+                border-radius: 12px;
             }}
         """)
-        pf_layout = QHBoxLayout(progress_frame)
-        pf_layout.setContentsMargins(24, 24, 24, 24)
-        pf_layout.setSpacing(24)
+        summary_layout = QGridLayout(summary)
+        summary_layout.setContentsMargins(16, 14, 16, 14)
+        summary_layout.setHorizontalSpacing(12)
+        summary_layout.setVerticalSpacing(10)
 
-        letters = progress.get('letters_learned', 0)
-        accuracy = progress.get('accuracy', 0)
-        achievements_count = progress.get('achievements_unlocked', 0)
-        total_achievements = progress.get('total_achievements', len(ACHIEVEMENTS))
-
-        rings_data = [
-            (letters, 26, "Alphabet", COLORS['primary']),
-            (int(accuracy), 100, "Accuracy", COLORS['success']),
-            (achievements_count, max(total_achievements, 1), "Achievements", COLORS['warning']),
+        stats_meta = [
+            ("Total Signs", str(progress.get('total_signs_detected', 0))),
+            ("Words Formed", str(progress.get('total_words', 0))),
+            ("Current Streak", str(progress.get('current_streak', 0))),
+            ("Practice Time", f"{progress.get('total_practice_time', 0):.0f}m"),
+            ("Alphabet", f"{progress.get('letters_learned', 0)}/26"),
+            ("Accuracy", f"{progress.get('accuracy', 0):.0f}%"),
         ]
 
-        for value, max_val, label, color in rings_data:
-            pct = int((value / max_val) * 100) if max_val > 0 else 0
-            ring_w = QFrame()
-            ring_w.setStyleSheet("background: transparent; border: none;")
-            ring_w.setFixedWidth(120)
-            rl = QVBoxLayout(ring_w)
-            rl.setAlignment(Qt.AlignCenter)
-            rl.setSpacing(8)
-
-            circle = QLabel(f"{pct}%")
-            circle.setStyleSheet(f"""
-                font-size: 22px; font-weight: 700;
-                color: {color};
-                background: {COLORS['bg_input']};
-                border: 4px solid {color};
-                border-radius: 40px;
-                min-width: 80px; min-height: 80px;
-                max-width: 80px; max-height: 80px;
+        for i, (label, value) in enumerate(stats_meta):
+            tile = QFrame()
+            tile.setStyleSheet(f"""
+                QFrame {{
+                    background: {COLORS['bg_input']};
+                    border: none;
+                    border-radius: 10px;
+                }}
             """)
-            circle.setAlignment(Qt.AlignCenter)
-            rl.addWidget(circle, alignment=Qt.AlignCenter)
+            tl = QVBoxLayout(tile)
+            tl.setContentsMargins(12, 10, 12, 10)
+            tl.setSpacing(3)
 
-            lbl = QLabel(label)
-            lbl.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 12px; background: transparent;")
-            lbl.setAlignment(Qt.AlignCenter)
-            rl.addWidget(lbl)
+            title_lbl = QLabel(label)
+            title_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; background: transparent;")
+            value_lbl = QLabel(value)
+            value_lbl.setStyleSheet(f"color: {COLORS['text_primary']}; font-size: 19px; font-weight: 800; background: transparent;")
 
-            val_lbl = QLabel(f"{value}/{max_val}")
-            val_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px; background: transparent;")
-            val_lbl.setAlignment(Qt.AlignCenter)
-            rl.addWidget(val_lbl)
+            tl.addWidget(title_lbl)
+            tl.addWidget(value_lbl)
 
-            pf_layout.addWidget(ring_w)
+            row = i // 3
+            col = i % 3
+            summary_layout.addWidget(tile, row, col)
 
-        pf_layout.addStretch()
-        layout.addWidget(progress_frame)
+        layout.addWidget(summary)
 
-        # ── MOST USED SIGNS ───────────────────────────────────────
-        sec_label2 = QLabel("📊  MOST USED SIGNS")
-        sec_label2.setStyleSheet(f"""
-            font-size: 11px; font-weight: 700;
-            color: {COLORS['text_muted']};
-            letter-spacing: 1.5px; padding-top: 4px;
-        """)
-        layout.addWidget(sec_label2)
+        section_title = QLabel("Most Used Signs")
+        section_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['text_primary']};")
+        layout.addWidget(section_title)
 
         usage_frame = QFrame()
         usage_frame.setStyleSheet(f"""
@@ -322,101 +237,12 @@ class AnalyticsPage(QWidget):
 
         layout.addWidget(usage_frame)
 
-        # ── ACHIEVEMENTS ──────────────────────────────────────────
-        ach_header = QHBoxLayout()
-        sec_label3 = QLabel("🏆  ACHIEVEMENTS")
-        sec_label3.setStyleSheet(f"""
-            font-size: 11px; font-weight: 700;
-            color: {COLORS['text_muted']};
-            letter-spacing: 1.5px; padding-top: 4px;
-        """)
-        ach_header.addWidget(sec_label3)
-        ach_header.addStretch()
+        points = QLabel(f"⭐ Total Points: {progress.get('total_points', 0)}")
+        points.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['warning']};")
+        layout.addWidget(points)
 
-        pts = QLabel(f"⭐ {progress.get('total_points', 0)} pts")
-        pts.setStyleSheet(f"""
-            font-size: 13px; font-weight: 700;
-            color: {COLORS['warning']};
-            background: transparent;
-        """)
-        ach_header.addWidget(pts)
-        layout.addLayout(ach_header)
-
-        badges_frame = QFrame()
-        badges_frame.setStyleSheet(f"""
-            QFrame {{
-                background: {COLORS['bg_card']};
-                border: none;
-                border-radius: 14px;
-            }}
-        """)
-        badges_grid = QGridLayout(badges_frame)
-        badges_grid.setContentsMargins(16, 16, 16, 16)
-        badges_grid.setSpacing(12)
-
-        achievements_data = {}
-        if analytics:
-            achievements_data = analytics.get_achievements(self.user_id)
-
-        achievement_list = achievements_data.get('achievements', [])
-        if not achievement_list:
-            achievement_list = [
-                {'icon': '👶', 'name': 'First Sign', 'description': 'Detect your first sign', 'unlocked': False, 'points': 5},
-                {'icon': '🌱', 'name': 'Getting Started', 'description': 'Detect 10 signs', 'unlocked': False, 'points': 10},
-                {'icon': '✋', 'name': 'Regular Signer', 'description': 'Detect 50 signs', 'unlocked': False, 'points': 25},
-                {'icon': '🔥', 'name': 'Dedicated', 'description': 'Detect 100 signs', 'unlocked': False, 'points': 50},
-                {'icon': '🔤', 'name': 'ABC Master', 'description': 'Learn all 26 letters', 'unlocked': False, 'points': 100},
-                {'icon': '📅', 'name': 'Week Warrior', 'description': '7-day streak', 'unlocked': False, 'points': 70},
-            ]
-
-        for i, ach in enumerate(achievement_list[:12]):
-            unlocked = ach.get('unlocked', False)
-            badge = QFrame()
-            badge.setFixedHeight(110)
-            badge.setStyleSheet(f"""
-                QFrame {{
-                    background: {COLORS['bg_card_hover'] if unlocked else COLORS['bg_input']};
-                    border: none;
-                    border-radius: 12px;
-                }}
-            """)
-            bl = QVBoxLayout(badge)
-            bl.setContentsMargins(10, 10, 10, 10)
-            bl.setSpacing(4)
-            bl.setAlignment(Qt.AlignCenter)
-
-            icon_lbl = QLabel(ach.get('icon', '🏆'))
-            icon_lbl.setStyleSheet("font-size: 28px; background: transparent;")
-            icon_lbl.setAlignment(Qt.AlignCenter)
-            bl.addWidget(icon_lbl)
-
-            name_lbl = QLabel(ach.get('name', 'Achievement'))
-            name_lbl.setStyleSheet(f"""
-                font-size: 11px; font-weight: 600;
-                color: {COLORS['text_primary'] if unlocked else COLORS['text_muted']};
-                background: transparent;
-            """)
-            name_lbl.setAlignment(Qt.AlignCenter)
-            name_lbl.setWordWrap(True)
-            bl.addWidget(name_lbl)
-
-            if unlocked:
-                pts_lbl = QLabel(f"+{ach.get('points', 0)}")
-                pts_lbl.setStyleSheet(f"color: {COLORS['success']}; font-size: 10px; font-weight: 700; background: transparent;")
-                pts_lbl.setAlignment(Qt.AlignCenter)
-                bl.addWidget(pts_lbl)
-
-            badges_grid.addWidget(badge, i // 6, i % 6)
-
-        layout.addWidget(badges_frame)
-
-        # ── RECOMMENDATIONS ───────────────────────────────────────
-        sec_label4 = QLabel("💡  RECOMMENDATIONS")
-        sec_label4.setStyleSheet(f"""
-            font-size: 11px; font-weight: 700;
-            color: {COLORS['text_muted']};
-            letter-spacing: 1.5px; padding-top: 4px;
-        """)
+        sec_label4 = QLabel("Recommendations")
+        sec_label4.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['text_primary']};")
         layout.addWidget(sec_label4)
 
         rec_frame = QFrame()
