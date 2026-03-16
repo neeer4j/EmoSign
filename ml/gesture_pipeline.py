@@ -49,11 +49,14 @@ class ZJDetector:
     """
 
     # Frames the tip must move above MOTION_THRESHOLD before we fire
-    MIN_MOTION_FRAMES = 12          # raised: needs a long, sustained stroke
+    MIN_MOTION_FRAMES = 14          # stricter: needs longer sustained stroke
     # Per-frame fingertip displacement (normalized by palm scale) to count as "moving"
-    MOTION_THRESHOLD = 0.035        # raised: only track real motion, not jitter
+    MOTION_THRESHOLD = 0.042        # stricter: ignore micro-jitter motion
     # Total accumulated displacement needed to confirm the gesture
-    MIN_TOTAL_DISP = 0.40           # raised significantly: short strokes won't fire
+    MIN_TOTAL_DISP = 0.55           # stricter: short/small strokes won't fire
+    # Net span requirements (normalized by palm scale) to reject tiny movements
+    MIN_Z_X_SPAN = 0.18             # Z must travel meaningfully left/right
+    MIN_J_Y_SPAN = 0.16             # J must travel meaningfully down/up
     # Cooldown frames after firing — prevents immediate re-detection (~1 s @ 30 fps)
     COOLDOWN_FRAMES = 30            # raised: give time between detections
 
@@ -62,6 +65,9 @@ class ZJDetector:
         self._motion_frames: int = 0           # frames with tip displacement ≥ MOTION_THRESHOLD
         self._total_disp: float = 0.0          # cumulative normalised tip displacement
         self._prev_tip: Optional[np.ndarray] = None
+        self._first_tip: Optional[np.ndarray] = None
+        self._max_x_span: float = 0.0
+        self._max_y_span: float = 0.0
         self._cooldown: int = 0
 
     # ------------------------------------------------------------------
@@ -110,11 +116,27 @@ class ZJDetector:
                 self._motion_frames += 1
                 self._total_disp += disp
 
+        if self._first_tip is None:
+            self._first_tip = tip.copy()
+        else:
+            dx = abs(float(tip[0] - self._first_tip[0])) / scale
+            dy = abs(float(tip[1] - self._first_tip[1])) / scale
+            self._max_x_span = max(self._max_x_span, dx)
+            self._max_y_span = max(self._max_y_span, dy)
+
         self._prev_tip = tip
 
         # Fire once enough sustained movement has accumulated
-        if (self._motion_frames >= self.MIN_MOTION_FRAMES
-                and self._total_disp >= self.MIN_TOTAL_DISP):
+        span_ok = (
+            (mode == 'Z' and self._max_x_span >= self.MIN_Z_X_SPAN)
+            or (mode == 'J' and self._max_y_span >= self.MIN_J_Y_SPAN)
+        )
+
+        if (
+            self._motion_frames >= self.MIN_MOTION_FRAMES
+            and self._total_disp >= self.MIN_TOTAL_DISP
+            and span_ok
+        ):
             label = mode
             self._reset()
             self._cooldown = self.COOLDOWN_FRAMES
@@ -160,6 +182,9 @@ class ZJDetector:
         self._motion_frames = 0
         self._total_disp = 0.0
         self._prev_tip = None
+        self._first_tip = None
+        self._max_x_span = 0.0
+        self._max_y_span = 0.0
 
 
 class GesturePipeline:

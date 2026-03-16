@@ -215,10 +215,6 @@ class NotificationSettingsDialog(QDialog):
         self.tip_notify.setChecked(False)
         layout.addWidget(self.tip_notify)
         
-        self.sound_enabled = QCheckBox("Enable notification sounds")
-        self.sound_enabled.setChecked(True)
-        layout.addWidget(self.sound_enabled)
-        
         layout.addStretch()
         
         save_btn = QPushButton("Save Settings")
@@ -241,7 +237,6 @@ class NotificationSettingsDialog(QDialog):
             "achievement_notify": self.achievement_notify.isChecked(),
             "streak_notify": self.streak_notify.isChecked(),
             "tip_notify": self.tip_notify.isChecked(),
-            "sound_enabled": self.sound_enabled.isChecked()
         }
         config_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         config_path = os.path.join(config_dir, "notification_settings.json")
@@ -322,10 +317,8 @@ class HelpSupportDialog(QDialog):
             <li>Face your palm towards the camera</li>
         </ul>
         
-        <h3>📧 Contact Support</h3>
-        <p>For additional help, please contact:<br>
-        <b>Email:</b> support@emosign.app<br>
-        <b>GitHub:</b> github.com/emosign/app</p>
+        <h3>✅ Quick Help</h3>
+        <p>Use Tutorials, Features, and Settings pages for guided help and setup tips.</p>
         """)
         layout.addWidget(help_content)
         

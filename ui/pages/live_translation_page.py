@@ -549,6 +549,7 @@ class LiveTranslationPage(QWidget):
         # State
         self._is_translating = False
         self._current_source = "camera"
+        self._last_emotion_text = "🙂 Emotion: --"
         # Text committed by pressing ␣ Space — new gestures append after it
         self._committed_text: str = ""
         
@@ -585,12 +586,30 @@ class LiveTranslationPage(QWidget):
             background-color: {COLORS['bg_card']};
             border-radius: 4px;
         """)
+
+        self.emotion_label = QLabel(self._last_emotion_text)
+        self.emotion_label.setAlignment(Qt.AlignCenter)
+        self.emotion_label.setStyleSheet(f"""
+            color: {COLORS['text_primary']};
+            font-size: 13px;
+            font-weight: 700;
+            padding: 6px 12px;
+            background-color: {COLORS['bg_input']};
+            border-radius: 8px;
+        """)
         
         header.addWidget(info_label)
         header.addWidget(self.fps_label)
         header.addWidget(self.model_label)
         
         main_layout.addLayout(header)
+
+        emotion_row = QHBoxLayout()
+        emotion_row.setContentsMargins(0, 0, 0, 0)
+        emotion_row.addStretch()
+        emotion_row.addWidget(self.emotion_label)
+        emotion_row.addStretch()
+        main_layout.addLayout(emotion_row)
         
         # === SOURCE TABS ===
         self.source_selector = SourceSelector()
@@ -609,6 +628,7 @@ class LiveTranslationPage(QWidget):
         
         # Camera widget
         self.camera_widget = CameraWidget()
+        self.camera_widget.set_emotion_overlay_enabled(False)
         self.source_stack.addWidget(self.camera_widget)
         
         # Video widget
@@ -712,6 +732,7 @@ class LiveTranslationPage(QWidget):
         self.camera_widget.heuristic_gesture_detected.connect(self._on_heuristic_gesture)
         self.camera_widget.dynamic_gesture_detected.connect(self._on_dynamic_gesture)
         self.camera_widget.nn_gesture_detected.connect(self._on_nn_gesture)
+        self.camera_widget.emotion_detected.connect(self._on_emotion_detected)
         
         # Capture-window completion → feed confirmed gesture to engine
         self.gesture_display.capture_complete.connect(self._on_capture_complete)
@@ -1116,6 +1137,25 @@ class LiveTranslationPage(QWidget):
                 # Allow same gesture to register again after hand re-enters
                 self.engine.reset_held()
                 self.pipeline.mark_no_hand()
+
+    @Slot(str, float)
+    def _on_emotion_detected(self, emotion_name: str, _confidence: float):
+        """Show a compact persistent emotion indicator without blinking."""
+        if not emotion_name:
+            return
+        emoji_map = {
+            "happy": "🙂",
+            "sad": "🙁",
+            "angry": "😠",
+            "surprised": "😮",
+            "neutral": "😐",
+            "fear": "😟",
+            "disgust": "🤢",
+        }
+        key = str(emotion_name).strip().lower()
+        emoji = emoji_map.get(key, "😐")
+        self._last_emotion_text = f"{emoji} Emotion: {key.capitalize()}"
+        self.emotion_label.setText(self._last_emotion_text)
     
     def _on_video_finished(self):
         """Handle video playback finished."""

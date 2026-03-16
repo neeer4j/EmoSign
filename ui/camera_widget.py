@@ -51,6 +51,7 @@ class CameraWidget(QFrame):
         self._emotion_buffer_size = 8      # vote over last N frames (increased for stability)
         self.dynamic_gestures_enabled = True  # Toggle for dynamic gesture recognition
         self.emotion_detection_enabled = True  # Toggle for emotion detection
+        self.emotion_overlay_enabled = True    # Draw emotion text on video frame
         self.heuristic_threshold = 0.5        # Confidence threshold for heuristic classifier
         self._frame_count = 0                 # Frame counter for throttling
         self._emotion_skip_frames = 5         # Run emotion detection every Nth frame (reduced load)
@@ -179,7 +180,7 @@ class CameraWidget(QFrame):
         frame_bgr = self._draw_tracking_overlay(frame_bgr)
         
         # Draw face emotion overlay
-        if self.emotion_detection_enabled and emotion_result:
+        if self.emotion_detection_enabled and self.emotion_overlay_enabled and emotion_result:
             frame_bgr = self.face_detector.draw_landmarks(
                 frame_bgr, 
                 show_mesh=False, 
@@ -280,6 +281,10 @@ class CameraWidget(QFrame):
         """Enable or disable emotion detection."""
         self.emotion_detection_enabled = enabled
         self._last_emotion = None
+
+    def set_emotion_overlay_enabled(self, enabled: bool):
+        """Enable or disable on-frame emotion text overlay."""
+        self.emotion_overlay_enabled = enabled
     
     def release(self):
         """Clean up resources."""

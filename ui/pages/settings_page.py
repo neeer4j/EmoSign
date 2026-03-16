@@ -19,12 +19,10 @@ from ui.page_header import make_page_header
 try:
     from ui.pages.profile_page import (
         ChangePasswordDialog,
-        NotificationSettingsDialog,
         HelpSupportDialog,
     )
 except Exception:
     ChangePasswordDialog = None
-    NotificationSettingsDialog = None
     HelpSupportDialog = None
 
 try:
@@ -197,7 +195,6 @@ class SettingsPage(QWidget):
         action_row.setSpacing(8)
         for label, handler in [
             ("Change Password", self._change_password),
-            ("Notifications", self._show_notifications),
             ("Export Data", self._export_data),
             ("Help", self._show_help),
         ]:
@@ -385,13 +382,6 @@ class SettingsPage(QWidget):
             QMessageBox.warning(self, "Not Available", "Password dialog is unavailable.")
             return
         dialog = ChangePasswordDialog(self.db, self.user.get("id", ""), self)
-        dialog.exec()
-
-    def _show_notifications(self):
-        if not NotificationSettingsDialog:
-            QMessageBox.warning(self, "Not Available", "Notification settings are unavailable.")
-            return
-        dialog = NotificationSettingsDialog(self)
         dialog.exec()
 
     def _show_help(self):
