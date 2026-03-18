@@ -1,10 +1,10 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 777,
+  "total_signs_detected": 795,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 12,
+  "total_sessions": 13,
   "total_practice_time": 1.6353112666666667,
   "sign_counts": {
     "Y": 15,
@@ -90,10 +90,19 @@
     "3CZC Hello (wave)": 2,
     "3CZC Hello (wave) C": 5,
     "CC": 1,
-    "CCZ": 1
+    "CCZ": 1,
+    "X": 2,
+    "X8": 2,
+    "X87": 2,
+    "X87F": 2,
+    "X87FW": 3,
+    "X87FW6": 2,
+    "X87FW68": 2,
+    "X87FW689": 2,
+    "X87FW689F": 1
   },
-  "correct_predictions": 777,
-  "total_predictions": 777,
+  "correct_predictions": 795,
+  "total_predictions": 795,
   "current_streak": 1,
   "longest_streak": 1,
   "last_active_date": "2026-03-18",
@@ -181,7 +190,16 @@
     "3CZC Hello (wave)",
     "3CZC Hello (wave) C",
     "CC",
-    "CCZ"
+    "CCZ",
+    "X",
+    "X8",
+    "X87",
+    "X87F",
+    "X87FW",
+    "X87FW6",
+    "X87FW68",
+    "X87FW689",
+    "X87FW689F"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [
