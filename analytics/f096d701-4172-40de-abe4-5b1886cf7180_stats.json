@@ -1,10 +1,10 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 773,
+  "total_signs_detected": 777,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 11,
+  "total_sessions": 12,
   "total_practice_time": 1.6353112666666667,
   "sign_counts": {
     "Y": 15,
@@ -40,7 +40,7 @@
     "OOOBYY5XB5AA": 8,
     "OOOBYY5XB5AAP": 28,
     "OOOBYY5XB5AAPZ": 150,
-    "C": 5,
+    "C": 7,
     "C5": 2,
     "C5B": 2,
     "C5B5": 3,
@@ -88,10 +88,12 @@
     "3CZ": 2,
     "3CZC": 13,
     "3CZC Hello (wave)": 2,
-    "3CZC Hello (wave) C": 5
+    "3CZC Hello (wave) C": 5,
+    "CC": 1,
+    "CCZ": 1
   },
-  "correct_predictions": 773,
-  "total_predictions": 773,
+  "correct_predictions": 777,
+  "total_predictions": 777,
   "current_streak": 1,
   "longest_streak": 1,
   "last_active_date": "2026-03-18",
@@ -177,7 +179,9 @@
     "3CZ",
     "3CZC",
     "3CZC Hello (wave)",
-    "3CZC Hello (wave) C"
+    "3CZC Hello (wave) C",
+    "CC",
+    "CCZ"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [

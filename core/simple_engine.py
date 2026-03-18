@@ -69,7 +69,7 @@ class TranslationResult:
 LETTERS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 # Numbers
-NUMBERS = set("0123456789")
+NUMBERS = {str(i) for i in range(11)}
 
 # Word-level gestures (single gesture = word)
 WORD_GESTURES = {
@@ -642,7 +642,7 @@ def get_trainable_gestures() -> List[Tuple[str, str, str]]:
         trainable.append((letter, letter, "letter"))
     
     # Numbers
-    for num in "0123456789":
+    for num in sorted(NUMBERS, key=lambda n: int(n)):
         trainable.append((num, num, "number"))
     
     # Key word gestures
