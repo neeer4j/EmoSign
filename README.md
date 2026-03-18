@@ -1,16 +1,19 @@
 
+
 <div align="center">
-	<img src="https://img.icons8.com/color/96/000000/hand-sign.png" width="80"/>
-  
-	<h1>🤟 EmoSign</h1>
-	<p><b>Real-time Sign Language Learning & Translation App</b></p>
-	<p>
-		<img src="https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white"/>
-		<img src="https://img.shields.io/badge/PySide6-Qt-green?logo=qt&logoColor=white"/>
-		<img src="https://img.shields.io/badge/MediaPipe-vision-orange?logo=google&logoColor=white"/>
-		<img src="https://img.shields.io/badge/Keras-ML-red?logo=keras&logoColor=white"/>
-	</p>
-	<sub>Hybrid ML (heuristics + Keras static/dynamic models)</sub>
+
+![Hand Sign](https://img.icons8.com/color/96/000000/hand-sign.png)
+
+<h1>🤟 EmoSign</h1>
+<p><b>Real-time Sign Language Learning & Translation App</b></p>
+<p>
+<img src="https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white"/>
+<img src="https://img.shields.io/badge/PySide6-Qt-green?logo=qt&logoColor=white"/>
+<img src="https://img.shields.io/badge/MediaPipe-vision-orange?logo=google&logoColor=white"/>
+<img src="https://img.shields.io/badge/Keras-ML-red?logo=keras&logoColor=white"/>
+</p>
+<sub>Hybrid ML (heuristics + Keras static/dynamic models)</sub>
+
 </div>
 
 
@@ -91,8 +94,12 @@ python main.py
 
 ---
 
+
 <div align="center">
-	<img src="https://img.icons8.com/color/48/000000/american-sign-language-interpreting.png"/>
-	<br><b>Happy Signing!</b>
+
+![ASL Interpreting](https://img.icons8.com/color/48/000000/american-sign-language-interpreting.png)
+
+<br><b>Happy Signing!</b>
+
 </div>
 
