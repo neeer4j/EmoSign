@@ -20,6 +20,7 @@ import cv2
 
 import os
 import glob
+import re
 
 from ui.styles import COLORS
 from ui.hand_widget import AnimatedHandWidget
@@ -1869,6 +1870,7 @@ class _PhraseLesson(QWidget):
     ICON  = ""
     DATA  = []   # list of dicts: {name, emoji, desc, steps, tip?}
     ASSETS_FOLDER = ""  # subclasses set e.g. 'numbers', 'alphabets'
+    ENABLE_CAMERA_VERIFY = True
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2049,6 +2051,17 @@ class _PhraseLesson(QWidget):
         cam_btns.addWidget(self._stop_cam_btn)
         right_layout.addLayout(cam_btns)
 
+        self._camera_section_widgets = [
+            cam_title,
+            self._cam_container,
+            self._cam_feedback,
+            self._start_cam_btn,
+            self._stop_cam_btn,
+        ]
+        if not self.ENABLE_CAMERA_VERIFY:
+            for widget in self._camera_section_widgets:
+                widget.hide()
+
         right_layout.addStretch()
         content_layout.addWidget(right_panel, 2)
 
@@ -2206,7 +2219,7 @@ class _PhraseLesson(QWidget):
         assets_root = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__)))), 'assets')
         search_folders = [self.ASSETS_FOLDER] if self.ASSETS_FOLDER else []
-        for fb in ('asl_hands', 'numbers', 'alphabets'):
+        for fb in ('asl_hands', 'numbers', 'alphabets', 'gestures'):
             if fb not in search_folders:
                 search_folders.append(fb)
         all_matches = []
@@ -2231,19 +2244,21 @@ class _PhraseLesson(QWidget):
         self._ref_img_frame.hide()
 
     def _find_gesture_video(self, name: str) -> str:
-        """Return path to assets/gestures/<name>.mp4 if it exists, else ''."""
+        """Return path to a matching video in assets/gestures, if available."""
         gestures_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             'assets', 'gestures',
         )
-        for variant in [
-            name.lower().replace(' ', ''),
-            name.lower().replace(' ', '_'),
-            name.lower(),
-        ]:
-            p = os.path.join(gestures_dir, f'{variant}.mp4')
-            if os.path.exists(p):
-                return p
+        if not os.path.isdir(gestures_dir):
+            return ''
+
+        target = re.sub(r'[^a-z0-9]', '', name.lower())
+        for ext in ('*.mp4', '*.webm', '*.avi', '*.mov', '*.mkv'):
+            for path in glob.glob(os.path.join(gestures_dir, ext)):
+                stem = os.path.splitext(os.path.basename(path))[0]
+                normalized = re.sub(r'[^a-z0-9]', '', stem.lower())
+                if normalized == target:
+                    return path
         return ''
 
     def _prev(self):
@@ -2817,7 +2832,8 @@ class CommonSignsLesson(_PhraseLesson):
     TITLE = "Essential Signs"
     ICON  = "🤟"
     ASSETS_FOLDER = "asl_hands"
-    DATA  = [
+    ENABLE_CAMERA_VERIFY = False
+    BASE_DATA = [
         {
             'name': 'Hello', 'emoji': '👋',
             'desc': 'A flat-hand salute that starts at your forehead and moves forward.',
@@ -2852,14 +2868,14 @@ class CommonSignsLesson(_PhraseLesson):
             'video_path': None,
         },
         {
-            'name': 'I', 'emoji': '👆',
+            'name': 'I or Me', 'emoji': '👆',
             'desc': 'Point your index finger at yourself — simple and direct.',
             'steps': [
                 '1️⃣  Extend your dominant index finger',
                 '2️⃣  Point it toward your own chest (not your face)',
                 '3️⃣  A small, clear point — no movement needed',
             ],
-            'tip': 'In ASL, pointing at yourself means "I" or "me".',
+            'tip': 'In ASL, this means "I" or "me" depending on sentence context.',
             'video_path': None,
         },
         {
@@ -2929,6 +2945,61 @@ class CommonSignsLesson(_PhraseLesson):
             'video_path': None,
         },
     ]
+    DATA = BASE_DATA
+
+    def __init__(self, parent=None):
+        self.DATA = self._build_data_from_assets()
+        super().__init__(parent)
+
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        return re.sub(r'[^a-z0-9]', '', name.lower())
+
+    @staticmethod
+    def _display_name_from_stem(stem: str) -> str:
+        cleaned = stem.replace('_', ' ').replace('-', ' ')
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        return cleaned.title() if cleaned else stem
+
+    def _build_data_from_assets(self):
+        """Append gesture demos found in assets/gestures to the lesson list."""
+        data = [dict(item) for item in self.BASE_DATA]
+        known = {self._normalize_name(item.get('name', '')) for item in data}
+
+        gestures_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            'assets', 'gestures',
+        )
+        if not os.path.isdir(gestures_dir):
+            return data
+
+        extras = []
+        seen_extras = set()
+        for ext in ('*.mp4', '*.webm', '*.avi', '*.mov', '*.mkv'):
+            for path in glob.glob(os.path.join(gestures_dir, ext)):
+                stem = os.path.splitext(os.path.basename(path))[0]
+                name = self._display_name_from_stem(stem)
+                normalized = self._normalize_name(name)
+                if not normalized or normalized in known or normalized in seen_extras:
+                    continue
+
+                seen_extras.add(normalized)
+                extras.append({
+                    'name': name,
+                    'emoji': '🤟',
+                    'desc': 'Watch the demo clip and copy the hand motion and orientation.',
+                    'steps': [
+                        '1️⃣  Watch the demo once to understand the full movement',
+                        '2️⃣  Repeat it slowly, matching hand shape and direction',
+                        '3️⃣  Practice until you can perform it smoothly without pausing',
+                    ],
+                    'tip': 'Open Practice Lab after this lesson to test recognition live.',
+                    'video_path': path,
+                })
+
+        extras.sort(key=lambda item: item['name'].lower())
+        data.extend(extras)
+        return data
 
 
 # ─────────────────────────────────────────────────────────────

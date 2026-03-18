@@ -371,6 +371,7 @@ class MainWindow(QMainWindow):
         
         # Training page for predefined gestures
         self.training_page = TrainingPage()
+        self.training_page.set_admin_access(self._is_admin_user())
         self.page_stack.addWidget(self.training_page)
         
         # Game page
@@ -534,6 +535,7 @@ class MainWindow(QMainWindow):
             is_admin = self._is_admin_user(saved_user)
             self.sidebar.show_admin_link(is_admin)
             self.sidebar.show_training_link(is_admin)
+            self.training_page.set_admin_access(is_admin)
             self.sidebar.show()
 
             # Navigate back to same page
@@ -621,6 +623,7 @@ class MainWindow(QMainWindow):
         is_admin = self._is_admin_user(user_data)
         self.sidebar.show_admin_link(is_admin)
         self.sidebar.show_training_link(is_admin)
+        self.training_page.set_admin_access(is_admin)
         
         # Show main app
         self.sidebar.show()
@@ -657,6 +660,7 @@ class MainWindow(QMainWindow):
         # Hide admin link
         self.sidebar.show_admin_link(False)
         self.sidebar.show_training_link(False)
+        self.training_page.set_admin_access(False)
         
         # Clear the login form for fresh state
         self.login_page.clear_form()

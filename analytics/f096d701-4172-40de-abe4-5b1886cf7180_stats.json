@@ -1,10 +1,10 @@
 {
   "user_id": "f096d701-4172-40de-abe4-5b1886cf7180",
   "total_translations": 0,
-  "total_signs_detected": 734,
+  "total_signs_detected": 773,
   "total_words_formed": 0,
   "total_sentences": 0,
-  "total_sessions": 10,
+  "total_sessions": 11,
   "total_practice_time": 1.6353112666666667,
   "sign_counts": {
     "Y": 15,
@@ -75,13 +75,26 @@
     "YOO": 13,
     "YOOO": 14,
     "YOOOO": 16,
-    "YOOOON": 9
+    "YOOOON": 9,
+    "L": 2,
+    "LL": 2,
+    "LL1": 2,
+    "LL1V": 2,
+    "LL1VV": 1,
+    "LL1VVZ": 2,
+    "LL1VVZV": 4,
+    "3": 1,
+    "3C": 1,
+    "3CZ": 2,
+    "3CZC": 13,
+    "3CZC Hello (wave)": 2,
+    "3CZC Hello (wave) C": 5
   },
-  "correct_predictions": 734,
-  "total_predictions": 734,
+  "correct_predictions": 773,
+  "total_predictions": 773,
   "current_streak": 1,
   "longest_streak": 1,
-  "last_active_date": "2026-03-04",
+  "last_active_date": "2026-03-18",
   "signs_learned": [
     "Y",
     "S",
@@ -151,7 +164,20 @@
     "YOO",
     "YOOO",
     "YOOOO",
-    "YOOOON"
+    "YOOOON",
+    "L",
+    "LL",
+    "LL1",
+    "LL1V",
+    "LL1VV",
+    "LL1VVZ",
+    "LL1VVZV",
+    "3",
+    "3C",
+    "3CZ",
+    "3CZC",
+    "3CZC Hello (wave)",
+    "3CZC Hello (wave) C"
   ],
   "signs_mastered": [],
   "unlocked_achievements": [
@@ -178,6 +204,107 @@
     "2026-02-17",
     "2026-02-19",
     "2026-02-23",
-    "2026-03-04"
-  ]
+    "2026-03-04",
+    "2026-03-18"
+  ],
+  "review_schedule": {
+    "alphabet:B": {
+      "ease": 2.15,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 1,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:A": {
+      "ease": 2.1,
+      "interval_days": 0,
+      "repetitions": 0,
+      "correct_count": 0,
+      "wrong_count": 1,
+      "due_date": "2026-03-18",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:C": {
+      "ease": 2.35,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 0,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:D": {
+      "ease": 2.35,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 0,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:E": {
+      "ease": 2.35,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 0,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:F": {
+      "ease": 2.35,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 0,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:G": {
+      "ease": 2.35,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 0,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:H": {
+      "ease": 2.35,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 0,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    },
+    "alphabet:I": {
+      "ease": 2.35,
+      "interval_days": 1,
+      "repetitions": 1,
+      "correct_count": 1,
+      "wrong_count": 0,
+      "due_date": "2026-03-19",
+      "last_review_date": "2026-03-18"
+    }
+  },
+  "quiz_history": [
+    {
+      "timestamp": "2026-03-18T11:23:58.800945",
+      "total_questions": 10,
+      "correct_answers": 8,
+      "wrong_answers": 2,
+      "score": 8,
+      "accuracy": 80.0,
+      "verdict": "Strong"
+    }
+  ],
+  "quiz_topic_performance": {
+    "Alphabet": {
+      "attempts": 10,
+      "correct": 8
+    }
+  }
 }

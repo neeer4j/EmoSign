@@ -61,6 +61,3 @@ python main.py
 - Hold static signs briefly before switching
 - Use deliberate motion for dynamic signs (like J/Z)
 
-## License
-
-Internal/Project-specific. Add a `LICENSE` file if you plan to open-source.

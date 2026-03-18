@@ -4,6 +4,7 @@ Quiz Mode - richer sign learning quiz with optional camera verification.
 import glob
 import os
 import random
+import re
 from collections import deque
 
 from PySide6.QtWidgets import (
@@ -55,6 +56,17 @@ class QuizModePage(QWidget):
         self._start_new_quiz()
 
     def _build_quiz_items(self):
+        def normalize_key(text: str) -> str:
+            return re.sub(r'[^a-z0-9]', '', (text or '').lower())
+
+        def display_from_stem(stem: str) -> str:
+            spaced = stem.replace('_', ' ').replace('-', ' ')
+            spaced = re.sub(r'\s+', ' ', spaced).strip()
+            title = spaced.title() if spaced else stem
+            if normalize_key(title) == 'iorme':
+                return 'I or Me'
+            return title
+
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
         items = []
 
@@ -99,24 +111,28 @@ class QuizModePage(QWidget):
 
         # Gesture video cards (play clip in reference panel)
         gesture_dir = os.path.join(base_dir, "gestures")
-        for path in sorted(glob.glob(os.path.join(gesture_dir, "*.mp4"))):
-            if not os.path.isfile(path):
-                continue
-            stem = os.path.splitext(os.path.basename(path))[0]
-            normalized_stem = stem.strip().lower()
-            display = stem.upper()
-            if len(display) == 1 and display.isalpha():
-                display = f"{display} (Gesture)"
-            items.append({
-                "item_id": f"gesture:{normalized_stem}",
-                "answer": display,
-                "display": display,
-                "category": "Gesture",
-                "image_path": None,
-                "video_path": path,
-                "hint": f"Common gesture: {stem.replace('_', ' ')}.",
-                "camera_target": None,
-            })
+        seen_gestures = set()
+        for ext in ("*.mp4", "*.webm", "*.avi", "*.mov", "*.mkv"):
+            for path in sorted(glob.glob(os.path.join(gesture_dir, ext))):
+                if not os.path.isfile(path):
+                    continue
+                stem = os.path.splitext(os.path.basename(path))[0]
+                normalized_stem = normalize_key(stem)
+                if not normalized_stem or normalized_stem in seen_gestures:
+                    continue
+                seen_gestures.add(normalized_stem)
+
+                display = display_from_stem(stem)
+                items.append({
+                    "item_id": f"gesture:{normalized_stem}",
+                    "answer": display,
+                    "display": display,
+                    "category": "Gesture",
+                    "image_path": None,
+                    "video_path": path,
+                    "hint": f"Common gesture: {display}.",
+                    "camera_target": None,
+                })
 
         return items
 

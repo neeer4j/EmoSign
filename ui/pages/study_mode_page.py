@@ -1,7 +1,10 @@
 """
 Self Study Mode - rich learning page with optional camera verification.
 """
+import glob
+import os
 import random
+import re
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -19,16 +22,74 @@ class StudyModePage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._letters = sorted([
-            key for key in SIGN_GUIDE.keys()
-            if len(key) == 1 and key.isalpha()
-        ])
+        self._cards = self._build_study_cards()
         self._index = 0
         self._visited = set()
         self._show_steps = True
         self._camera_widget = None
         self._setup_ui()
         self._refresh_card()
+
+    def _normalize_key(self, text: str) -> str:
+        return re.sub(r'[^a-z0-9]', '', (text or '').lower())
+
+    def _display_name_from_stem(self, stem: str) -> str:
+        pretty = stem.replace('_', ' ').replace('-', ' ')
+        pretty = re.sub(r'\s+', ' ', pretty).strip()
+        return pretty.title() if pretty else stem
+
+    def _build_study_cards(self):
+        cards = []
+
+        # Alphabet cards from SIGN_GUIDE
+        for key in sorted(k for k in SIGN_GUIDE.keys() if len(k) == 1 and k.isalpha()):
+            guide = SIGN_GUIDE.get(key, {})
+            cards.append({
+                "id": f"alpha:{key}",
+                "title": key,
+                "emoji": guide.get("emoji", "✋"),
+                "imagine": guide.get("imagine", ""),
+                "steps": guide.get("do_this", [])[:3],
+                "fingers": guide.get("fingers", [0, 0, 0, 0, 0]),
+                "motion": guide.get("motion"),
+                "camera_target": key,
+                "category": "Alphabet",
+            })
+
+        # Gesture cards from assets/gestures
+        assets_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+        gestures_dir = os.path.join(assets_root, "gestures")
+        known = {self._normalize_key(c["title"]) for c in cards}
+
+        if os.path.isdir(gestures_dir):
+            seen = set()
+            for ext in ("*.mp4", "*.webm", "*.avi", "*.mov", "*.mkv"):
+                for path in glob.glob(os.path.join(gestures_dir, ext)):
+                    if not os.path.isfile(path):
+                        continue
+                    stem = os.path.splitext(os.path.basename(path))[0]
+                    title = self._display_name_from_stem(stem)
+                    normalized = self._normalize_key(title)
+                    if not normalized or normalized in known or normalized in seen:
+                        continue
+                    seen.add(normalized)
+                    cards.append({
+                        "id": f"gesture:{normalized}",
+                        "title": title,
+                        "emoji": "🤟",
+                        "imagine": "Study this gesture by watching the demo and matching hand shape + motion.",
+                        "steps": [
+                            "1️⃣  Watch the full movement once from start to finish",
+                            "2️⃣  Repeat slowly, matching hand direction and timing",
+                            "3️⃣  Practice until the motion feels smooth and natural",
+                        ],
+                        "fingers": [0, 0, 0, 0, 0],
+                        "motion": "Video-guided gesture",
+                        "camera_target": None,
+                        "category": "Gesture",
+                    })
+
+        return cards
 
     def _setup_ui(self):
         root = QVBoxLayout(self)
@@ -236,6 +297,14 @@ class StudyModePage(QWidget):
         root.addLayout(controls)
 
     def _start_camera(self):
+        if not self._cards:
+            return
+        current = self._cards[self._index]
+        if not current.get("camera_target"):
+            self.verify_feedback.setText("ℹ️ Camera verify is not used for gesture study cards")
+            self.verify_feedback.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px; font-weight: 700;")
+            return
+
         try:
             from ui.camera_widget import CameraWidget
         except Exception:
@@ -279,7 +348,9 @@ class StudyModePage(QWidget):
     def _handle_prediction(self, label: str, confidence: float):
         if not label:
             return
-        target = self._letters[self._index] if self._letters else ""
+        target = self._cards[self._index].get("camera_target", "") if self._cards else ""
+        if not target:
+            return
         guess = label.upper().strip()
         if guess == target:
             self.verify_feedback.setText(f"✅ Correct match: {guess} ({confidence:.0%})")
@@ -294,16 +365,16 @@ class StudyModePage(QWidget):
         self._refresh_card()
 
     def _update_metrics(self):
-        total = len(self._letters) if self._letters else 1
+        total = len(self._cards) if self._cards else 1
         seen = len(self._visited)
         coverage = int((seen / total) * 100)
-        motion_signs = len([k for k in self._letters if SIGN_GUIDE.get(k, {}).get("motion")])
+        motion_signs = len([c for c in self._cards if c.get("motion")])
         self.cards_seen_label.setText(f"Cards Seen: {seen}")
         self.coverage_label.setText(f"Coverage: {coverage}%")
         self.motion_label.setText(f"Motion Signs: {motion_signs}")
 
     def _refresh_card(self):
-        if not self._letters:
+        if not self._cards:
             self.title.setText("No signs available")
             self.imagine.setText("")
             self.steps.setText("")
@@ -311,47 +382,55 @@ class StudyModePage(QWidget):
             self.expected_label.setText("Target: -")
             return
 
-        letter = self._letters[self._index]
-        self._visited.add(letter)
-        guide = SIGN_GUIDE.get(letter, {})
+        card = self._cards[self._index]
+        self._visited.add(card["id"])
 
-        emoji = guide.get("emoji", "✋")
-        self.title.setText(f"{emoji}  {letter}")
-        self.imagine.setText(guide.get("imagine", ""))
-        self.expected_label.setText(f"Target: {letter}")
+        self.title.setText(f"{card.get('emoji', '✋')}  {card.get('title', '')}")
+        self.imagine.setText(card.get("imagine", ""))
+        cam_target = card.get("camera_target")
+        self.expected_label.setText(f"Target: {cam_target}" if cam_target else "Target: Study Only")
 
-        do_this = guide.get("do_this", [])[:3]
+        do_this = card.get("steps", [])[:3]
         if self._show_steps:
             self.steps.setText("\n".join(do_this) if do_this else "No instructions available.")
         else:
             self.steps.setText("Think first: how would you shape your hand for this sign?")
 
-        fingers = guide.get("fingers", [0, 0, 0, 0, 0])
+        fingers = card.get("fingers", [0, 0, 0, 0, 0])
         names = ["Thumb", "Index", "Middle", "Ring", "Pinky"]
         for idx, name in enumerate(names):
             self._finger_bars[name].setValue(int(fingers[idx]) if idx < len(fingers) else 0)
 
-        motion = guide.get("motion")
+        motion = card.get("motion")
         motion_text = f" • Motion: {motion}" if motion else ""
-        self.meta.setText(f"Card {self._index + 1}/{len(self._letters)}{motion_text}")
+        self.meta.setText(f"Card {self._index + 1}/{len(self._cards)} • {card.get('category', 'General')}{motion_text}")
+
+        self.start_cam_btn.setEnabled(bool(cam_target))
+        self.stop_cam_btn.setEnabled(False)
+        if not cam_target and self._camera_widget and self._camera_widget.is_running:
+            self._stop_camera()
+        elif not cam_target:
+            self.verify_feedback.setText("ℹ️ Camera verify disabled for this card")
+            self.verify_feedback.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; font-weight: 600;")
+
         self._update_metrics()
 
     def _prev(self):
-        if not self._letters:
+        if not self._cards:
             return
-        self._index = (self._index - 1) % len(self._letters)
+        self._index = (self._index - 1) % len(self._cards)
         self._refresh_card()
 
     def _next(self):
-        if not self._letters:
+        if not self._cards:
             return
-        self._index = (self._index + 1) % len(self._letters)
+        self._index = (self._index + 1) % len(self._cards)
         self._refresh_card()
 
     def _shuffle(self):
-        if not self._letters:
+        if not self._cards:
             return
-        self._index = random.randint(0, len(self._letters) - 1)
+        self._index = random.randint(0, len(self._cards) - 1)
         self._refresh_card()
 
     def hideEvent(self, event):

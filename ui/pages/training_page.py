@@ -9,11 +9,11 @@ This page allows users to:
 5. Train the model with collected data
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QGridLayout, QScrollArea,
     QProgressBar, QComboBox, QStackedWidget, QMessageBox,
     QListWidget, QListWidgetItem, QSplitter, QSpinBox,
-    QLineEdit, QInputDialog
+    QLineEdit
 )
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
 from PySide6.QtGui import QFont, QColor
@@ -28,7 +28,7 @@ from ml.keras_trainer import KerasTrainer
 from detector.landmark_normalizer import LandmarkNormalizer
 from core.simple_engine import (
     get_trainable_gestures, LETTERS, WORD_GESTURES,
-    add_custom_gesture, remove_custom_gesture, load_custom_gestures
+    add_custom_gesture, remove_custom_gesture
 )
 
 import os
@@ -671,6 +671,7 @@ class TrainingPage(QWidget):
         self._dynamic_sequences = []   # list of (label, [30 frames of landmarks])
         self._current_sequence = []     # current 30-frame recording buffer
         self._is_recording_dynamic = False
+        self._is_admin = False
         
         self._setup_ui()
         self._connect_signals()
@@ -731,16 +732,44 @@ class TrainingPage(QWidget):
         self.training_controls.train_requested.connect(self._train_model)
         self.training_controls.clear_requested.connect(self._clear_data)
         self.camera_widget.features_ready.connect(self._on_features)
+
+    def set_admin_access(self, is_admin: bool):
+        """Enable training actions only for admin users."""
+        self._is_admin = bool(is_admin)
+        if not self._is_admin and self._is_capturing:
+            self._stop_capture()
+
+        self.gesture_selector.setEnabled(self._is_admin)
+        self.training_controls.clear_btn.setEnabled(self._is_admin)
+
+        if self._is_admin:
+            self.training_controls.capture_btn.setEnabled(bool(self._current_gesture))
+            total = self.data_collector.get_sample_count() + len(self._dynamic_sequences) * 30
+            self.training_controls.train_btn.setEnabled(total >= 50)
+            self.training_controls.instructions.setText(
+                "Select a gesture, then hold it in front of the camera"
+            )
+            return
+
+        self.training_controls.capture_btn.setEnabled(False)
+        self.training_controls.train_btn.setEnabled(False)
+        self.training_controls.instructions.setText(
+            "🔒 Training is available for admin accounts only."
+        )
     
     @Slot(str, str)
     def _on_gesture_selected(self, gesture_id: str, display_name: str):
         """Handle gesture selection."""
+        if not self._is_admin:
+            return
         self._current_gesture = gesture_id
         self.training_controls.set_gesture(gesture_id, display_name)
         self.data_collector.set_label(gesture_id)
     
     def _toggle_capture(self):
         """Toggle sample capture."""
+        if not self._is_admin:
+            return
         if self._is_capturing:
             self._stop_capture()
         else:
@@ -808,7 +837,7 @@ class TrainingPage(QWidget):
         )
         # Enable training if we have enough static OR dynamic data
         total = self.data_collector.get_sample_count() + len(self._dynamic_sequences) * 30
-        self.training_controls.train_btn.setEnabled(total >= 50)
+        self.training_controls.train_btn.setEnabled(self._is_admin and total >= 50)
     
     @Slot(object)
     def _on_features(self, features):
@@ -837,6 +866,14 @@ class TrainingPage(QWidget):
     
     def _train_model(self):
         """Train the model with collected data."""
+        if not self._is_admin:
+            QMessageBox.warning(
+                self,
+                "Access Denied",
+                "Model training is available for admin users only."
+            )
+            return
+
         total_samples = self.data_collector.get_sample_count()
         total_dynamic = len(self._dynamic_sequences)
         
@@ -999,6 +1036,8 @@ class TrainingPage(QWidget):
     
     def _clear_data(self):
         """Clear collected data."""
+        if not self._is_admin:
+            return
         reply = QMessageBox.question(
             self,
             "Clear Data",
