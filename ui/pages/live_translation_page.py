@@ -436,7 +436,7 @@ class CurrentGestureDisplay(QFrame):
 
 
 class SourceSelector(QFrame):
-    """Source selection tabs (camera/video)."""
+    """Source selection tabs (camera only)."""
     
     source_changed = Signal(str)  # 'camera' or 'video'
     
@@ -455,14 +455,16 @@ class SourceSelector(QFrame):
         self.camera_btn.setChecked(True)
         self.camera_btn.clicked.connect(lambda: self._set_source("camera"))
         self._apply_tab_style(self.camera_btn, True)
-        
-        self.video_btn = QPushButton("🎬 Video File")
-        self.video_btn.setCheckable(True)
-        self.video_btn.clicked.connect(lambda: self._set_source("video"))
-        self._apply_tab_style(self.video_btn, False)
-        
+
         layout.addWidget(self.camera_btn)
-        layout.addWidget(self.video_btn)
+        camera_only_note = QLabel("Camera translation only")
+        camera_only_note.setStyleSheet(f"""
+            color: {COLORS['text_secondary']};
+            font-size: 11px;
+            padding: 0 12px;
+            background: transparent;
+        """)
+        layout.addWidget(camera_only_note)
         layout.addStretch()
     
     def _apply_tab_style(self, btn: QPushButton, active: bool):
@@ -492,12 +494,12 @@ class SourceSelector(QFrame):
             """)
     
     def _set_source(self, source: str):
-        self._current = source
-        self.camera_btn.setChecked(source == "camera")
-        self.video_btn.setChecked(source == "video")
-        self._apply_tab_style(self.camera_btn, source == "camera")
-        self._apply_tab_style(self.video_btn, source == "video")
-        self.source_changed.emit(source)
+        if source != "camera":
+            return
+        self._current = "camera"
+        self.camera_btn.setChecked(True)
+        self._apply_tab_style(self.camera_btn, True)
+        self.source_changed.emit("camera")
     
     def get_source(self) -> str:
         return self._current
@@ -886,27 +888,16 @@ class LiveTranslationPage(QWidget):
     
     def _on_source_changed(self, source: str):
         """Handle source tab change."""
-        self._current_source = source
+        self._current_source = "camera"
         
         # Stop any ongoing translation
         if self._is_translating:
             self._stop_translation()
         
-        # Switch stack
-        if source == "camera":
-            self.source_stack.setCurrentIndex(0)
-            self.camera_controls.show()
-            self.start_btn.setText("▶️ Start Translation")
-        elif source == "video":
-            self.source_stack.setCurrentIndex(1)
-            self.camera_controls.show()
-            self.start_btn.setText("▶️ Enable Translation")
-        
-        # Stop other sources
-        if source != "camera" and self.camera_widget.is_running:
-            self.camera_widget.stop()
-        if source != "video" and self.video_widget.is_active():
-            self.video_widget.release()
+        # Camera-only mode
+        self.source_stack.setCurrentIndex(0)
+        self.camera_controls.show()
+        self.start_btn.setText("▶️ Start Translation")
     
     def _on_video_loaded(self, filename: str):
         """Handle video loaded - prepare for translation."""

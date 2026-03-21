@@ -153,6 +153,67 @@ class AdminPage(QWidget):
 
         main.addLayout(stats_row)
 
+        # ── INSIGHTS ───────────────────────────────────────────────
+        insights = QFrame()
+        insights.setObjectName("adminInsightsRow")
+        insights.setStyleSheet(f"""
+            QFrame#adminInsightsRow {{
+                background: {COLORS['bg_card']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 12px;
+            }}
+            QFrame#adminInsightItem {{
+                background: transparent;
+                border: none;
+            }}
+            QLabel#adminInsightTitle {{
+                color: {COLORS['text_muted']};
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                background: transparent;
+                border: none;
+                padding: 0;
+                margin: 0;
+            }}
+            QLabel#adminInsightValue {{
+                color: {COLORS['text_primary']};
+                font-size: 14px;
+                font-weight: 700;
+                background: transparent;
+                border: none;
+                padding: 0;
+                margin: 0;
+            }}
+        """)
+        insights_layout = QHBoxLayout(insights)
+        insights_layout.setContentsMargins(16, 14, 16, 14)
+        insights_layout.setSpacing(18)
+
+        self._insight_values = {}
+        insight_meta = [
+            ("new_users_7d", "NEW USERS (7D)", "0"),
+            ("top_sign", "TOP SIGN", "—"),
+            ("top_user", "TOP USER", "—"),
+            ("last_activity", "LAST TRANSLATION", "—"),
+        ]
+
+        for key, label, value in insight_meta:
+            item = QFrame()
+            item.setObjectName("adminInsightItem")
+            col = QVBoxLayout(item)
+            col.setSpacing(4)
+            title_lbl = QLabel(label)
+            title_lbl.setObjectName("adminInsightTitle")
+            val_lbl = QLabel(value)
+            val_lbl.setObjectName("adminInsightValue")
+            col.addWidget(title_lbl)
+            col.addWidget(val_lbl)
+            insights_layout.addWidget(item, 1)
+            self._insight_values[key] = val_lbl
+
+        main.addWidget(insights)
+
         # ── TABS ──────────────────────────────────────────────────
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(f"""
@@ -204,9 +265,18 @@ class AdminPage(QWidget):
                 border: none;
                 color: {COLORS['text_primary']};
                 font-size: 13px;
+                outline: none;
+                gridline-color: transparent;
+                selection-background-color: {COLORS['primary']}1f;
+                selection-color: {COLORS['text_primary']};
+            }}
+            QTableWidget:focus {{
+                outline: none;
+                border: none;
             }}
             QTableWidget::item {{
                 padding: 10px 14px;
+                border: none;
                 border-bottom: 1px solid {COLORS['border']};
             }}
             QTableWidget::item:hover {{
@@ -215,6 +285,9 @@ class AdminPage(QWidget):
             QTableWidget::item:selected {{
                 background: {COLORS['primary']}20;
                 color: {COLORS['text_primary']};
+                border: none;
+                border-bottom: 1px solid {COLORS['border']};
+                outline: none;
             }}
             QHeaderView::section {{
                 background: {COLORS['bg_input']};
@@ -236,6 +309,7 @@ class AdminPage(QWidget):
         table.setAlternatingRowColors(False)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(False)
+        table.setFocusPolicy(Qt.NoFocus)
         return table
 
     # ── Users tab ─────────────────────────────────────────────────
@@ -364,6 +438,50 @@ class AdminPage(QWidget):
                 row = cursor.fetchone()
                 avg = row['avg_c'] if row['avg_c'] else 0
                 self._stat_labels[3].setText(f"{avg*100:.1f}%")
+
+                cursor.execute("""
+                    SELECT COUNT(*) AS cnt
+                    FROM users
+                    WHERE created_at > datetime('now', '-7 day')
+                """)
+                new_users = cursor.fetchone()['cnt']
+                self._insight_values['new_users_7d'].setText(str(new_users))
+
+                cursor.execute("""
+                    SELECT sign_label, COUNT(*) AS cnt
+                    FROM translations
+                    GROUP BY sign_label
+                    ORDER BY cnt DESC
+                    LIMIT 1
+                """)
+                top_sign_row = cursor.fetchone()
+                if top_sign_row:
+                    self._insight_values['top_sign'].setText(
+                        f"{top_sign_row['sign_label']} ({top_sign_row['cnt']})"
+                    )
+                else:
+                    self._insight_values['top_sign'].setText("—")
+
+                cursor.execute("""
+                    SELECT u.email, COUNT(*) AS cnt
+                    FROM translations t
+                    JOIN users u ON u.id = t.user_id
+                    GROUP BY t.user_id
+                    ORDER BY cnt DESC
+                    LIMIT 1
+                """)
+                top_user_row = cursor.fetchone()
+                if top_user_row:
+                    self._insight_values['top_user'].setText(
+                        f"{top_user_row['email']} ({top_user_row['cnt']})"
+                    )
+                else:
+                    self._insight_values['top_user'].setText("—")
+
+                cursor.execute("SELECT MAX(created_at) AS latest FROM translations")
+                latest_row = cursor.fetchone()
+                latest = latest_row['latest'] if latest_row else None
+                self._insight_values['last_activity'].setText(str(latest) if latest else "—")
         except Exception:
             pass
 

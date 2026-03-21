@@ -106,6 +106,7 @@ class Sidebar(QFrame):
         self.setObjectName("sidebar")
         self.setFixedWidth(220)
         self._current_button = None
+        self._admin_mode = False
         self._setup_ui()
     
     def _setup_ui(self):
@@ -135,6 +136,22 @@ class Sidebar(QFrame):
         brand_layout.addStretch()
         
         layout.addLayout(brand_layout)
+
+        self.mode_badge = QLabel("ADMIN VIEW")
+        self.mode_badge.setAlignment(Qt.AlignCenter)
+        self.mode_badge.hide()
+        self.mode_badge.setStyleSheet("""
+            color: #fef2f2;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1.4px;
+            background: #991b1b;
+            border-radius: 8px;
+            padding: 4px 8px;
+            margin: 2px 8px;
+        """)
+        layout.addWidget(self.mode_badge)
+
         layout.addSpacing(24)
         
         # Navigation buttons
@@ -155,9 +172,9 @@ class Sidebar(QFrame):
         
         # Divider
         layout.addSpacing(8)
-        divider1 = QLabel("LEARN")
-        divider1.setObjectName("sidebarDivider")
-        divider1.setStyleSheet(f"""
+        self.divider1 = QLabel("LEARN")
+        self.divider1.setObjectName("sidebarDivider")
+        self.divider1.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 10px;
             font-weight: 700;
@@ -165,7 +182,7 @@ class Sidebar(QFrame):
             background: transparent;
             padding: 8px 8px 4px 8px;
         """)
-        layout.addWidget(divider1)
+        layout.addWidget(self.divider1)
         
         learn_items = [
             ("tutorial", "📚", "Tutorials"),
@@ -180,6 +197,20 @@ class Sidebar(QFrame):
             self.nav_buttons[page_id] = btn
             layout.addWidget(btn)
 
+        # Admin section
+        self.admin_divider = QLabel("ADMIN")
+        self.admin_divider.setObjectName("sidebarDivider")
+        self.admin_divider.hide()
+        self.admin_divider.setStyleSheet(f"""
+            color: #ef4444;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1.4px;
+            background: transparent;
+            padding: 8px 8px 4px 8px;
+        """)
+        layout.addWidget(self.admin_divider)
+
         # Admin-only training button
         self.training_btn = NavButton("🎯", "Train Gestures")
         self.training_btn.clicked.connect(lambda: self._on_nav_click("training"))
@@ -189,9 +220,9 @@ class Sidebar(QFrame):
         
         # Divider
         layout.addSpacing(8)
-        divider2 = QLabel("ACCOUNT")
-        divider2.setObjectName("sidebarDivider")
-        divider2.setStyleSheet(f"""
+        self.divider2 = QLabel("ACCOUNT")
+        self.divider2.setObjectName("sidebarDivider")
+        self.divider2.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 10px;
             font-weight: 700;
@@ -199,7 +230,7 @@ class Sidebar(QFrame):
             background: transparent;
             padding: 8px 8px 4px 8px;
         """)
-        layout.addWidget(divider2)
+        layout.addWidget(self.divider2)
         
         account_items = [
             ("analytics", "📊", "Analytics"),
@@ -254,16 +285,35 @@ class Sidebar(QFrame):
             btn.setChecked(btn_id == page_id)
             
     def show_admin_link(self, show=True):
-        if show:
-            self.admin_btn.show()
-        else:
-            self.admin_btn.hide()
+        self.set_admin_mode(show)
 
     def show_training_link(self, show=True):
-        if show:
-            self.training_btn.show()
+        if self._admin_mode:
+            self.training_btn.setVisible(show)
         else:
             self.training_btn.hide()
+
+    def set_admin_mode(self, enabled=True):
+        """Toggle between regular-user navigation and admin-exclusive navigation."""
+        self._admin_mode = bool(enabled)
+        regular_pages = [
+            "dashboard", "live", "conversation", "history",
+            "tutorial", "study", "quiz", "game",
+            "analytics", "settings", "features"
+        ]
+
+        for page_id in regular_pages:
+            btn = self.nav_buttons.get(page_id)
+            if btn:
+                btn.setVisible(not self._admin_mode)
+
+        self.divider1.setVisible(not self._admin_mode)
+        self.divider2.setVisible(not self._admin_mode)
+        self.mode_badge.setVisible(self._admin_mode)
+
+        self.admin_divider.setVisible(self._admin_mode)
+        self.training_btn.setVisible(self._admin_mode)
+        self.admin_btn.setVisible(self._admin_mode)
 
 
 class MainWindow(QMainWindow):
@@ -297,7 +347,8 @@ class MainWindow(QMainWindow):
             return True
         if str(user.get("role", "")).lower() == "admin":
             return True
-        return user.get("email") == "admin"
+        identity = str(user.get("username") or user.get("email") or "").strip().lower()
+        return identity == "admin"
     
     def _setup_ui(self):
         """Setup the main UI."""
@@ -533,14 +584,16 @@ class MainWindow(QMainWindow):
             self.analytics_page.update_user(saved_user.get('id', 'guest'))
             self.quiz_page.update_user(saved_user.get('id', 'guest'))
             is_admin = self._is_admin_user(saved_user)
-            self.sidebar.show_admin_link(is_admin)
-            self.sidebar.show_training_link(is_admin)
+            self.sidebar.set_admin_mode(is_admin)
             self.training_page.set_admin_access(is_admin)
             self.sidebar.show()
 
             # Navigate back to same page
             if current_page_name and current_page_name != 'login':
-                self._navigate_to(current_page_name)
+                if is_admin and current_page_name not in {'admin', 'training'}:
+                    self._navigate_to('admin')
+                else:
+                    self._navigate_to(current_page_name)
         else:
             self._show_login()
     
@@ -621,8 +674,7 @@ class MainWindow(QMainWindow):
         
         # Check if admin
         is_admin = self._is_admin_user(user_data)
-        self.sidebar.show_admin_link(is_admin)
-        self.sidebar.show_training_link(is_admin)
+        self.sidebar.set_admin_mode(is_admin)
         self.training_page.set_admin_access(is_admin)
         
         # Show main app
@@ -658,8 +710,7 @@ class MainWindow(QMainWindow):
         self.quiz_page.update_user('guest')
         
         # Hide admin link
-        self.sidebar.show_admin_link(False)
-        self.sidebar.show_training_link(False)
+        self.sidebar.set_admin_mode(False)
         self.training_page.set_admin_access(False)
         
         # Clear the login form for fresh state
@@ -672,6 +723,9 @@ class MainWindow(QMainWindow):
         """Navigate to a page."""
         if page_id == "profile":
             page_id = "settings"
+
+        if self._is_admin_user() and page_id not in {"admin", "training"}:
+            page_id = "admin"
 
         # Route guards
         if page_id in {"admin", "training"} and not self._is_admin_user():

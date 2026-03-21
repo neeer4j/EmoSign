@@ -1,0 +1,67 @@
+SIGNLANGUAGE APP - DATABASE TABLES (NOTEPAD FRIENDLY)
+Generated: 2026-03-21
+Database file: signlanguage.db
+Source of truth: backend/services/db.py
+
+============================================================
+TABLE 1: users
+============================================================
++------------+-----------+----------+----------+-----------------------------+-------------------------------+
+| Column     | Type      | Nullable | Key      | Default                     | Notes                         |
++------------+-----------+----------+----------+-----------------------------+-------------------------------+
+| id         | TEXT      | NO       | PK       | -                           | User UUID                     |
+| email      | TEXT      | NO       | UNIQUE   | -                           | Lowercased username/email     |
+| password_hash | TEXT   | NO       | -        | -                           | PBKDF2-SHA256 hash            |
+| salt       | TEXT      | NO       | -        | -                           | Random per-user salt          |
+| created_at | TIMESTAMP | YES      | -        | CURRENT_TIMESTAMP           | User creation timestamp       |
++------------+-----------+----------+----------+-----------------------------+-------------------------------+
+
+============================================================
+TABLE 2: sessions
+============================================================
++------------+-----------+----------+----------------------+-----------------------------+-------------------------------+
+| Column     | Type      | Nullable | Key                  | Default                     | Notes                         |
++------------+-----------+----------+----------------------+-----------------------------+-------------------------------+
+| id         | TEXT      | NO       | PK                   | -                           | Session UUID                  |
+| user_id    | TEXT      | NO       | FK -> users(id)      | -                           | Owner user                    |
+| token      | TEXT      | NO       | UNIQUE               | -                           | Session auth token            |
+| created_at | TIMESTAMP | YES      | -                    | CURRENT_TIMESTAMP           | Session creation time         |
+| expires_at | TIMESTAMP | NO       | -                    | -                           | Expiry timestamp              |
++------------+-----------+----------+----------------------+-----------------------------+-------------------------------+
+
+============================================================
+TABLE 3: translations
+============================================================
++-------------+-----------+----------+----------------------+-----------------------------+-------------------------------+
+| Column      | Type      | Nullable | Key                  | Default                     | Notes                         |
++-------------+-----------+----------+----------------------+-----------------------------+-------------------------------+
+| id          | TEXT      | NO       | PK                   | -                           | Translation UUID              |
+| user_id     | TEXT      | NO       | FK -> users(id)      | -                           | Owner user                    |
+| sign_label  | TEXT      | NO       | -                    | -                           | Predicted sign label          |
+| confidence  | REAL      | NO       | -                    | -                           | Model confidence score        |
+| gesture_type| TEXT      | YES      | -                    | 'static'                    | static/dynamic/etc            |
+| created_at  | TIMESTAMP | YES      | -                    | CURRENT_TIMESTAMP           | Translation time              |
++-------------+-----------+----------+----------------------+-----------------------------+-------------------------------+
+
+============================================================
+INDEXES
+============================================================
++-------------------------------+-------------+-----------------------+
+| Index Name                    | Table       | Columns               |
++-------------------------------+-------------+-----------------------+
+| idx_translations_user_id      | translations| user_id               |
+| idx_translations_created_at   | translations| created_at DESC       |
+| idx_sessions_token            | sessions    | token                 |
++-------------------------------+-------------+-----------------------+
+
+============================================================
+RELATIONSHIPS
+============================================================
+1) sessions.user_id -> users.id (ON DELETE CASCADE)
+2) translations.user_id -> users.id (ON DELETE CASCADE)
+
+============================================================
+NOTES
+============================================================
+- All SQL tables used by the app are listed above.
+- No other CREATE TABLE statements exist in the codebase.
