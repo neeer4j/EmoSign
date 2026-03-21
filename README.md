@@ -2,9 +2,7 @@
 
 <div align="center">
 
-![Hand Sign](https://img.icons8.com/color/96/000000/hand-sign.png)
-
-<h1>🤟 EmoSign</h1>
+<h1> EmoSign</h1>
 <p><b>Real-time Sign Language Learning & Translation App</b></p>
 <p>
 <img src="https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white"/>
@@ -97,7 +95,6 @@ python main.py
 
 <div align="center">
 
-![ASL Interpreting](https://img.icons8.com/color/48/000000/american-sign-language-interpreting.png)
 
 <br><b>Happy Signing!</b>
 
