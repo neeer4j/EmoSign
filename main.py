@@ -168,7 +168,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog='signlanguage',
-        description=f'{__title__} v{__version__} - {__description__}',
+        description=f'{__title__} - {__description__}',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 EXAMPLES:
@@ -297,7 +297,7 @@ def print_startup_banner(logger: logging.Logger):
     banner = f"""
     +====================================================================+
     |                                                                    |
-    |           SIGN LANGUAGE TRANSLATOR  v{__version__}                   |
+    |                SIGN LANGUAGE TRANSLATOR                              |
     |                                                                    |
     |    Real-time sign language detection and translation system       |
     |    Sentence-level translation - Two-way communication             |
@@ -308,10 +308,10 @@ def print_startup_banner(logger: logging.Logger):
         print(banner)
     except UnicodeEncodeError:
         # Fallback for terminals that don't support the characters
-        print(f"\n  SIGN LANGUAGE TRANSLATOR v{__version__}\n")
+        print("\n  SIGN LANGUAGE TRANSLATOR\n")
     
     # Log startup info
-    logger.info(f"Starting {__title__} v{__version__}")
+    logger.info(f"Starting {__title__}")
     logger.info(f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
     logger.info(f"Working directory: {PROJECT_ROOT}")
 
@@ -410,7 +410,7 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
     
     # Configure application
     app.setApplicationName(__title__)
-    app.setApplicationVersion(__version__)
+    app.setApplicationVersion("")
     app.setOrganizationName("SignLanguageProject")
     
     # Set application icon (window title bar + taskbar)
@@ -436,7 +436,7 @@ def launch_gui(args: argparse.Namespace, logger: logging.Logger):
     
     # Create and show main window
     window = MainWindow()
-    window.setWindowTitle(f"EmoSign v{__version__}")
+    window.setWindowTitle("EmoSign")
     window.showMaximized()
     
     logger.info("Application started successfully")

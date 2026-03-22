@@ -647,13 +647,10 @@ class ProfilePage(QWidget):
         
         app_lbl = QLabel("EmoSign")
         app_lbl.setStyleSheet(f"font-weight: 700; color: {COLORS['text_primary']}; background: transparent;")
-        ver_lbl = QLabel("v2.0.0")
-        ver_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; background: transparent;")
         made_lbl = QLabel("Made with ❤️ using Python, MediaPipe & scikit-learn")
         made_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px; background: transparent;")
         
         footer_layout.addWidget(app_lbl)
-        footer_layout.addWidget(ver_lbl)
         footer_layout.addStretch()
         footer_layout.addWidget(made_lbl)
         

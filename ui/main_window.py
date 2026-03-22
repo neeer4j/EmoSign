@@ -255,15 +255,14 @@ class Sidebar(QFrame):
         
         layout.addSpacing(6)
         
-        # Version info
-        version_label = QLabel("v3.0.0")
-        version_label.setStyleSheet(f"""
+        app_label = QLabel("EmoSign")
+        app_label.setStyleSheet(f"""
             color: {COLORS['text_muted']};
             font-size: 11px;
             background: transparent;
         """)
-        version_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(version_label)
+        app_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(app_label)
     
     def _on_nav_click(self, page_id):
         self.navigate.emit(page_id)
@@ -352,7 +351,7 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Setup the main UI."""
-        self.setWindowTitle("EmoSign v2.0.0")
+        self.setWindowTitle("EmoSign")
         self.setMinimumSize(1400, 900)
         self.setStyleSheet(DARK_THEME)
         

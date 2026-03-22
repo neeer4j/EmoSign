@@ -158,9 +158,19 @@ class ControlPanel(QWidget):
             self.stop_collection.emit()
 
     def _ensure_one_mode(self):
-        # Optional: logic if we want mutually exclusive modes, 
-        # but currently user could want both. Keeping simple.
-        pass
+        sender = self.sender()
+
+        if sender is self.static_btn and self.static_btn.isChecked():
+            self.dynamic_btn.setChecked(False)
+        elif sender is self.dynamic_btn and self.dynamic_btn.isChecked():
+            self.static_btn.setChecked(False)
+
+        # Prevent an invalid state where both modes are unchecked.
+        if not self.static_btn.isChecked() and not self.dynamic_btn.isChecked():
+            if sender is self.dynamic_btn:
+                self.dynamic_btn.setChecked(True)
+            else:
+                self.static_btn.setChecked(True)
 
     def update_sample_count(self, count):
         self.sample_count.setText(f"{count} samples")
