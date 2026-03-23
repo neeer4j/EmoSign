@@ -1,0 +1,63 @@
+=====================================================
+EMOSIGN v3.6 - TECH STACK
+=====================================================
+
+
+LAYERS AT A GLANCE
+------------------
+    FRONTEND        →  PySide6 (Qt6)
+    BACKEND         →  Python 3.8+ with core/ modules
+    DATABASE        →  SQLite
+    COMPUTER VISION →  OpenCV + MediaPipe
+    MACHINE LEARNING→  TensorFlow / Keras (+ scikit-learn backup)
+    AUDIO           →  pyttsx3
+    UTILITIES       →  numpy, pyperclip, ReportLab, python-dotenv
+
+
+=====================================================
+EVERY TECHNOLOGY — ONE LINE EACH
+=====================================================
+
+    PySide6          [FRONTEND]        The toolkit that builds the app's windows, buttons, and pages.
+    QSS Styles       [FRONTEND]        Like CSS but for desktop — makes the app look dark/clean/themed.
+    
+    Python 3.8+      [BACKEND]         The programming language everything is written in.
+    python-dotenv    [BACKEND]         Loads settings from a .env file at startup.
+    asyncio          [BACKEND]         Keeps the UI from freezing when the app reads/writes data.
+    core/ modules    [BACKEND]         All the logic: building sentences, translating signs, exporting, quiz scheduling.
+    
+    SQLite           [DATABASE]        A single local file (signlanguage.db) that stores users, sessions, and history.
+    hashlib+secrets  [DATABASE/AUTH]   Hashes passwords securely and generates safe session tokens.
+    
+    OpenCV           [COMPUTER VISION] Opens the webcam and reads video frames in real time.
+    MediaPipe        [COMPUTER VISION] Google's model that finds 21 hand landmarks + face emotions per frame.
+    LandmarkNormalizer [COMPUTER VISION] Scales everyone's hand to the same size so the model works for all users.
+    
+    TensorFlow/Keras [MACHINE LEARNING] Runs the two neural networks (MLP + LSTM) that recognize which sign you're making.
+    Keras Static MLP [MACHINE LEARNING] Recognizes still hand poses — letters A-Z and numbers 0-9.  ~99% accuracy.
+    Keras LSTM       [MACHINE LEARNING] Recognizes moving gestures — letters J and Z.  ~98% accuracy.
+    GesturePipeline  [MACHINE LEARNING] Decides which model to use (still hand → MLP, moving hand → LSTM).
+    scikit-learn     [MACHINE LEARNING] Runs the old backup Random Forest model if Keras isn't available.
+    Heuristic Rules  [MACHINE LEARNING] Geometry-based fallback — reads fingers like "thumb up = A" when ML fails.
+    
+    pyttsx3          [AUDIO]           Speaks the translated text out loud using the OS voice engine. Works offline.
+    
+    numpy            [UTILITY]         Does fast math on landmark coordinate arrays.
+    pyperclip        [UTILITY]         Copies the translation text to your clipboard.
+    ReportLab        [UTILITY]         Creates PDF files when you export your translation history.
+    uuid             [UTILITY]         Generates unique IDs for users, sessions, and translations.
+
+
+=====================================================
+INSTALL (copy-paste)
+=====================================================
+
+    pip install PySide6 opencv-python mediapipe scikit-learn numpy
+                pyttsx3 pyperclip reportlab tensorflow python-dotenv
+
+⚠️  Don't install torch/PyTorch — the app no longer uses it.
+
+
+=====================================================
+Built with anger by nagaraaj
+=====================================================
