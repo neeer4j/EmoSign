@@ -1,0 +1,48 @@
+{
+  "user_id": "74688391-d805-4dbb-9a7d-34c83571c5d2",
+  "total_translations": 0,
+  "total_signs_detected": 58,
+  "total_words_formed": 0,
+  "total_sentences": 0,
+  "total_sessions": 2,
+  "total_practice_time": 0.34707973333333336,
+  "sign_counts": {
+    "D": 13,
+    "DL": 9,
+    "DLL": 10,
+    "DLLD": 18,
+    "DLLDD": 8
+  },
+  "correct_predictions": 58,
+  "total_predictions": 58,
+  "current_streak": 1,
+  "longest_streak": 1,
+  "last_active_date": "2026-03-04",
+  "signs_learned": [
+    "D",
+    "DL",
+    "DLL",
+    "DLLD",
+    "DLLDD"
+  ],
+  "signs_mastered": [],
+  "unlocked_achievements": [
+    "first_sign",
+    "practice_10",
+    "accuracy_80",
+    "accuracy_95",
+    "practice_50"
+  ],
+  "achievement_dates": {
+    "first_sign": "2026-03-04T19:51:58.362875",
+    "practice_10": "2026-03-04T19:52:02.535168",
+    "accuracy_80": "2026-03-04T19:52:03.050718",
+    "accuracy_95": "2026-03-04T19:52:03.050718",
+    "practice_50": "2026-03-04T19:52:21.071611"
+  },
+  "total_points": 240,
+  "session_dates": [
+    "2026-02-22",
+    "2026-03-04"
+  ]
+}

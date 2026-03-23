@@ -1,0 +1,589 @@
+=====================================================
+EMOSIGN v3.0 - COMPLETE README
+=====================================================
+Read this before using the app!
+=====================================================
+
+
+=====================================================
+WHAT IS THIS APP?
+=====================================================
+
+A Python application that watches your hands through 
+your webcam and translates sign language into text.
+
+Works with:
+- Live webcam feed
+- Uploaded video files
+- Supports American Sign Language (ASL)
+- Now with voice output, themes, Features guide, and smart quiz scheduling!
+
+
+=====================================================
+⚠️ BEFORE YOU START - INSTALL THESE FIRST! ⚠️
+=====================================================
+
+STEP 1: Make sure you have Python installed
+-----------------------------------------
+You need Python 3.8 or higher.
+Check by typing in terminal: python --version
+
+If not installed, download from: https://python.org
+
+
+STEP 2: Install all required packages
+------------------------------------
+Open terminal/command prompt in the project folder and run:
+
+    pip install -r requirements.txt
+
+This will install:
+- PySide6 (for the app windows and buttons)
+- opencv-python (for camera and image processing)
+- mediapipe (for hand tracking)
+- scikit-learn (for machine learning - legacy RandomForest)
+- numpy (for math calculations)
+- pyttsx3 (for voice/speech output)
+- pyperclip (for copy/paste)
+- reportlab (for PDF export)
+- tensorflow (for Keras MLP + LSTM neural network classifiers)
+
+⚠️  NOTE: requirements.txt still lists 'torch' (PyTorch) from an older version.
+    The app no longer uses PyTorch. Install tensorflow instead:
+        pip install tensorflow
+    PyTorch is NOT needed to run the app.
+
+
+STEP 3: Download MediaPipe models (if missing)
+---------------------------------------------
+The app needs these files in the "models/" folder:
+- hand_landmarker.task
+- face_landmarker.task
+
+If missing, download from:
+https://storage.googleapis.com/mediapipe-models/
+
+
+STEP 4: Run the app!
+-------------------
+    python main.py
+
+
+=====================================================
+QUICK INSTALL (COPY-PASTE THIS)
+=====================================================
+
+For Windows:
+    pip install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab tensorflow
+
+For Mac/Linux:
+    pip3 install PySide6 opencv-python mediapipe scikit-learn numpy pyttsx3 pyperclip reportlab tensorflow
+
+
+=====================================================
+CORE FEATURES
+=====================================================
+
+hand tracking & recognition:
+- tracks your hands in real-time (uses mediapipe)
+- now supports TWO-HAND gestures (for signs that need both hands)
+- tells you what letter you're signing (uses Keras MLP/LSTM models)
+- DUAL NEURAL NETWORK system: Keras MLP for static, Keras LSTM for dynamic
+- auto-normalizes landmarks (63 features) for high accuracy across users
+- auto-detects whether hand is moving or still and picks the right model
+- reads your face too and tells you if you look happy, sad, angry etc
+- hybrid mode: recognizes both letters AND dynamic gestures at the same time
+
+video file support:
+- supports mp4, avi, mov, mkv, webm
+- tracks hands properly now (no jittery mess) because we used video mode
+- lower thresholds for videos so it catches blurry hands better
+- has fallback geometry detection if the ML model gets confused
+
+translation engine:
+- translates sentences: type out full sentences by signing letter by letter
+- three modes: instant (each letter), word (builds words), sentence (builds sentences)
+- auto-translate when you pause signing
+- saves your history so you can see what you said later
+
+
+=====================================================
+KEY FEATURES
+=====================================================
+
+✨ SENTENCE-LEVEL TRANSLATION - Sign full phrases mapped to English
+⏱️ INTELLIGENT BUFFERING - Temporal gesture accumulation with deduplication
+🎯 PREDEFINED MAPPINGS - 50+ common sentences (greetings, questions, etc.)
+📝 FINGERSPELLING FALLBACK - Spells out letters when no pattern matches
+🔊 VOICE OUTPUT - App can speak your translations out loud
+📤 EXPORT - Save translations as PDF, text, subtitles, etc.
+📊 ACHIEVEMENTS - Earn badges as you practice
+🎓 TUTORIAL - Learn sign language with lessons
+📖 LIBRARY - Search any sign in the dictionary
+💬 CONVERSATION - Two-way chat mode
+🎨 THEMES - Light and dark mode
+⚙️ SETTINGS - Unified account + appearance controls
+✨ FEATURES TAB - In-app guide for all major features and usage tips
+🧠 PRACTICE SCHEDULER - Spaced repetition in Quiz mode (due/weak sign prioritization)
+
+
+=====================================================
+EVERY FILE EXPLAINED (WHAT EACH .PY FILE DOES)
+=====================================================
+
+MAIN FILES
+----------
+main.py
+    The starting point. Run this to open the app.
+
+config.py
+    All settings in one place - camera ID, voice speed, colors, model paths, etc.
+
+train_model.py
+    Trains the legacy sklearn RandomForest model.
+
+ml/keras_trainer.py
+    Main trainer for Keras MLP/LSTM models. Uses LandmarkNormalizer.
+    Can be run directly or called from the Training Page UI.
+
+
+BACKEND FOLDER (backend/)
+-------------------------
+backend/__init__.py
+    Just marks this as a Python package. Does nothing else.
+
+backend/services/db.py
+    Handles the database - saves users, login info, and translation history.
+
+
+CORE FOLDER (core/) - The Brain
+-------------------------------
+core/__init__.py
+    Just marks this as a Python package.
+
+core/interpretation_engine.py
+    MAIN: The new orchestrator engine that coordinates sentence-level translation.
+    - Handles gesture detection, temporal buffering, and sentence mapping
+    - Supports multiple modes: LIVE_CAMERA, VIDEO_FILE, TEXT_TO_SIGN
+    - Provides callbacks for UI integration and partial match hints
+
+core/simple_engine.py
+    Lightweight real-time translation engine used by live_translation_page.
+    Handles letter-by-letter, word, and sentence accumulation modes.
+    Supports undo_last() for Space/Delete undo.
+
+core/gesture_dictionary.py
+    Central dictionary of all gestures and predefined sentence mappings.
+    - 26 letters (A-Z) + 10 numbers (0-9) for fingerspelling
+    - 30+ word-level gestures (HELLO, GOODBYE, YES, NO, THANK_YOU, etc.)
+    - 50+ predefined sentence mappings (greeting, response, question, etc.)
+    - Maps gesture sequences to English sentences
+
+core/sequence_buffer.py
+    Temporal gesture accumulation with noise filtering and deduplication.
+    - 5-frame stability threshold for gesture confirmation
+    - Automatically detects gesture boundaries
+    - 2.5s inactivity timeout for automatic translation
+    - Prevents duplicate gestures from being added consecutively
+
+core/temporal_aggregator.py
+    Frame-level aggregation and majority voting for gesture stability.
+    15-frame window, 3-frame stability threshold.
+
+core/sentence_mapper.py
+    Maps accumulated gesture sequences to English sentences.
+    - Matches sequences to predefined sentence patterns
+    - Falls back to fingerspelling when no pattern matches
+    - Bidirectional: Also includes TextToSignMapper for reverse translation
+
+core/sentence_constructor.py
+    Builds natural-language sentences from recognized gesture words.
+    Handles grammar-level assembly (articles, punctuation, etc.).
+
+core/sign_visualizer.py
+    Generates text-to-sign visualizations with step-by-step instructions.
+    - Creates SignVisualization objects with gesture steps
+    - Returns gesture names and descriptions for each step
+
+core/text_to_sign.py
+    Full text-to-sign conversion engine.
+    Maps English text to sign gesture sequences for playback.
+
+core/sign_vocabulary.py
+    Comprehensive vocabulary of known sign gestures and their properties.
+
+core/pipeline.py
+    Legacy pipeline controller (maintained for compatibility).
+    - Connects camera → detection → translation
+
+core/gesture_sequence.py
+    Stores information about each gesture (what sign, how confident, when).
+
+core/voice_output.py
+    Makes the computer speak the translations out loud.
+    Uses pyttsx3 (offline). Rate: 150 wpm, Volume: 0.8.
+
+core/export_manager.py
+    Saves translations to files (PDF, text, subtitles, etc.).
+    PDF via ReportLab. Exports go to exports/ folder.
+
+core/autocorrect.py
+    Spell correction for fingerspelled text output.
+    Min correction confidence: 0.6.
+
+core/language_support.py
+    Multi-language support module.
+    Supports: ASL, BSL, ISL, LSF, DGS, AUSLAN.
+
+core/analytics.py
+    Tracks how much you use the app and gives achievement badges.
+    Tracks streaks, daily use, night_owl / early_bird hours.
+
+core/practice_scheduler.py
+    Spaced-repetition scheduler for Quiz mode.
+    - Stores per-item review state
+    - Prioritizes due and weak items
+    - Updates next due date after each attempt
+
+
+DETECTOR FOLDER (detector/) - The Eyes
+--------------------------------------
+detector/__init__.py
+    Just marks this as a Python package.
+
+detector/camera.py
+    Opens your webcam and gets video frames.
+
+detector/hand_tracker.py
+    Finds hands in the video and marks 21 points on each hand.
+
+detector/face_detector.py
+    Finds your face and detects emotions (happy, sad, etc.).
+
+detector/features.py
+    Calculates finger angles, distances, and other measurements.
+    Outputs 63 coordinate features + 24 derived geometry features (87 total).
+
+detector/landmark_normalizer.py
+    Normalizes 21 hand landmarks to wrist-centric, palm-scaled space.
+    Outputs 63 features (21 landmarks × 3 coords) used by Keras models.
+
+detector/dynamic_gestures.py
+    Detects moving gestures like waving.
+    Tracks fingertip (landmark[8]) trajectory for J/Z detection.
+
+detector/video_source.py
+    Handles uploaded video files instead of live camera.
+    Supports: .mp4 .avi .mov .mkv .webm .flv .wmv
+
+
+ML FOLDER (ml/) - The Learning
+------------------------------
+ml/__init__.py
+    Just marks this as a Python package.
+
+ml/classifier.py
+    Legacy brain - Random Forest model that recognizes signs.
+
+ml/keras_static_classifier.py
+    Keras MLP classifier for static letters (A-Z).
+    Uses 63 normalized landmark coordinates.
+    Architecture: Input(63)→128→128→Dropout→Softmax.
+    Saved as .keras model. Best accuracy: ~99%.
+
+ml/keras_dynamic_classifier.py
+    Keras LSTM classifier for motion gestures (J, Z).
+    Processes sequences of 30 frames (30×63 features).
+    Architecture: 2xLSTM(64)→Dense→Softmax.
+    Saved as .keras model. Best accuracy: ~98%.
+
+ml/gesture_pipeline.py
+    Unified detection orchestrator. Replaced DualModelManager.
+    Handles movement detection, model routing, and majority-vote smoothing.
+    Features: 5-frame smoothing, 0.75 confidence threshold, heuristic fallback.
+
+ml/dual_model_manager.py
+    (Legacy) Previous dual-model manager, replaced by gesture_pipeline.py.
+    Kept for backward compatibility.
+
+ml/static_classifier.py
+    (Legacy) PyTorch-based static gesture classifier, replaced by Keras MLP.
+
+ml/dynamic_classifier.py
+    (Legacy) PyTorch-based dynamic gesture classifier, replaced by Keras LSTM.
+
+ml/keras_trainer.py
+    Comprehensive trainer module for both Keras models.
+    Supports training from normalized data or raw landmarks.
+
+ml/trainer.py
+    Legacy trainer for sklearn RandomForest model.
+
+ml/heuristic_classifier.py
+    Backup detector using simple rules (if finger up = this letter).
+
+ml/data_collector.py
+    Collects hand data for training new gestures.
+
+ml/gesture_accumulator.py
+    Combines multiple frames into one stable gesture.
+
+ml/personalized_trainer.py
+    Trains the model specifically for YOUR hand shapes.
+
+
+UI FOLDER (ui/) - What You See
+------------------------------
+ui/__init__.py
+    Just marks this as a Python package.
+
+ui/main_window.py
+    The main app window with sidebar navigation.
+
+ui/camera_widget.py
+    Shows the camera feed in the app.
+    Trajectory overlay uses fingertip_buffer for J/Z visual path.
+
+ui/video_player_widget.py
+    Plays uploaded video files with QTimer frame loop.
+
+ui/control_panel.py
+    The start/stop/clear buttons.
+
+ui/prediction_panel.py
+    Shows what letter/sign was detected.
+
+ui/sign_visualizer.py
+    Animates sign instructions when translating text-to-sign.
+
+ui/hand_widget.py
+    Renders a visual hand skeleton overlay on the camera feed.
+
+ui/page_header.py
+    Reusable page title/header component used across all pages.
+
+ui/styles.py
+    Colors, themes, and visual styling for the whole app.
+    Dark/light themes + accent color customization via QSS.
+
+
+UI PAGES FOLDER (ui/pages/) - Different Screens
+-----------------------------------------------
+ui/pages/__init__.py
+    Just marks this as a Python package.
+
+ui/pages/login_page.py
+    The login and signup screen.
+
+ui/pages/dashboard_page.py
+    Home page showing your stats and quick actions.
+    Shows clean display name (not raw email).
+
+ui/pages/live_page.py
+    Basic live camera translation.
+
+ui/pages/live_translation_page.py
+    Advanced live translation with auto-detection and minimal emotion badge.
+    Space/Delete undo fully implemented with _committed_text state.
+    Calls pipeline.stop() when Stop & Translate is pressed.
+
+ui/pages/history_page.py
+    Shows all your past translations.
+    Empty state widget handles no-results properly.
+
+ui/pages/admin_page.py
+    Admin controls for managing users (admin only).
+
+ui/pages/conversation_page.py
+    Two-way chat - sign to text AND text to sign.
+    Uses QTimer for sign panel animation (single timer, no memory leak).
+
+ui/pages/tutorial_page.py
+    Interactive lessons to learn sign language.
+    Largest file (126 KB). Auto-starts camera in all lesson sections.
+
+ui/pages/gesture_library_page.py
+    Searchable dictionary of all signs.
+
+ui/pages/quiz_mode_page.py
+    Spaced-repetition quiz mode. Shows signs and tests recognition.
+    Driven by practice_scheduler.py for due/weak sign prioritization.
+
+ui/pages/study_mode_page.py
+    Study signs at your own pace with camera feedback.
+
+ui/pages/game_page.py
+    Gamified sign practice mode.
+    Connected to nn_gesture_detected signal (Keras MLP/LSTM drives game).
+
+ui/pages/training_page.py
+    Collect training data and retrain models from within the app.
+    Uses _on_features callback for sample collection.
+
+ui/pages/profile_page.py
+    Profile page with account details and avatar.
+
+ui/pages/settings_page.py
+    Unified Settings page: account + appearance.
+    - User/account actions (password, export, help, sign out)
+    - Theme and accent customization
+
+ui/pages/features_page.py
+    In-app feature guide.
+    Explains what each mode does and how to use it.
+
+ui/pages/analytics_page.py
+    Your statistics, streaks, and achievement badges.
+
+
+OTHER FOLDERS
+-------------
+models/
+    Contains pre-trained AI models for hand and face detection.
+
+data/
+    Training data files (CSV) used to teach the model.
+
+assets/
+    Images and icons used in the app.
+
+temp_images/
+    Temporary storage for captured images.
+
+__pycache__/
+    Auto-generated Python cache files. Ignore these.
+
+
+=====================================================
+HOW TO USE THE APP
+=====================================================
+
+1. Run: python main.py
+
+2. Login or create a new account
+
+3. Go to "Live Translation" from the sidebar
+
+4. Allow camera access when prompted
+
+5. Start signing! The app will show what you're signing.
+
+6. Live Translation auto-detects letters/words/sentences for you.
+    - No manual mode switching required.
+
+7. Use "Stop & Translate" button to get final translation
+
+8. Check your history, earn achievements, and have fun!
+
+
+=====================================================
+TROUBLESHOOTING
+=====================================================
+
+"Camera not found"
+→ Check if another app is using your camera
+→ Try changing CAMERA_ID in config.py (0, 1, or 2)
+
+"Module not found" error
+→ Run: pip install -r requirements.txt
+
+"Hand not detected"
+→ Make sure your hand is well-lit
+→ Keep your hand within camera view
+→ Try adjusting confidence in Settings
+
+"Voice not working"
+→ Check if pyttsx3 is installed
+→ Try: pip install pyttsx3
+
+App crashes on start
+→ Make sure all dependencies are installed
+→ Check if models/ folder has the required files
+
+
+=====================================================
+KEYBOARD SHORTCUTS
+=====================================================
+
+Space ............. Start/Stop camera
+Escape ............ Close dialogs
+Ctrl+C ............ Copy translation
+Ctrl+E ............ Export translation
+Ctrl+S ............ Open settings
+
+
+=====================================================
+DEV NOTES
+=====================================================
+
+architecture changes (v3.1):
+- complete redesign of interpretation engine with modular components
+- new core modules: gesture_dictionary, sequence_buffer, sentence_mapper, interpretation_engine, sign_visualizer
+- uses constrained vocabulary approach (50+ predefined sentences + fingerspelling fallback)
+- gesture sequences mapped to English sentences (e.g., HELLO + YOU + HOW → "Hello, how are you?")
+- temporal aggregation with 5-frame stability and 2.5s inactivity timeout
+- explicit scope acknowledgment: NOT full ASL grammar, uses English word order
+- maintains backward compatibility with legacy pipeline
+
+architecture changes (v3.5 - Bug Fix Pass, Feb 2026):
+- analytics.py: fixed _load_stats TypeError crash when stats schema changes (unknown fields now filtered safely)
+- analytics.py: fixed night_owl (0-4 AM) and early_bird (4-6 AM) hour ranges overlapping
+- history_page.py: fixed empty_state widget disappearing after first history load (removeWidget + indexOf fix)
+- history_page.py: fixed _show_empty_state(message) silently doing nothing (now updates empty_desc label)
+- history_page.py: moved 3x inline 'import asyncio' to module-level
+- dashboard_page.py: fixed greeting showing full email address instead of clean display name
+- gesture_pipeline.py: fixed DEBUG_MOVEMENT = True left on in production (was spamming console every 10 frames)
+- gesture_pipeline.py: fixed _on_hand_lost() discarding the LSTM prediction instead of using it
+- gesture_pipeline.py: fixed stale landmark buffer contaminating the next gesture's LSTM run (added clear())
+- dynamic_gestures.py: fixed J/Z detection using palm-center trajectory instead of index fingertip (landmark[8])
+  * added fingertip_buffer tracking landmark[8] alongside position_buffer
+  * added _get_fingertip_trajectory() method; J/Z matchers now call it
+- dynamic_gestures.py: fixed hard-coded 60-frame timeout being framerate-dependent (now uses self.buffer_size)
+- simple_engine.py: added missing undo_last() method for Space/Delete undo support
+- live_translation_page.py: Space and Delete buttons were pass no-ops; now fully implemented with _committed_text state
+- live_translation_page.py: added pipeline.stop() call in _stop_and_translate (camera kept running after translate)
+- live_translation_page.py: removed dead _ml_handled_frame flag that was never read
+- conversation_page.py: fixed QTimer memory leak in sign panel animation (was creating new QTimer() every letter)
+- camera_widget.py: moved 'from collections import Counter' out of hot _update_frame path to module-level
+- camera_widget.py: fixed trajectory overlay using palm-center path for J/Z visual (now uses fingertip_buffer)
+- game_page.py: connected nn_gesture_detected signal so Keras MLP/LSTM predictions drive the game correctly
+  * added _on_nn_gesture handler; game previously only used legacy PyTorch features_ready path
+- training_page.py: removed dead _capture_timer and _capture_sample: pass callback
+  * sample collection is correctly handled by _on_features; the 100ms timer did nothing
+- migrated from PyTorch to TensorFlow/Keras for better production stability
+- implemented LandmarkNormalizer (63 coord features: wrist-centric + palm-scaled)
+- new modules: keras_static_classifier, keras_dynamic_classifier, gesture_pipeline
+- upgraded sequence buffer with majority-vote smoothing (5 frames)
+- added keras_trainer with Training Page integration for J/Z motion clips
+- enhanced Tutorial Page: larger camera, auto-start, camera in all sections
+
+architecture changes (v3.6 - UX + Stability Pass, Mar 2026):
+- sidebar/nav: merged Profile + Appearance into one Settings tab
+- sidebar/nav: added Features tab with in-app tutorial-style app guide
+- settings_page.py: removed Notifications action from Settings account row
+- profile_page.py: removed help contact email/GitHub lines from Help dialog
+- live_translation_page.py: emotion display redesigned into readable, non-blinking badge
+- camera_widget.py: disabled large in-frame emotion text overlay for cleaner live UI
+- gesture_pipeline.py (ZJDetector): tightened movement gating to reduce false Z/J triggers
+    * higher motion thresholds + minimum span checks for Z (x-span) and J (y-span)
+
+interpreter design patterns:
+- SignLanguageEngine: Main orchestrator with callback system
+- TemporalSequenceBuffer: Handles gesture accumulation and deduplication
+- SentenceMapper: Pattern matching with fallback to fingerspelling
+- GestureDictionary: Centralized storage of gestures and sentence mappings
+- SignVisualizer: Text-to-sign visualization engine
+
+dual neural network design (Keras):
+- Static MLP: 3-layer Dense (128→128→Softmax) with Dropout
+- Dynamic LSTM: 2-layer LSTM (64 units) → Softmax
+- GesturePipeline: Movement-aware router with temporal smoothing
+  * computes wrist displacement each frame
+  * displacement < 0.012 -> Static MLP
+  * displacement >= 0.012 -> Buffer 30 frames → LSTM
+  * performs 5-frame majority vote on predictions
+  * 0.75 confidence threshold for accepting signs
+- Models saved as: keras_static_mlp.keras, keras_dynamic_lstm.keras
+
+
+Built with anger by nagaraaj

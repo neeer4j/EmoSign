@@ -1,0 +1,465 @@
+=====================================================
+EMOSIGN - HOW THE APP WORKS
+=====================================================
+Version 3.0 | Simple Explanation for Everyone
+=====================================================
+
+
+WHAT IS THIS APP?
+-----------------
+This app watches your hands through your webcam and 
+understands what you're saying in sign language.
+
+Think of it like Google Translate, but instead of 
+typing words, you show hand signs and it tells you 
+what those signs mean in English!
+
+
+=====================================================
+HOW DOES IT WORK? (THE SIMPLE VERSION)
+=====================================================
+
+Imagine the app as a smart friend who:
+
+1. WATCHES your hands through the camera
+2. RECOGNIZES what sign you're making
+3. TRANSLATES it into words
+4. SPEAKS it out loud (optional)
+
+That's it! Let's break it down step by step:
+
+
+STEP 1: SEEING YOUR HANDS
+-------------------------
+When you turn on your camera, the app:
+- Takes pictures really fast (30 times per second!)
+- Finds where your hands are in the picture
+- Marks 21 special points on each hand (fingertips, knuckles, palm, etc.)
+
+It's like the app is playing "connect the dots" on your hand.
+
+
+STEP 2: UNDERSTANDING THE SIGN
+------------------------------
+Once it knows where your hand points are, it uses THREE systems:
+
+A) HEURISTIC CLASSIFIER (rule-based, always runs):
+   - Measures the angles between your fingers
+   - Checks if fingers are up or down
+   - Uses geometric rules to identify letters A-Z and numbers 0-9
+
+B) KERAS STATIC MLP (neural network, for still hands):
+   - If the hand is NOT MOVING, uses a multi-layer perceptron (MLP)
+   - Uses 63 normalized coordinate features (wrist-relative + palm-scaled)
+   - Normalized by LandmarkNormalizer for high user-independence
+   - Architecture: Input(63)→128→128→Dropout→Softmax (26 classes)
+   - ~1ms per frame, trained at ~99% accuracy
+
+C) KERAS DYNAMIC LSTM (neural network, for moving hands):
+   - If the hand IS MOVING for 5+ frames, switches to LSTM mode
+   - Buffers 30 consecutive frames of 63-dimensional feature vectors
+   - 2-layer LSTM (64 units) processes the temporal sequence
+   - Handles J, Z, and other motion-based signs
+   - Integrated with Training Page for easy user recording of clips
+
+The GesturePipeline automatically decides which model to use based on
+hand displacement between frames. It also applies majority-vote smoothing.
+
+Example: If your index finger is up and others are down = Letter "D"
+
+
+STEP 3: MAKING SURE IT'S CORRECT
+--------------------------------
+The app doesn't just guess once - it checks many times!
+- It accumulates gestures over multiple frames
+- Uses temporal buffering with 5-frame stability threshold
+- Filters out duplicate gestures automatically
+- Waits for 2.5 seconds of inactivity before finalizing
+
+Think of it like quality control: each gesture must be stable!
+
+
+STEP 4: BUILDING SENTENCES
+---------------------------
+As you keep signing, the engine:
+- Maps gesture sequences to predefined English sentences
+- Recognizes 50+ common phrases (greetings, questions, responses)
+- Examples:
+  * HELLO + YOU + HOW → "Hello, how are you?"
+  * YES + THANK_YOU → "Yes, thank you"
+  * HELP + ME → "Help me"
+- Falls back to fingerspelling for unknown sequences
+
+Like a smart dictionary that learns common patterns!
+
+
+STEP 5: OUTPUT (TEXT, VOICE, OR BOTH)
+-------------------------------------
+Once the app understands what you signed:
+- Shows the text on screen
+- Can speak it out loud
+- Saves it to history
+- Can export to files
+- Can generate step-by-step signing instructions
+
+
+=====================================================
+THE MAIN PARTS OF THE APP
+=====================================================
+
+Think of the app like a restaurant:
+
+📷 CAMERA/INPUT = The waiter taking your order
+   (Gets what you're showing)
+
+🧠 BRAIN/ML = The chef
+   (Three systems: heuristic rules + static FFN + dynamic LSTM)
+
+📝 TRANSLATOR = The menu
+   (Knows what each sign means in English)
+
+🔊 VOICE = The speaker system
+   (Announces your order out loud)
+
+💾 DATABASE = The receipts
+   (Saves everything for later)
+
+🎨 INTERFACE = The dining room
+   (Where you see everything nicely)
+
+
+=====================================================
+APP FLOW - WHAT HAPPENS WHEN YOU USE IT
+=====================================================
+
+When you open the app:
+
+    ┌─────────────────┐
+    │  1. LOGIN       │ ← You sign in or create account
+    └────────┬────────┘
+             ↓
+    ┌─────────────────┐
+    │  2. DASHBOARD   │ ← Home page with your stats
+    └────────┬────────┘
+             ↓
+    ┌─────────────────┐
+    │  3. CHOOSE MODE │ ← Pick what you want to do
+    └────────┬────────┘
+             ↓
+   ┌────────┴────────┬─────────────┬──────────────┬────────────┐
+   ↓                 ↓             ↓              ↓            ↓
+┌────────┐      ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌──────────┐
+│ LIVE   │      │ TUTORIAL │  │ QUIZ/    │  │ SETTINGS  │  │ FEATURES │
+│ CAMERA │      │ LEARN    │  │ STUDY    │  │ ACCOUNT+UI│  │ GUIDE    │
+└────────┘      └──────────┘  └──────────┘  └───────────┘  └──────────┘
+
+
+When you use LIVE CAMERA mode:
+
+    ┌─────────────────────────────────────────────────┐
+    │                                                 │
+    │   [CAMERA SHOWS YOUR HANDS]                     │
+    │                                                 │
+    │   The app sees: 👋                              │
+    │                                                 │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   Hand points detected:                         │
+    │   • 21 landmarks on each hand                   │
+    │   • Finger positions calculated                 │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   ML Brain thinks:                              │
+    │   Heuristic: "Looks like H... 85% sure!"        │
+    │   Keras MLP: "H with 92% confidence" (still)    │
+    │   Keras LSTM: (inactive - hand not moving)      │
+    │   (PENDING state - needs confirmation)          │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   Stability checking:                           │
+    │   5+ frames agree it's "H" = CONFIRMED!         │
+    │   (Prevents jittery false positives)            │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   Sequence buffering:                           │
+    │   [H] [E] [L] [L] [O]                           │
+    │   (Deduplicates repeated gestures automatically) │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   Sentence mapping:                             │
+    │   Trying to match pattern...                    │
+    │   "HELLO YOU HOW" → "Hello, how are you?"       │
+    └─────────────────────────────────────────────────┘
+                        ↓
+    ┌─────────────────────────────────────────────────┐
+    │   TRANSLATION COMPLETE:                         │
+    │   "Hello, how are you?"                         │
+    │   🔊 "Hello, how are you?" (spoken if enabled)  │
+    │   💾 Saved to history                           │
+    └─────────────────────────────────────────────────┘
+
+
+=====================================================
+THREE TRANSLATION MODES
+=====================================================
+
+1. INSTANT MODE ⚡
+   - Shows each gesture right away
+   - Good for: Testing, practicing letters
+   - Example: [Shows each letter as you sign]
+
+2. PARTIAL MATCHING 📖
+   - Shows hints for partial matches
+   - Good for: Learning predefined phrases
+   - Example: "HELLO + YOU" → "Possible: Hello, how are you?"
+
+3. SENTENCE MODE 📝 (Default)
+   - Builds complete sentences or phrases
+   - Auto-translates after 2.5s inactivity
+   - Good for: Real conversations
+   - Example: HELLO + YOU + HOW → "Hello, how are you?"
+
+
+=====================================================
+SPECIAL FEATURES EXPLAINED
+=====================================================
+
+🔊 VOICE OUTPUT
+   What: The app can speak your translations
+   How: Uses your computer's voice to read text aloud
+   Why: Helps deaf-hearing communication
+
+🌍 MULTI-LANGUAGE
+   What: Supports different sign languages
+   How: Switch between ASL, BSL, ISL, and more
+   Why: Different countries use different signs
+
+✨ AUTOCORRECT
+   What: Fixes common spelling mistakes
+   How: "HELO" → "HELLO" automatically
+   Why: Similar hand shapes can be confused
+
+📤 EXPORT
+   What: Save your translations as files
+   How: PDF, text file, subtitles, and more
+   Why: Keep records or share with others
+
+📊 ACHIEVEMENTS
+   What: Badges you earn for practicing
+   How: Complete challenges like "Sign 100 words"
+   Why: Makes learning fun!
+
+🧠 PRACTICE SCHEDULER (SPACED REPETITION)
+   What: Smart review planner for quiz practice
+   How: Tracks each item performance and sets due dates
+   Why: Weak signs come back sooner, mastered signs less often
+
+🎓 TUTORIAL
+   What: Lessons to learn sign language
+   How: Step-by-step guides with pictures
+   Why: Learn while using the app
+
+📖 LIBRARY
+   What: Dictionary of all signs
+   How: Search any letter, word, or phrase
+   Why: Quick reference when you forget a sign
+
+💬 CONVERSATION MODE
+   What: Chat back and forth
+   How: You sign → App translates → Other person types → App shows signs
+   Why: Two-way communication!
+
+
+=====================================================
+THE FOLDER STRUCTURE (SIMPLIFIED)
+=====================================================
+
+signlanguage/
+│
+├── main.py ............... START HERE (opens the app)
+├── config.py ............. Settings (camera, voice, etc.)
+├── requirements.txt ...... What to install
+│
+├── core/ ................. The brain of the app
+│   ├── interpretation_engine.py .... Main orchestrator
+│   ├── gesture_dictionary.py ....... Gesture definitions & sentence mappings
+│   ├── sequence_buffer.py ......... Temporal gesture accumulation
+│   ├── sentence_mapper.py ......... Gesture → sentence translation
+│   ├── sign_visualizer.py ......... Text → sign visualization
+│   ├── pipeline.py ............... Legacy pipeline (compatibility)
+│   ├── voice_output.py ........... Voice synthesis
+│   ├── analytics.py .............. Progress tracking
+│   └── practice_scheduler.py ..... Spaced-repetition review scheduling
+│
+├── detector/ ............. The eyes of the app
+│   ├── camera.py ......... Uses your webcam
+│   └── hand_tracker.py ... Finds your hands
+│
+├── ml/ ................... The learning part
+│   ├── keras_static_classifier.py  Static MLP (still gestures)
+│   ├── keras_dynamic_classifier.py Dynamic LSTM (motion gestures)
+│   ├── gesture_pipeline.py  Smart model router & orchestrator
+│   ├── keras_trainer.py ... Trainer for Keras models
+│   └── heuristic_classifier.py Rule-based backup
+│
+├── ui/ ................... What you see on screen
+│   ├── main_window.py .... The main app window
+│   └── pages/ ............ Different screens
+│
+├── backend/ .............. Saves your data
+│   └── db.py ............. Your account & history
+│
+└── models/ ............... Pre-trained knowledge
+    ├── hand_landmarker.task .. Knows how hands look
+    ├── keras_static_mlp.keras . Static MLP weights
+    ├── keras_static_labels.pkl . Static MLP labels
+    ├── keras_dynamic_lstm.keras Dynamic LSTM weights
+    └── keras_dynamic_labels.pkl Dynamic LSTM labels
+
+
+=====================================================
+BUG FIXES & IMPROVEMENTS (v3.5, Feb 2026)
+=====================================================
+
+GESTURE DETECTION
+-----------------
+• J/Z gestures now correctly track index fingertip (landmark[8]) instead of
+  palm-center. Added fingertip_buffer + _get_fingertip_trajectory() in
+  dynamic_gestures.py. Visual overlay in camera_widget.py updated to match.
+  Result: J and Z tracing accuracy significantly improved.
+
+• GesturePipeline: DEBUG_MOVEMENT was True in production code, spamming the
+  console every 10 frames. Fixed to False.
+
+• GesturePipeline._on_hand_lost(): was discarding the LSTM's final prediction
+  when the hand left frame. Now correctly emits the result.
+
+• GesturePipeline: stale frames from the previous gesture's buffer were leaking
+  into the next LSTM run. Added landmark_buffer.clear() when motion stops.
+
+• Dynamic gesture timeout was hardcoded at 60 frames (framerate-dependent).
+  Now uses self.buffer_size for framerate-independence.
+
+LIVE TRANSLATION UI
+-------------------
+• Space and Delete buttons were stub no-ops (just `pass`). Both are now fully
+  implemented using a _committed_text state string + SimpleTranslationEngine.undo_last().
+
+• pipeline.stop() was missing from _stop_and_translate, so the camera kept
+  processing frames after the user pressed Stop & Translate.
+
+• SimpleTranslationEngine gained a new undo_last() method to support the
+  Delete button (pops the last confirmed gesture and resets hold-lock).
+
+GAME PAGE
+---------
+• nn_gesture_detected signal from CameraWidget was never connected in GamePage.
+  Added _on_nn_gesture handler; the game now receives Keras MLP/LSTM predictions
+  in addition to the legacy PyTorch features_ready path.
+
+TRAINING PAGE
+-------------
+• _capture_timer fired a _capture_sample() callback every 100ms that was
+  just `pass`. Removed the dead timer entirely — sample collection is correctly
+  handled by the _on_features signal slot.
+
+CAMERA WIDGET
+-------------
+• `from collections import Counter` was inside _update_frame() and
+  re-imported on every third frame. Moved to module-level import.
+
+ANALYTICS
+---------
+• _load_stats() raised TypeError on schema changes (unexpected keyword args).
+  Now filters to known dataclass fields before unpacking.
+
+• night_owl (0-4 AM) and early_bird (4-6 AM) achievement windows overlapped
+  at hour 0-4. Split into non-overlapping ranges.
+
+HISTORY PAGE
+------------
+• empty_state widget disappeared permanently after the first history load due
+  to removeWidget() not unparenting it. Fixed with removeWidget + indexOf.
+
+• _show_empty_state(message) silently ignored its argument. Now updates the
+  description label correctly.
+
+• `import asyncio` was inlined inside three functions; moved to module-level.
+
+DASHBOARD
+---------
+• Greeting showed the full email address instead of the display name.
+  Now extracts username/display_name/name fields, falling back to the
+  local-part before '@' if only an email is available.
+
+CONVERSATION PAGE
+-----------------
+• Sign panel animation was creating a new QTimer() every letter, leaking
+  orphaned timers that could still fire after the animation finished.
+  Fixed to create _animation_timer once and reuse it.
+
+
+
+Q: Does it work without internet?
+A: Yes! Everything runs on your computer.
+
+Q: What camera do I need?
+A: Any webcam works. Built-in laptop cameras are fine.
+
+Q: How accurate is it?
+A: About 85-95% for clear, well-lit signs.
+
+Q: Can I teach it my own signs?
+A: Yes! Use the personalized training feature.
+
+Q: Does it work with videos?
+A: Yes! You can upload video files too.
+
+Q: Which sign languages are supported?
+A: ASL (American), BSL (British), ISL (Indian), 
+   LSF (French), DGS (German), Auslan (Australian)
+
+
+=====================================================
+SUMMARY - HOW EVERYTHING CONNECTS
+=====================================================
+
+    YOU → CAMERA → HAND DETECTION → DUAL NN BRAIN → SEQUENCE BUFFER → SENTENCE MAPPER → OUTPUT
+          (eyes)    (find hands)     (static/LSTM)  (accumulate)      (translate)      (speak/show)
+
+Architecture Flow:
+
+    1. Camera captures hand positions (30 FPS)
+    2. MediaPipe extracts 21 landmarks per hand
+    3. GesturePipeline measures wrist displacement between frames
+    4. LandmarkNormalizer transforms raw landmarks to 63-feature vectors
+    5. Low motion → Keras MLP predicts on single frame
+       High motion → Buffers 30 frames → Keras LSTM predicts on sequence
+    6. Heuristic classifier runs in parallel as fallback
+    7. Majority-vote smoothing over last 5 frames confirms sign
+    8. Deduplication removes repeated gestures
+    9. Sentence mapper matches sequence to predefined phrase
+   10. Falls back to fingerspelling if no match
+   11. Display result + speak + save to history
+
+It's like having a translator friend who:
+1. Watches your hands
+2. Knows if you're holding still or making a motion
+3. Uses the right brain (Static MLP or Motion LSTM) automatically
+4. Normalizes your hand size and position for better accuracy
+5. Understands sign language patterns
+6. Recognizes common phrases (50+ predefined)
+7. Spells out unknown words letter-by-letter
+8. Tells you (or others) what it means in English
+
+Reliable for Keras-based real-time communication! 🎉
+
+
+Built with anger by nagaraaj
+
+

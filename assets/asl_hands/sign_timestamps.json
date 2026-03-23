@@ -1,0 +1,11 @@
+{
+    "video_file": "signatob.mp4",
+    "signs": {
+        "A": {"start": 0, "end": 1},
+        "B": {"start": 1, "end": 4},
+        "C": {"start": 4, "end": 6},
+        "D": {"start": 6, "end": 10},
+        "E": {"start": 10, "end": 12},
+        "F": {"start": 12, "end": 15}
+    }
+}
